@@ -71,14 +71,37 @@ function randomViewport() {
 // Toutes nos sessions tournent sur la même machine réelle : sans ça,
 // navigator.hardwareConcurrency/deviceMemory seraient identiques sur tous
 // les contextes, un signal de plus permettant de relier les sessions entre
-// elles malgré des UA/viewports différents.
+// elles malgré des UA/viewports différents. On ajoute aussi un léger bruit
+// sur le canvas : son empreinte (toDataURL) est autrement parfaitement stable
+// d'une session à l'autre sur la même machine, un signal de fingerprinting
+// classique pour recouper des sessions soi-disant différentes.
 async function randomizeHardwareFingerprint(context) {
   const cores = [4, 8, 12, 16][Math.floor(Math.random() * 4)];
   const memory = [4, 8, 16][Math.floor(Math.random() * 3)];
-  await context.addInitScript(({ cores, memory }) => {
+  const canvasSeed = Math.floor(Math.random() * 1000000);
+  await context.addInitScript(({ cores, memory, canvasSeed }) => {
     Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => cores });
     Object.defineProperty(navigator, 'deviceMemory', { get: () => memory });
-  }, { cores, memory });
+
+    let seed = canvasSeed;
+    function noise() {
+      seed = (seed * 9301 + 49297) % 233280;
+      return (seed / 233280 - 0.5) * 2;
+    }
+
+    const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+    HTMLCanvasElement.prototype.toDataURL = function (...args) {
+      const ctx = this.getContext('2d');
+      if (ctx) {
+        const imageData = ctx.getImageData(0, 0, this.width, this.height);
+        for (let i = 0; i < imageData.data.length; i += 4) {
+          imageData.data[i] = Math.max(0, Math.min(255, imageData.data[i] + noise()));
+        }
+        ctx.putImageData(imageData, 0, 0);
+      }
+      return originalToDataURL.apply(this, args);
+    };
+  }, { cores, memory, canvasSeed });
 }
 
 /** Mélange un tableau (Fisher-Yates) sans modifier l'original. */
@@ -204,6 +227,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
               userAgent: randomUserAgent(),
               viewport: randomViewport(),
               locale: 'fr-FR',
+              timezoneId: 'Europe/Paris',
               extraHTTPHeaders: { referer: randomReferer() }
             });
             await blockHeavyResources(igContext);
@@ -321,6 +345,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
               userAgent: randomUserAgent(),
               viewport: randomViewport(),
               locale: 'fr-FR',
+              timezoneId: 'Europe/Paris',
               extraHTTPHeaders: { referer: randomReferer() }
             });
             await blockHeavyResources(ttContext);
@@ -385,6 +410,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
               userAgent: randomUserAgent(),
               viewport: randomViewport(),
               locale: 'fr-FR',
+              timezoneId: 'Europe/Paris',
               extraHTTPHeaders: { referer: randomReferer() }
             });
             await blockHeavyResources(ytContext);
