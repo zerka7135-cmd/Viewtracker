@@ -36,6 +36,20 @@ function randomUserAgent() {
   return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 }
 
+// Un referer de moteur de recherche est un signal d'arrivée organique,
+// contrairement à une requête sans aucun referer (typique d'un script qui
+// appelle directement une URL).
+const REFERERS = [
+  'https://www.google.com/',
+  'https://www.google.fr/',
+  'https://www.bing.com/',
+  'https://duckduckgo.com/'
+];
+
+function randomReferer() {
+  return REFERERS[Math.floor(Math.random() * REFERERS.length)];
+}
+
 // Le scraping ne lit que du texte/JSON dans le DOM : bloquer images, vidéos,
 // polices et médias évite de gonfler inutilement la mémoire de Chromium
 // (contrainte importante sur le plan Railway à 512 Mo).
@@ -73,6 +87,32 @@ async function warmUp(page, url) {
   if (FAST_MODE) return;
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
   await randomDelay(1000, 2500);
+}
+
+/**
+ * Simule un comportement humain basique (déplacements de souris + scroll
+ * irrégulier) avant de lire les données affichées. Un script qui charge une
+ * page puis lit immédiatement le DOM sans la moindre interaction est un
+ * signal facile à détecter ; ces quelques gestes n'y ressemblent plus tout à
+ * fait.
+ */
+async function simulateHumanBehavior(page) {
+  if (FAST_MODE) return;
+  try {
+    const steps = 2 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < steps; i++) {
+      await page.mouse.move(
+        Math.floor(Math.random() * 1000),
+        Math.floor(Math.random() * 700),
+        { steps: 5 + Math.floor(Math.random() * 10) }
+      );
+      await randomDelay(200, 600);
+    }
+    await page.mouse.wheel(0, 300 + Math.floor(Math.random() * 500));
+    await randomDelay(400, 900);
+  } catch {
+    // Simple confort visuel, une erreur ici ne doit jamais faire échouer le scraping.
+  }
 }
 
 /**
@@ -132,7 +172,8 @@ export async function buildViewsSummary(accounts = config.accounts) {
             const igContext = await browser.newContext({
               userAgent: randomUserAgent(),
               viewport: randomViewport(),
-              locale: 'fr-FR'
+              locale: 'fr-FR',
+              extraHTTPHeaders: { referer: randomReferer() }
             });
             await blockHeavyResources(igContext);
 
@@ -158,6 +199,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
               // avant d'aller directement sur l'onglet Reels.
               await warmUp(page, cleanUrl);
               await page.goto(`${cleanUrl}/reels/`, { waitUntil: 'networkidle', timeout: 30000 });
+              await simulateHumanBehavior(page);
 
               return await page.evaluate(() => {
                 function parseCount(raw) {
@@ -238,12 +280,16 @@ export async function buildViewsSummary(accounts = config.accounts) {
         // --- TIKTOK ---
         else if (url.includes('tiktok.com')) {
           const { total, error } = await scrapeWithRetry('TikTok', async () => {
-            await randomDelay(3000, 8000);
+            // Même délai qu'Instagram : TikTok s'est montré tout aussi
+            // sensible au rythme des requêtes depuis qu'il bloque la grille
+            // de vidéos pour les sessions jugées suspectes.
+            await randomDelay(5000, 15000);
 
             const ttContext = await browser.newContext({
               userAgent: randomUserAgent(),
               viewport: randomViewport(),
-              locale: 'fr-FR'
+              locale: 'fr-FR',
+              extraHTTPHeaders: { referer: randomReferer() }
             });
             await blockHeavyResources(ttContext);
 
@@ -265,10 +311,15 @@ export async function buildViewsSummary(accounts = config.accounts) {
             try {
               const page = await ttContext.newPage();
 
-              // Warm-up : passage par la page d'accueil TikTok avant le profil ciblé.
-              await warmUp(page, 'https://www.tiktok.com/');
+              // Warm-up : passage par une page générique avant le profil ciblé,
+              // variée entre accueil et explore pour ne pas suivre un chemin fixe.
+              const warmUpUrl = Math.random() < 0.5
+                ? 'https://www.tiktok.com/'
+                : 'https://www.tiktok.com/explore';
+              await warmUp(page, warmUpUrl);
               await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
               await page.waitForTimeout(2000);
+              await simulateHumanBehavior(page);
 
               return await page.evaluate(() => {
                 const views = Array.from(document.querySelectorAll('[data-e2e="user-post-item"] strong'));
@@ -300,7 +351,8 @@ export async function buildViewsSummary(accounts = config.accounts) {
             const ytContext = await browser.newContext({
               userAgent: randomUserAgent(),
               viewport: randomViewport(),
-              locale: 'fr-FR'
+              locale: 'fr-FR',
+              extraHTTPHeaders: { referer: randomReferer() }
             });
             await blockHeavyResources(ytContext);
 
@@ -343,6 +395,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
               // (vues) sur les vidéos affichées.
               await page.evaluate(() => window.scrollBy(0, 800));
               await randomDelay(1000, 2000);
+              await simulateHumanBehavior(page);
 
               return await page.evaluate(() => {
                 const spans = Array.from(document.querySelectorAll('span')).filter(s => s.innerText && /vue|views/i.test(s.innerText));
