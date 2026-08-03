@@ -68,6 +68,19 @@ function randomViewport() {
   return { width, height };
 }
 
+// Toutes nos sessions tournent sur la même machine réelle : sans ça,
+// navigator.hardwareConcurrency/deviceMemory seraient identiques sur tous
+// les contextes, un signal de plus permettant de relier les sessions entre
+// elles malgré des UA/viewports différents.
+async function randomizeHardwareFingerprint(context) {
+  const cores = [4, 8, 12, 16][Math.floor(Math.random() * 4)];
+  const memory = [4, 8, 16][Math.floor(Math.random() * 3)];
+  await context.addInitScript(({ cores, memory }) => {
+    Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => cores });
+    Object.defineProperty(navigator, 'deviceMemory', { get: () => memory });
+  }, { cores, memory });
+}
+
 /** Mélange un tableau (Fisher-Yates) sans modifier l'original. */
 function shuffle(array) {
   const result = [...array];
@@ -145,7 +158,14 @@ export async function buildViewsSummary(accounts = config.accounts) {
   const summary = [];
   const browser = await chromium.launch({
     headless: true,
-    args: ['--disable-dev-shm-usage', '--disable-gpu']
+    args: [
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      // Empêche Chromium d'exposer certains indicateurs d'automatisation au
+      // niveau moteur, avant même que le plugin stealth n'ait à les corriger
+      // côté JS (ceinture et bretelles).
+      '--disable-blink-features=AutomationControlled'
+    ]
   });
 
   try {
@@ -153,13 +173,24 @@ export async function buildViewsSummary(accounts = config.accounts) {
     // exactement le même schéma de navigation jour après jour.
     const shuffledAccounts = shuffle(accounts);
 
+    let isFirstAccount = true;
+
     for (const user of shuffledAccounts) {
       let igTotal = 0;
       let ttTotal = 0;
       let ytTotal = 0;
       const errors = []; // Trace des échecs de scraping pour ce compte (visible dans le résumé)
 
-      for (const url of user.urls) {
+      // Pause plus marquée entre deux comptes qu'entre deux requêtes d'un
+      // même compte : un humain qui enchaîne 20 profils sans jamais s'arrêter
+      // ne ressemble à rien de naturel.
+      if (!isFirstAccount) await randomDelay(4000, 12000);
+      isFirstAccount = false;
+
+      // Ordre des plateformes mélangé à chaque compte : IG/TikTok/YouTube ne
+      // sont pas toujours visités dans le même ordre d'un jour ou d'un
+      // compte à l'autre.
+      for (const url of shuffle(user.urls)) {
 
        // --- INSTAGRAM ---
         if (url.includes('instagram.com')) {
@@ -176,6 +207,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
               extraHTTPHeaders: { referer: randomReferer() }
             });
             await blockHeavyResources(igContext);
+            await randomizeHardwareFingerprint(igContext);
 
             try {
               // Sur Railway (pas de volume monté), les cookies sont fournis
@@ -292,6 +324,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
               extraHTTPHeaders: { referer: randomReferer() }
             });
             await blockHeavyResources(ttContext);
+            await randomizeHardwareFingerprint(ttContext);
 
             // Une session connectée est nécessaire depuis que TikTok bloque la
             // grille de vidéos pour les visiteurs anonymes (mur "Comptes
@@ -355,6 +388,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
               extraHTTPHeaders: { referer: randomReferer() }
             });
             await blockHeavyResources(ytContext);
+            await randomizeHardwareFingerprint(ytContext);
 
             try {
               await ytContext.addCookies([
