@@ -1,0 +1,6 @@
+node_modules
+.env
+data
+src/ig-cookies.json
+.git
+.DS_Store
