@@ -3,7 +3,7 @@ import cron from 'node-cron';
 import { config, validateConfig } from './config.js';
 import { buildViewsSummary } from './instagram.js';
 import { buildLeaderboardEmbed } from './embed.js';
-import { saveSummary, loadSummary, acquireLock, releaseLock } from './cache.js';
+import { saveSummary, acquireLock, releaseLock } from './cache.js';
 
 validateConfig();
 
@@ -26,35 +26,6 @@ async function scrapeAndBroadcast(channelId) {
     releaseLock();
   }
 }
-
-// --- Commande manuelle /resume ---
-// Répond avec le dernier résumé sauvegardé par la collecte automatique
-// (cron), au lieu de relancer un scraping complet à chaque appel :
-// réponse instantanée, et pas de risque d'expiration de l'interaction
-// Discord (15 min) si la liste de comptes est longue.
-client.on('interactionCreate', async (interaction) => {
-  console.log(`[interactionCreate] type=${interaction.type} isChatInput=${interaction.isChatInputCommand()} commandName=${interaction.commandName}`);
-  if (!interaction.isChatInputCommand()) return;
-  if (interaction.commandName !== 'views') return;
-
-  try {
-    const cached = loadSummary();
-
-    if (!cached) {
-      await interaction.reply(
-        "Aucune donnée disponible pour l'instant — la première collecte automatique n'a pas encore eu lieu " +
-        `(planifiée : "${config.cronSchedule}", ${config.timezone}). ` +
-        "Pour forcer une collecte immédiate, lance `npm run scan` sur le serveur."
-      );
-      return;
-    }
-
-    const embed = buildLeaderboardEmbed(cached.summary, cached.updatedAt);
-    await interaction.reply({ embeds: [embed] });
-  } catch (error) {
-    console.error('Erreur dans le handler /views :', error);
-  }
-});
 
 client.on('error', (error) => console.error('Erreur client Discord :', error));
 process.on('unhandledRejection', (reason) => console.error('unhandledRejection :', reason));

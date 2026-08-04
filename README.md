@@ -2,8 +2,7 @@
 
 Bot Discord qui scrape les dernières publications (Reels/vidéos) d'une liste
 de comptes sur Instagram, TikTok et YouTube, additionne leurs vues, et
-affiche un classement — automatiquement chaque jour dans un salon Discord,
-et à la demande via la commande `/views`.
+affiche un classement automatiquement chaque jour dans un salon Discord.
 
 ⚠️ **Comment ça marche** : le bot ne passe par aucune API officielle. Il pilote
 un navigateur headless (Playwright, avec plugin stealth) qui charge directement
@@ -111,31 +110,7 @@ Remplissez le fichier `.env` :
   `TIMEZONE` (optionnel, défaut `Europe/Paris`) : réglages de l'envoi
   automatique quotidien.
 
-## 4. Commande à la demande `/views`
-
-`/views` **n'effectue pas de scraping en direct**. Elle affiche instantanément
-le dernier résultat sauvegardé lors de la collecte automatique quotidienne
-(dans `data/last-summary.json`), avec un footer indiquant l'heure de cette
-collecte.
-
-Ce choix est volontaire : avec beaucoup de comptes suivis, un scraping complet
-peut prendre plusieurs minutes, et **le jeton d'interaction Discord expire au
-bout de 15 minutes** — au-delà d'une certaine taille de liste, relancer un
-scraping à chaque appel de `/views` finirait par échouer silencieusement.
-
-Enregistrez la commande auprès de Discord (à faire une seule fois, ou à
-chaque modification de `src/commands.js`) :
-
-```bash
-npm run deploy-commands
-```
-
-- Si `DISCORD_GUILD_ID` est renseigné, la commande apparaît **instantanément**
-  sur ce serveur.
-- Sinon, elle est déployée **globalement** et peut mettre jusqu'à 1h à
-  apparaître.
-
-### Forcer une collecte immédiate
+## 4. Forcer une collecte immédiate
 
 Avant la première exécution du cron, ou pour tester sans attendre l'heure
 planifiée, vous pouvez lancer une collecte manuelle indépendamment de
@@ -146,8 +121,7 @@ npm run scan
 ```
 
 Ça scrape tous les comptes de `ACCOUNTS`, affiche le résultat dans le
-terminal, et le sauvegarde — `/views` reflétera alors immédiatement ce
-résultat.
+terminal, et le sauvegarde dans `data/last-summary.json`.
 
 Pour un test rapide sans attendre les délais volontaires anti-détection
 (3-8 secondes entre chaque requête), utilisez `FAST_MODE=1 npm run scan`.
@@ -160,10 +134,9 @@ alors facilement détectable comme automatisé.
 npm start
 ```
 
-Au démarrage, le bot :
-- écoute la commande `/views` ;
-- planifie l'envoi automatique du résumé dans `DISCORD_CHANNEL_ID` selon
-  `CRON_SCHEDULE`/`TIMEZONE` (log de confirmation dans la console).
+Au démarrage, le bot se connecte à Discord et planifie l'envoi automatique
+du résumé dans `DISCORD_CHANNEL_ID` selon `CRON_SCHEDULE`/`TIMEZONE` (log de
+confirmation dans la console).
 
 ## 6. Déploiement en continu (Railway)
 
@@ -178,9 +151,9 @@ build automatiquement.
    `IG_COOKIES_JSON` (voir section 2) puisque Railway ne fournit pas de
    volume par défaut pour `src/ig-cookies.json`.
 3. **Volume** : montez un volume sur `/app/data` (Settings → Volumes) pour
-   que le cache `data/last-summary.json` (lu par `/views`) survive aux
-   redéploiements. Sans ça, il repart à zéro à chaque déploiement, jusqu'à
-   la prochaine collecte automatique.
+   que le cache `data/last-summary.json` survive aux redéploiements. Sans
+   ça, il repart à zéro à chaque déploiement, jusqu'à la prochaine collecte
+   automatique.
 4. Railway redéploie automatiquement à chaque push sur la branche connectée.
    ⚠️ Ce déclenchement automatique s'est montré peu fiable en pratique (le
    webhook ne se déclenche pas toujours) — en cas de doute après un push,
@@ -214,12 +187,10 @@ faire crasher le container en plein scan.
 ## Notes
 
 - `src/embed.js` centralise la construction du message (`buildLeaderboardEmbed`),
-  utilisée à la fois par `/views` et par l'envoi automatique : toute
-  évolution du format s'applique aux deux.
+  utilisée pour l'envoi automatique quotidien.
 - `data/last-summary.json` contient le dernier résultat de scraping (généré
-  par le cron ou `npm run scan`) — c'est ce fichier que `/views` lit. Il est
-  exclu du dépôt git (`.gitignore`) : pas besoin de le committer, il se
-  régénère à chaque collecte.
+  par le cron ou `npm run scan`). Il est exclu du dépôt git (`.gitignore`) :
+  pas besoin de le committer, il se régénère à chaque collecte.
 - Le nombre de posts pris en compte par compte est actuellement fixé à 5
   dans `src/instagram.js` (les 5 derniers Reels/vidéos par plateforme). Sur
   Instagram, les reels **épinglés** sont ignorés dans ce calcul (ils ne
