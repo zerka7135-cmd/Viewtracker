@@ -380,15 +380,28 @@ export async function buildViewsSummary(accounts = config.accounts) {
               await simulateHumanBehavior(page);
 
               return await page.evaluate(() => {
-                const views = Array.from(document.querySelectorAll('[data-e2e="user-post-item"] strong'));
+                // Les vidéos épinglées portent le texte "Pinned" dans leur bloc
+                // (ex. "486.7K\nPinned") : on les ignore, comme pour Instagram,
+                // pour ne pas fausser la mesure d'activité récente.
+                const items = Array.from(document.querySelectorAll('[data-e2e="user-post-item"]'));
                 let sum = 0;
-                for (const v of views.slice(0, 5)) {
-                  let val = v.innerText.trim().replace(',', '.');
+                let count = 0;
+                for (const item of items) {
+                  if (/pinned/i.test(item.innerText)) continue;
+
+                  const strong = item.querySelector('strong');
+                  if (!strong) continue;
+
+                  let val = strong.innerText.trim().replace(',', '.');
                   let mult = 1;
                   if (/k/i.test(val)) { mult = 1000; val = val.replace(/k/i, ''); }
                   if (/m/i.test(val)) { mult = 1000000; val = val.replace(/m/i, ''); }
                   const parsed = parseFloat(val);
-                  if (!isNaN(parsed)) sum += Math.round(parsed * mult);
+                  if (!isNaN(parsed)) {
+                    sum += Math.round(parsed * mult);
+                    count++;
+                    if (count === 5) break;
+                  }
                 }
                 return sum;
               });
