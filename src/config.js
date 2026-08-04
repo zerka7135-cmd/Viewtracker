@@ -24,6 +24,9 @@ export const config = {
   discordClientId: process.env.DISCORD_CLIENT_ID,
   discordGuildId: process.env.DISCORD_GUILD_ID,
   discordChannelId: process.env.DISCORD_CHANNEL_ID,
+  // Optionnel : si renseigné, les échecs de scraping partent en MP à cet
+  // utilisateur plutôt que dans le salon public (voir index.js).
+  discordOwnerId: process.env.DISCORD_OWNER_ID,
   cronSchedule: process.env.CRON_SCHEDULE || '0 9 * * *',
   timezone: process.env.TIMEZONE || 'Europe/Paris',
   // Liste des comptes à suivre, définie en JSON dans le .env (voir .env.example)

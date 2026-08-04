@@ -2,7 +2,7 @@ import { Client, GatewayIntentBits } from 'discord.js';
 import cron from 'node-cron';
 import { config, validateConfig } from './config.js';
 import { buildViewsSummary } from './instagram.js';
-import { buildLeaderboardEmbed } from './embed.js';
+import { buildLeaderboardEmbed, buildErrorReportEmbed } from './embed.js';
 import { saveSummary, acquireLock, releaseLock } from './cache.js';
 
 validateConfig();
@@ -21,9 +21,27 @@ async function scrapeAndBroadcast(channelId) {
     saveSummary(summary);
     const embed = buildLeaderboardEmbed(summary, new Date());
     await channel.send({ embeds: [embed] });
+    await sendErrorReportToOwner(summary);
     return true;
   } finally {
     releaseLock();
+  }
+}
+
+// Les échecs de scraping ne vont plus dans le salon public : seul le
+// propriétaire du bot les reçoit en MP, pour garder le résumé quotidien
+// propre pour tout le monde d'autre.
+async function sendErrorReportToOwner(summary) {
+  if (!config.discordOwnerId) return;
+
+  const errorEmbed = buildErrorReportEmbed(summary);
+  if (!errorEmbed) return;
+
+  try {
+    const owner = await client.users.fetch(config.discordOwnerId);
+    await owner.send({ embeds: [errorEmbed] });
+  } catch (error) {
+    console.error('Erreur lors de l\'envoi du rapport d\'échecs en MP :', error);
   }
 }
 

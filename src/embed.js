@@ -3,10 +3,10 @@ import { EmbedBuilder } from 'discord.js';
 const medals = ['🥇', '🥈', '🥉'];
 
 /**
- * Construit un embed Discord classé à partir du résumé de vues.
- * Affiche aussi les échecs de scraping (silencieux sinon) sous forme
- * d'un champ dédié, pour ne jamais laisser croire à des stats fiables
- * quand une plateforme n'a pas pu être lue correctement.
+ * Construit un embed Discord classé à partir du résumé de vues, pour le
+ * salon public. Volontairement sans aucun détail d'échec de scraping — ça
+ * part en message privé à part (voir buildErrorReportEmbed) pour garder ce
+ * résumé propre pour tout le monde.
  * @param {Array<{account: string, ig: number, tt: number, yt: number, total: number, errors?: Array<{platform: string, message: string}>}>} summary
  * @param {string|Date|null} updatedAt Horodatage de la collecte (si affiché depuis un cache)
  */
@@ -20,8 +20,7 @@ export function buildLeaderboardEmbed(summary, updatedAt = null) {
         const ig = item.ig.toLocaleString('fr-FR');
         const tt = item.tt.toLocaleString('fr-FR');
         const yt = item.yt.toLocaleString('fr-FR');
-        const warning = item.errors && item.errors.length > 0 ? ' ⚠️' : '';
-        return `${prefix} **${item.account}**${warning}\n${total} vues (IG: ${ig} | TT: ${tt} | YT: ${yt})`;
+        return `${prefix} **${item.account}**\n${total} vues (IG: ${ig} | TT: ${tt} | YT: ${yt})`;
       }).join('\n\n')
     : 'Aucune donnée disponible.';
 
@@ -38,26 +37,34 @@ export function buildLeaderboardEmbed(summary, updatedAt = null) {
     });
   }
 
-  const accountsWithErrors = sorted.filter(item => item.errors && item.errors.length > 0);
-  if (accountsWithErrors.length > 0) {
-    let errorText = accountsWithErrors
-      .map(item => {
-        const details = item.errors.map(e => `${e.platform}: ${e.message}`).join(' · ');
-        return `**${item.account}** — ${details}`;
-      })
-      .join('\n');
+  return embed;
+}
 
-    // Limite Discord : 1024 caractères par valeur de champ
-    if (errorText.length > 1024) {
-      errorText = `${errorText.slice(0, 1000)}…`;
-    }
+/**
+ * Construit l'embed des échecs de scraping, destiné à un message privé à
+ * l'admin plutôt qu'au salon public. Retourne null s'il n'y a rien à
+ * signaler (pas de message envoyé dans ce cas).
+ * @param {Array<{account: string, errors?: Array<{platform: string, message: string}>}>} summary
+ */
+export function buildErrorReportEmbed(summary) {
+  const accountsWithErrors = summary.filter(item => item.errors && item.errors.length > 0);
+  if (accountsWithErrors.length === 0) return null;
 
-    embed.addFields({
-      name: '⚠️ Échecs de scraping détectés',
-      value: errorText
-    });
-    embed.setColor(0xF39C12); // Orange : signale que le résumé contient des données incomplètes
+  let errorText = accountsWithErrors
+    .map(item => {
+      const details = item.errors.map(e => `${e.platform}: ${e.message}`).join(' · ');
+      return `**${item.account}** — ${details}`;
+    })
+    .join('\n');
+
+  // Limite Discord : 4096 caractères pour une description d'embed.
+  if (errorText.length > 4000) {
+    errorText = `${errorText.slice(0, 3960)}…`;
   }
 
-  return embed;
+  return new EmbedBuilder()
+    .setTitle('⚠️ Échecs de scraping détectés')
+    .setDescription(errorText)
+    .setColor(0xF39C12)
+    .setTimestamp();
 }
