@@ -120,8 +120,8 @@ Discord :
 npm run scan
 ```
 
-Ça scrape tous les comptes de `ACCOUNTS`, affiche le résultat dans le
-terminal, et le sauvegarde dans `data/last-summary.json`.
+Ça scrape tous les comptes de `ACCOUNTS` et affiche le résultat dans le
+terminal.
 
 Pour un test rapide sans attendre les délais volontaires anti-détection
 (3-8 secondes entre chaque requête), utilisez `FAST_MODE=1 npm run scan`.
@@ -150,11 +150,7 @@ build automatiquement.
    `DISCORD_CHANNEL_ID`, `ACCOUNTS`, `CRON_SCHEDULE`, `TIMEZONE`), plus
    `IG_COOKIES_JSON` (voir section 2) puisque Railway ne fournit pas de
    volume par défaut pour `src/ig-cookies.json`.
-3. **Volume** : montez un volume sur `/app/data` (Settings → Volumes) pour
-   que le cache `data/last-summary.json` survive aux redéploiements. Sans
-   ça, il repart à zéro à chaque déploiement, jusqu'à la prochaine collecte
-   automatique.
-4. Railway redéploie automatiquement à chaque push sur la branche connectée.
+3. Railway redéploie automatiquement à chaque push sur la branche connectée.
    ⚠️ Ce déclenchement automatique s'est montré peu fiable en pratique (le
    webhook ne se déclenche pas toujours) — en cas de doute après un push,
    forcez un déploiement manuel :
@@ -188,9 +184,6 @@ faire crasher le container en plein scan.
 
 - `src/embed.js` centralise la construction du message (`buildLeaderboardEmbed`),
   utilisée pour l'envoi automatique quotidien.
-- `data/last-summary.json` contient le dernier résultat de scraping (généré
-  par le cron ou `npm run scan`). Il est exclu du dépôt git (`.gitignore`) :
-  pas besoin de le committer, il se régénère à chaque collecte.
 - Le nombre de posts pris en compte par compte est actuellement fixé à 5
   dans `src/instagram.js` (les 5 derniers Reels/vidéos par plateforme). Sur
   Instagram, les reels **épinglés** sont ignorés dans ce calcul (ils ne

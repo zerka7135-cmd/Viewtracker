@@ -199,9 +199,13 @@ export async function buildViewsSummary(accounts = config.accounts) {
     let isFirstAccount = true;
 
     for (const user of shuffledAccounts) {
-      let igTotal = 0;
-      let ttTotal = 0;
-      let ytTotal = 0;
+      // null = pas de compte sur cette plateforme (url vide dans ACCOUNTS,
+      // ex. "Ban"), distinct de 0 vue qui signifierait un vrai échec de
+      // scraping. Affiché "Ban" dans l'embed plutôt qu'un 0 trompeur, et
+      // sans lever d'alerte inutile puisqu'il n'y a rien à scraper.
+      let igTotal = null;
+      let ttTotal = null;
+      let ytTotal = null;
       const errors = []; // Trace des échecs de scraping pour ce compte (visible dans le résumé)
 
       // Pause plus marquée entre deux comptes qu'entre deux requêtes d'un
@@ -214,6 +218,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
       // sont pas toujours visités dans le même ordre d'un jour ou d'un
       // compte à l'autre.
       for (const url of shuffle(user.urls)) {
+        if (!url) continue; // Emplacement vide ("Ban") : rien à scraper.
 
        // --- INSTAGRAM ---
         if (url.includes('instagram.com')) {
@@ -541,7 +546,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
         ig: igTotal,
         tt: ttTotal,
         yt: ytTotal,
-        total: igTotal + ttTotal + ytTotal,
+        total: (igTotal || 0) + (ttTotal || 0) + (ytTotal || 0),
         errors
       });
     }

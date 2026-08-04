@@ -3,7 +3,7 @@ import cron from 'node-cron';
 import { config, validateConfig } from './config.js';
 import { buildViewsSummary } from './instagram.js';
 import { buildLeaderboardEmbed, buildErrorReportEmbed } from './embed.js';
-import { saveSummary, acquireLock, releaseLock } from './cache.js';
+import { acquireLock, releaseLock } from './cache.js';
 
 validateConfig();
 
@@ -18,7 +18,6 @@ async function scrapeAndBroadcast(channelId) {
   try {
     const channel = await client.channels.fetch(channelId);
     const summary = await buildViewsSummary();
-    saveSummary(summary);
     const embed = buildLeaderboardEmbed(summary, new Date());
     await channel.send({ embeds: [embed] });
     await sendErrorReportToOwner(summary);
@@ -64,7 +63,7 @@ client.once('clientReady', () => {
 
       try {
         const sent = await scrapeAndBroadcast(config.discordChannelId);
-        if (sent) console.log('Résumé automatique envoyé et sauvegardé.');
+        if (sent) console.log('Résumé automatique envoyé.');
       } catch (error) {
         console.error('Erreur lors de l\'envoi automatique du résumé :', error);
       }

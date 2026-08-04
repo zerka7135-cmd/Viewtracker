@@ -13,13 +13,17 @@ const medals = ['🥇', '🥈', '🥉'];
 export function buildLeaderboardEmbed(summary, updatedAt = null) {
   const sorted = [...summary].sort((a, b) => b.total - a.total);
 
+  // null = pas de compte sur cette plateforme (voir buildViewsSummary) :
+  // affiché "Ban" plutôt qu'un 0 qui laisserait croire à un échec.
+  const formatPlatform = (value) => value === null ? 'Ban' : value.toLocaleString('fr-FR');
+
   const description = sorted.length
     ? sorted.map((item, index) => {
         const prefix = index < 3 ? medals[index] : `**${index + 1}.**`;
         const total = item.total.toLocaleString('fr-FR');
-        const ig = item.ig.toLocaleString('fr-FR');
-        const tt = item.tt.toLocaleString('fr-FR');
-        const yt = item.yt.toLocaleString('fr-FR');
+        const ig = formatPlatform(item.ig);
+        const tt = formatPlatform(item.tt);
+        const yt = formatPlatform(item.yt);
         return `${prefix} **${item.account}**\n${total} vues (IG: ${ig} | TT: ${tt} | YT: ${yt})`;
       }).join('\n\n')
     : 'Aucune donnée disponible.';
