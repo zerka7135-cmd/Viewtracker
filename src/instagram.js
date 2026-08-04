@@ -259,10 +259,16 @@ export async function buildViewsSummary(accounts = config.accounts) {
 
               return await page.evaluate(() => {
                 function parseCount(raw) {
-                  let val = raw.trim().replace(',', '.');
+                  let val = raw.trim();
                   let mult = 1;
                   if (/k/i.test(val)) { mult = 1000; val = val.replace(/k/i, ''); }
                   if (/m/i.test(val)) { mult = 1000000; val = val.replace(/m/i, ''); }
+
+                  // Sans suffixe K/M, la virgule est un séparateur de milliers
+                  // (ex. "2,479" = 2479 vues) : la retirer plutôt que la
+                  // convertir en point, sinon "2,479" devient 2.479 ≈ 2.
+                  val = mult === 1 ? val.replace(/,/g, '') : val.replace(',', '.');
+
                   const parsed = parseFloat(val);
                   return isNaN(parsed) ? 0 : Math.round(parsed * mult);
                 }
@@ -392,10 +398,13 @@ export async function buildViewsSummary(accounts = config.accounts) {
                   const strong = item.querySelector('strong');
                   if (!strong) continue;
 
-                  let val = strong.innerText.trim().replace(',', '.');
+                  let val = strong.innerText.trim();
                   let mult = 1;
                   if (/k/i.test(val)) { mult = 1000; val = val.replace(/k/i, ''); }
                   if (/m/i.test(val)) { mult = 1000000; val = val.replace(/m/i, ''); }
+                  // Sans suffixe K/M, la virgule est un séparateur de milliers
+                  // (ex. "12,595" = 12595), pas un séparateur décimal.
+                  val = mult === 1 ? val.replace(/,/g, '') : val.replace(',', '.');
                   const parsed = parseFloat(val);
                   if (!isNaN(parsed)) {
                     sum += Math.round(parsed * mult);
@@ -477,10 +486,13 @@ export async function buildViewsSummary(accounts = config.accounts) {
 
                 for (const el of spans) {
                   let txt = el.innerText.trim();
-                  let val = txt.split('vue')[0].split('view')[0].trim().replace(/\s/g, '').replace(',', '.');
+                  let val = txt.split('vue')[0].split('view')[0].trim().replace(/\s/g, '');
                   let mult = 1;
                   if (/k/i.test(val)) { mult = 1000; val = val.replace(/k/i, ''); }
                   if (/m/i.test(val)) { mult = 1000000; val = val.replace(/m/i, ''); }
+                  // Sans suffixe K/M, la virgule est un séparateur de milliers
+                  // (ex. "12,595" = 12595), pas un séparateur décimal.
+                  val = mult === 1 ? val.replace(/,/g, '') : val.replace(',', '.');
 
                   const parsed = parseFloat(val);
                   if (!isNaN(parsed) && parsed > 0) {
