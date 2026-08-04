@@ -37,10 +37,10 @@ client.once('clientReady', () => {
   cron.schedule(
     config.cronSchedule,
     async () => {
-      // Décale le déclenchement réel de 0 à 45 min après l'heure planifiée :
+      // Décale le déclenchement réel de 0 à 120 min après l'heure planifiée :
       // une collecte qui démarre à la seconde près, tous les jours depuis la
       // même IP serveur, est un signal d'automatisation facile à repérer.
-      const jitterMs = Math.floor(Math.random() * 45 * 60 * 1000);
+      const jitterMs = Math.floor(Math.random() * 120 * 60 * 1000);
       console.log(`Déclenchement cron : collecte différée de ${Math.round(jitterMs / 60000)} min.`);
       await new Promise((resolve) => setTimeout(resolve, jitterMs));
 
