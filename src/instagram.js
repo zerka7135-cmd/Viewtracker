@@ -448,9 +448,9 @@ export async function buildViewsSummary(accounts = config.accounts) {
               const cleanUrl = url.replace(/\/$/, '');
 
               // Warm-up : on visite d'abord la page d'accueil de la chaîne,
-              // avant l'onglet Vidéos.
+              // avant l'onglet Shorts.
               await warmUp(page, cleanUrl);
-              await page.goto(`${cleanUrl}/videos`, { waitUntil: 'domcontentloaded', timeout: 25000 });
+              await page.goto(`${cleanUrl}/shorts`, { waitUntil: 'domcontentloaded', timeout: 25000 });
 
               // Le bandeau de consentement cookies peut apparaître malgré les
               // cookies pré-injectés (format YouTube changeant selon la
@@ -467,40 +467,63 @@ export async function buildViewsSummary(accounts = config.accounts) {
                 // Pas de bandeau détecté dans le délai, on continue normalement.
               }
 
-              // On attend l'apparition d'au moins une vignette de vidéo plutôt
+              // On attend l'apparition d'au moins une vignette de short plutôt
               // qu'un délai fixe, qui pouvait être trop court sur un rendu lent.
               await page
-                .waitForSelector('ytd-rich-item-renderer, ytd-grid-video-renderer', { timeout: 15000 })
+                .waitForSelector('ytm-shorts-lockup-view-model, ytd-rich-item-renderer', { timeout: 15000 })
                 .catch(() => {});
 
               // Petit scroll pour déclencher le rendu différé des métadonnées
-              // (vues) sur les vidéos affichées.
+              // (vues) sur les shorts affichés.
               await page.evaluate(() => window.scrollBy(0, 800));
               await randomDelay(1000, 2000);
               await simulateHumanBehavior(page);
 
               return await page.evaluate(() => {
-                const spans = Array.from(document.querySelectorAll('span')).filter(s => s.innerText && /vue|views/i.test(s.innerText));
-                let sum = 0;
-                let count = 0;
-
-                for (const el of spans) {
-                  let txt = el.innerText.trim();
-                  let val = txt.split('vue')[0].split('view')[0].trim().replace(/\s/g, '');
+                function parseViews(txt) {
+                  const match = txt.match(/([\d.,]+)\s*([kKmM]?)\s*(?:vues|views)/i);
+                  if (!match) return 0;
+                  let val = match[1];
                   let mult = 1;
-                  if (/k/i.test(val)) { mult = 1000; val = val.replace(/k/i, ''); }
-                  if (/m/i.test(val)) { mult = 1000000; val = val.replace(/m/i, ''); }
+                  if (/k/i.test(match[2])) mult = 1000;
+                  if (/m/i.test(match[2])) mult = 1000000;
                   // Sans suffixe K/M, la virgule est un séparateur de milliers
                   // (ex. "12,595" = 12595), pas un séparateur décimal.
                   val = mult === 1 ? val.replace(/,/g, '') : val.replace(',', '.');
-
                   const parsed = parseFloat(val);
-                  if (!isNaN(parsed) && parsed > 0) {
-                    sum += Math.round(parsed * mult);
+                  return isNaN(parsed) ? 0 : Math.round(parsed * mult);
+                }
+
+                let sum = 0;
+                let count = 0;
+
+                // 1. Grille des shorts : chaque item est un
+                // <ytm-shorts-lockup-view-model> dont le texte contient
+                // "X views" (ex. "Check out my business...\n11K views").
+                const items = Array.from(document.querySelectorAll('ytm-shorts-lockup-view-model'));
+                for (const item of items) {
+                  const val = parseViews(item.innerText);
+                  if (val > 0) {
+                    sum += val;
                     count++;
                     if (count === 5) break;
                   }
                 }
+
+                // 2. Fallback : ancienne structure générique par span, au cas où
+                // la chaîne n'a pas de Shorts ou que la page rend différemment.
+                if (count === 0) {
+                  const spans = Array.from(document.querySelectorAll('span')).filter(s => s.innerText && /vue|views/i.test(s.innerText));
+                  for (const el of spans) {
+                    const val = parseViews(el.innerText.trim());
+                    if (val > 0) {
+                      sum += val;
+                      count++;
+                      if (count === 5) break;
+                    }
+                  }
+                }
+
                 return sum;
               });
             } finally {
