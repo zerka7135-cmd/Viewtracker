@@ -287,11 +287,33 @@ export async function buildViewsSummary(accounts = config.accounts) {
                 // structure actuelle de la page (remplace l'ancien affichage "277K vues").
                 // Les reels épinglés (badge "Pinned post icon") sont ignorés : ils ne
                 // reflètent pas l'activité récente et fausseraient la moyenne des 5 derniers.
+                //
+                // Attention : le conteneur "div._ac7v" regroupe toute une LIGNE de la
+                // grille (3 reels), pas une vignette individuelle — s'y fier directement
+                // marque à tort les 2 voisins d'un reel épinglé comme épinglés eux aussi,
+                // décalant le calcul vers des reels plus loin dans la grille (bug identifié
+                // le 5 août : un compte affichait un total anormalement élevé pour cette
+                // raison exacte). À la place, on associe chaque badge "Pinned" au plus
+                // petit ancêtre contenant exactement UN lien de reel : c'est ce lien-là,
+                // et lui seul, qui est réellement épinglé.
+                const pinnedLinks = new Set();
+                const pinnedIcons = Array.from(document.querySelectorAll('svg[aria-label="Pinned post icon"]'));
+                for (const icon of pinnedIcons) {
+                  let el = icon.parentElement;
+                  while (el) {
+                    const linksInside = el.querySelectorAll('a[href*="/reel/"]');
+                    if (linksInside.length === 1) {
+                      pinnedLinks.add(linksInside[0]);
+                      break;
+                    }
+                    if (linksInside.length > 1) break;
+                    el = el.parentElement;
+                  }
+                }
+
                 const reelLinks = Array.from(document.querySelectorAll('a[href*="/reel/"]'));
                 for (const link of reelLinks) {
-                  const article = link.closest('div._ac7v') || link.parentElement;
-                  const isPinned = !!article.querySelector('svg[aria-label="Pinned post icon"]');
-                  if (isPinned) continue;
+                  if (pinnedLinks.has(link)) continue;
 
                   const text = link.innerText.trim();
                   if (/^[\d.,]+[kKmM]?$/.test(text)) {
