@@ -262,7 +262,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
               await page.goto(`${cleanUrl}/reels/`, { waitUntil: 'networkidle', timeout: 30000 });
               await simulateHumanBehavior(page);
 
-              return await page.evaluate(() => {
+              const result = await page.evaluate(() => {
                 function parseCount(raw) {
                   let val = raw.trim();
                   let mult = 1;
@@ -280,6 +280,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
 
                 let total = 0;
                 let count = 0;
+                const counted = []; // Détail des reels comptés, pour diagnostic en cas de chiffre suspect.
 
                 // 1. Grille des reels : chaque vignette est un <a href=".../reel/..."> dont
                 // le innerText est directement le nombre de vues (ex. "277K"). C'est la
@@ -294,8 +295,10 @@ export async function buildViewsSummary(accounts = config.accounts) {
 
                   const text = link.innerText.trim();
                   if (/^[\d.,]+[kKmM]?$/.test(text)) {
-                    total += parseCount(text);
+                    const val = parseCount(text);
+                    total += val;
                     count++;
+                    counted.push({ href: link.getAttribute('href'), text, val });
                     if (count === 5) break;
                   }
                 }
@@ -312,6 +315,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
                           if (!isNaN(val) && val > 0) {
                             total += val;
                             count++;
+                            counted.push({ source: 'play_count', val });
                             if (count === 5) break;
                           }
                         }
@@ -328,13 +332,18 @@ export async function buildViewsSummary(accounts = config.accounts) {
                   if (matches) {
                     for (const m of matches.slice(0, 5)) {
                       const raw = m.replace(/vues|views|plays|\s/g, '');
-                      total += parseCount(raw);
+                      const val = parseCount(raw);
+                      total += val;
+                      counted.push({ source: 'texte global', text: m, val });
                     }
                   }
                 }
 
-                return total;
+                return { total, counted };
               });
+
+              console.log(`[IG debug] ${url} → total=${result.total} :`, JSON.stringify(result.counted));
+              return result.total;
             } finally {
               await igContext.close().catch(() => {});
             }
@@ -390,13 +399,14 @@ export async function buildViewsSummary(accounts = config.accounts) {
               await page.waitForTimeout(2000);
               await simulateHumanBehavior(page);
 
-              return await page.evaluate(() => {
+              const result = await page.evaluate(() => {
                 // Les vidéos épinglées portent le texte "Pinned" dans leur bloc
                 // (ex. "486.7K\nPinned") : on les ignore, comme pour Instagram,
                 // pour ne pas fausser la mesure d'activité récente.
                 const items = Array.from(document.querySelectorAll('[data-e2e="user-post-item"]'));
                 let sum = 0;
                 let count = 0;
+                const counted = []; // Détail des vidéos comptées, pour diagnostic en cas de chiffre suspect.
                 for (const item of items) {
                   if (/pinned/i.test(item.innerText)) continue;
 
@@ -412,13 +422,18 @@ export async function buildViewsSummary(accounts = config.accounts) {
                   val = mult === 1 ? val.replace(/,/g, '') : val.replace(',', '.');
                   const parsed = parseFloat(val);
                   if (!isNaN(parsed)) {
-                    sum += Math.round(parsed * mult);
+                    const rounded = Math.round(parsed * mult);
+                    sum += rounded;
                     count++;
+                    counted.push({ text: strong.innerText.trim(), val: rounded });
                     if (count === 5) break;
                   }
                 }
-                return sum;
+                return { sum, counted };
               });
+
+              console.log(`[TikTok debug] ${url} → total=${result.sum} :`, JSON.stringify(result.counted));
+              return result.sum;
             } finally {
               await ttContext.close().catch(() => {});
             }
