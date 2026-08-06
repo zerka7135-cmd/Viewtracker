@@ -12,6 +12,11 @@ chromium.use(stealth());
 // production (le pattern de requêtes redevient facilement détectable).
 const FAST_MODE = process.env.FAST_MODE === '1';
 
+// Debug : DEBUG_SCRAPE=1 affiche le détail des vues comptées par post/vidéo
+// (utile pour diagnostiquer un chiffre suspect). Coupé par défaut pour ne pas
+// polluer les logs à chaque scan (ex. cron sur Railway).
+const DEBUG_SCRAPE = process.env.DEBUG_SCRAPE === '1';
+
 /**
  * Attend une durée aléatoire (en ms) entre minMs et maxMs.
  * Évite d'enchaîner les requêtes à un rythme parfaitement régulier,
@@ -364,7 +369,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
                 return { total, counted };
               });
 
-              console.log(`[IG debug] ${url} → total=${result.total} :`, JSON.stringify(result.counted));
+              if (DEBUG_SCRAPE) console.log(`[IG debug] ${url} → total=${result.total} :`, JSON.stringify(result.counted));
               return result.total;
             } finally {
               await igContext.close().catch(() => {});
@@ -454,7 +459,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
                 return { sum, counted };
               });
 
-              console.log(`[TikTok debug] ${url} → total=${result.sum} :`, JSON.stringify(result.counted));
+              if (DEBUG_SCRAPE) console.log(`[TikTok debug] ${url} → total=${result.sum} :`, JSON.stringify(result.counted));
               return result.sum;
             } finally {
               await ttContext.close().catch(() => {});

@@ -3,3 +3,4 @@ node_modules/
 .DS_Store
 data/
 src/ig-cookies.json
+src/tiktok-cookies.json

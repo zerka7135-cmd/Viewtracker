@@ -1,16 +1,25 @@
 import fs from 'fs';
 import path from 'path';
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-extra';
+import stealth from 'puppeteer-extra-plugin-stealth';
+
+chromium.use(stealth());
 
 // Ouvre un navigateur visible pour que l'utilisateur se connecte manuellement
 // à TikTok, puis exporte les cookies de session dans src/tiktok-cookies.json
 // (chemin attendu par TIKTOK_COOKIES_PATH, cf. src/instagram.js).
+//
+// On utilise playwright-extra + le plugin stealth (comme dans src/instagram.js)
+// pour masquer les signaux d'automatisation (navigator.webdriver, etc.) que
+// TikTok utilise pour bloquer les navigateurs pilotés par script.
 
 const OUTPUT_PATH = process.env.TIKTOK_COOKIES_PATH || path.resolve('./src/tiktok-cookies.json');
 
+const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
 async function main() {
   const browser = await chromium.launch({ headless: false });
-  const context = await browser.newContext();
+  const context = await browser.newContext({ userAgent: USER_AGENT });
   const page = await context.newPage();
 
   await page.goto('https://www.tiktok.com/login');
@@ -35,6 +44,7 @@ async function main() {
 
   fs.mkdirSync(path.dirname(OUTPUT_PATH), { recursive: true });
   fs.writeFileSync(OUTPUT_PATH, JSON.stringify(ttCookies, null, 2));
+  fs.chmodSync(OUTPUT_PATH, 0o600); // Lecture/écriture réservées à l'utilisateur : la session TikTok est en clair dans ce fichier
   console.log(`Cookies TikTok exportés vers ${OUTPUT_PATH}`);
 
   await browser.close();
