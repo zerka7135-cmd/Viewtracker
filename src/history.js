@@ -105,6 +105,34 @@ export function computeGrowth(history, summary, lookbackDays = 7) {
 }
 
 /**
+ * Détecte les comptes dont le total du jour dépasse leur meilleur total
+ * jamais enregistré. Un compte sans historique préalable n'est jamais
+ * considéré comme un record (sinon chaque nouveau compte "battrait un
+ * record" dès sa première collecte, ce qui n'a pas de sens).
+ * @param {Array} historyBefore Historique *avant* ajout du jour
+ * @param {Array} summary Résumé du jour
+ * @returns {Set<string>} noms des comptes en record aujourd'hui
+ */
+export function detectRecords(historyBefore, summary) {
+  const records = new Set();
+
+  for (const item of summary) {
+    if (typeof item.total !== 'number' || item.total <= 0) continue;
+
+    const previousTotals = historyBefore
+      .map(entry => entry.accounts.find(a => a.account === item.account))
+      .filter(Boolean)
+      .map(a => a.total)
+      .filter(t => typeof t === 'number');
+
+    if (previousTotals.length === 0) continue;
+    if (item.total > Math.max(...previousTotals)) records.add(item.account);
+  }
+
+  return records;
+}
+
+/**
  * Détecte les couples compte/plateforme en échec depuis plusieurs
  * collectes consécutives (les entrées les plus récentes de l'historique,
  * en incluant le jour courant) — typiquement un cookie de session expiré
