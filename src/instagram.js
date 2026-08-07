@@ -389,87 +389,40 @@ export async function buildViewsSummary(accounts = config.accounts) {
         // --- TIKTOK ---
         else if (url.includes('tiktok.com')) {
           const { total, error } = await scrapeWithRetry('TikTok', async () => {
-            // Même délai qu'Instagram : TikTok s'est montré tout aussi
-            // sensible au rythme des requêtes depuis qu'il bloque la grille
-            // de vidéos pour les sessions jugées suspectes.
-            await randomDelay(5000, 15000);
+            // TikTok bloque désormais Playwright derrière un captcha slider
+            // ("Drag the slider to fit the puzzle"), reproductible même avec
+            // IP résidentielle, navigateur non-headless, cookies frais et
+            // patch anti-détection CDP (rebrowser-playwright) — testé le
+            // 08/08/2026, les 4 pistes ont échoué. On passe donc par l'API
+            // tierce tiktokapi.store (scraping fait côté fournisseur), qui
+            // évite complètement le navigateur pour cette plateforme.
+            const username = new URL(url).pathname.replace(/^\/@?/, '').replace(/\/$/, '');
 
-            const ttContext = await browser.newContext({
-              userAgent: randomUserAgent(),
-              viewport: randomViewport(),
-              locale: 'fr-FR',
-              timezoneId: 'Europe/Paris',
-              extraHTTPHeaders: { referer: randomReferer() }
+            const apiUrl = new URL('https://tiktokapi.store/api/v1/user/posts');
+            apiUrl.searchParams.set('unique_id', `@${username}`);
+            apiUrl.searchParams.set('count', '10'); // marge au-delà de 5 pour compenser les vidéos épinglées exclues
+            apiUrl.searchParams.set('cursor', '0');
+
+            const res = await fetch(apiUrl, {
+              headers: { Authorization: `Bearer ${process.env.TIKTOK_API_KEY}` }
             });
-            await blockHeavyResources(ttContext);
-            await randomizeHardwareFingerprint(ttContext);
-
-            // Une session connectée est nécessaire depuis que TikTok bloque la
-            // grille de vidéos pour les visiteurs anonymes (mur "Comptes
-            // suggérés" affiché à la place). Comme pour Instagram, on lit les
-            // cookies depuis une variable d'env (Railway) ou un fichier local.
-            if (process.env.TIKTOK_COOKIES_JSON) {
-              const cookies = JSON.parse(process.env.TIKTOK_COOKIES_JSON);
-              await ttContext.addCookies(cookies);
-            } else {
-              const cookiesPath = process.env.TIKTOK_COOKIES_PATH || './src/tiktok-cookies.json';
-              if (fs.existsSync(cookiesPath)) {
-                const cookies = JSON.parse(fs.readFileSync(cookiesPath, 'utf8'));
-                await ttContext.addCookies(cookies);
-              }
+            if (!res.ok) {
+              throw new Error(`tiktokapi.store a répondu ${res.status} pour @${username}`);
+            }
+            const body = await res.json();
+            if (body.code !== 0) {
+              throw new Error(`tiktokapi.store: ${body.msg || 'erreur inconnue'} (@${username})`);
             }
 
-            try {
-              const page = await ttContext.newPage();
+            // Les vidéos épinglées (is_top === 1) sont ignorées, comme pour
+            // IG/l'ancien scraping TikTok, pour ne pas fausser la mesure
+            // d'activité récente.
+            const videos = (body.data?.videos || []).filter(v => v.is_top !== 1);
+            const counted = videos.slice(0, 5).map(v => ({ title: v.title, val: v.play_count || 0 }));
+            const sum = counted.reduce((acc, v) => acc + v.val, 0);
 
-              // Warm-up : passage par une page générique avant le profil ciblé,
-              // variée entre accueil et explore pour ne pas suivre un chemin fixe.
-              const warmUpUrl = Math.random() < 0.5
-                ? 'https://www.tiktok.com/'
-                : 'https://www.tiktok.com/explore';
-              await warmUp(page, warmUpUrl);
-              await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
-              await page.waitForTimeout(2000);
-              await simulateHumanBehavior(page);
-
-              const result = await page.evaluate(() => {
-                // Les vidéos épinglées portent le texte "Pinned" dans leur bloc
-                // (ex. "486.7K\nPinned") : on les ignore, comme pour Instagram,
-                // pour ne pas fausser la mesure d'activité récente.
-                const items = Array.from(document.querySelectorAll('[data-e2e="user-post-item"]'));
-                let sum = 0;
-                let count = 0;
-                const counted = []; // Détail des vidéos comptées, pour diagnostic en cas de chiffre suspect.
-                for (const item of items) {
-                  if (/pinned/i.test(item.innerText)) continue;
-
-                  const strong = item.querySelector('strong');
-                  if (!strong) continue;
-
-                  let val = strong.innerText.trim();
-                  let mult = 1;
-                  if (/k/i.test(val)) { mult = 1000; val = val.replace(/k/i, ''); }
-                  if (/m/i.test(val)) { mult = 1000000; val = val.replace(/m/i, ''); }
-                  // Sans suffixe K/M, la virgule est un séparateur de milliers
-                  // (ex. "12,595" = 12595), pas un séparateur décimal.
-                  val = mult === 1 ? val.replace(/,/g, '') : val.replace(',', '.');
-                  const parsed = parseFloat(val);
-                  if (!isNaN(parsed)) {
-                    const rounded = Math.round(parsed * mult);
-                    sum += rounded;
-                    count++;
-                    counted.push({ text: strong.innerText.trim(), val: rounded });
-                    if (count === 5) break;
-                  }
-                }
-                return { sum, counted };
-              });
-
-              if (DEBUG_SCRAPE) console.log(`[TikTok debug] ${url} → total=${result.sum} :`, JSON.stringify(result.counted));
-              return result.sum;
-            } finally {
-              await ttContext.close().catch(() => {});
-            }
+            if (DEBUG_SCRAPE) console.log(`[TikTok debug] ${url} → total=${sum} :`, JSON.stringify(counted));
+            return sum;
           });
 
           ttTotal = total;
