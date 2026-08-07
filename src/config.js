@@ -29,6 +29,12 @@ export const config = {
   discordOwnerId: process.env.DISCORD_OWNER_ID,
   cronSchedule: process.env.CRON_SCHEDULE || '0 9 * * *',
   timezone: process.env.TIMEZONE || 'Europe/Paris',
+  // Nombre de jours en arrière utilisé comme référence pour le % de
+  // croissance affiché dans le résumé (voir src/history.js).
+  historyLookbackDays: Number(process.env.HISTORY_LOOKBACK_DAYS) || 7,
+  // Nombre de collectes consécutives en échec sur un compte/plateforme
+  // avant d'alerter le propriétaire (cookie expiré, sélecteur DOM cassé...).
+  stuckAlertMinDays: Number(process.env.STUCK_ALERT_MIN_DAYS) || 3,
   // Liste des comptes à suivre, définie en JSON dans le .env (voir .env.example)
   accounts: parseAccounts(process.env.ACCOUNTS)
 };

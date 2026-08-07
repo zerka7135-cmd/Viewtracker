@@ -176,7 +176,13 @@ async function scrapeWithRetry(platform, scrapeFn, attempts = 2) {
       lastMessage = e.message;
     }
 
-    if (attempt < attempts) await randomDelay(2000, 5000);
+    // Backoff exponentiel : un échec dû à un rate-limit temporaire a plus
+    // de chances de passer en laissant plus de temps avant chaque nouvelle
+    // tentative, plutôt qu'un délai fixe qui retente trop tôt.
+    if (attempt < attempts) {
+      const factor = 2 ** (attempt - 1);
+      await randomDelay(2000 * factor, 5000 * factor);
+    }
   }
 
   return { total: 0, error: lastMessage };

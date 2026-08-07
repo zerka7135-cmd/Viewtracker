@@ -2,8 +2,9 @@ import { Client, GatewayIntentBits } from 'discord.js';
 import cron from 'node-cron';
 import { config, validateConfig } from './config.js';
 import { buildViewsSummary } from './instagram.js';
-import { buildLeaderboardEmbed, buildErrorReportEmbed } from './embed.js';
+import { buildLeaderboardEmbed, buildErrorReportEmbed, buildStuckAccountsEmbed } from './embed.js';
 import { acquireLock, releaseLock } from './cache.js';
+import { loadHistory, appendToday, computeGrowth, detectStuckAccounts } from './history.js';
 
 validateConfig();
 
@@ -18,9 +19,18 @@ async function scrapeAndBroadcast(channelId) {
   try {
     const channel = await client.channels.fetch(channelId);
     const summary = await buildViewsSummary();
-    const embed = buildLeaderboardEmbed(summary, new Date());
+
+    // L'historique *avant* ajout du jour sert de référence pour le calcul
+    // de croissance (comparer aujourd'hui à aujourd'hui n'aurait pas de sens).
+    const historyBefore = loadHistory();
+    const growth = computeGrowth(historyBefore, summary, config.historyLookbackDays);
+
+    const embed = buildLeaderboardEmbed(summary, new Date(), growth, config.historyLookbackDays);
     await channel.send({ embeds: [embed] });
+
+    const historyAfter = appendToday(historyBefore, summary);
     await sendErrorReportToOwner(summary);
+    await sendStuckAlertToOwner(historyAfter);
     return true;
   } finally {
     releaseLock();
@@ -41,6 +51,25 @@ async function sendErrorReportToOwner(summary) {
     await owner.send({ embeds: [errorEmbed] });
   } catch (error) {
     console.error('Erreur lors de l\'envoi du rapport d\'échecs en MP :', error);
+  }
+}
+
+// Alerte distincte du rapport d'échecs ponctuels ci-dessus : ne se
+// déclenche que si un compte/plateforme échoue plusieurs collectes de
+// suite (cookie expiré, sélecteur DOM cassé...), signe d'un vrai problème
+// à corriger plutôt qu'un raté isolé.
+async function sendStuckAlertToOwner(history) {
+  if (!config.discordOwnerId) return;
+
+  const stuckAccounts = detectStuckAccounts(history, config.stuckAlertMinDays);
+  const stuckEmbed = buildStuckAccountsEmbed(stuckAccounts);
+  if (!stuckEmbed) return;
+
+  try {
+    const owner = await client.users.fetch(config.discordOwnerId);
+    await owner.send({ embeds: [stuckEmbed] });
+  } catch (error) {
+    console.error('Erreur lors de l\'envoi de l\'alerte comptes bloqués en MP :', error);
   }
 }
 
