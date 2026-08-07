@@ -11,8 +11,9 @@ const medals = ['🥇', '🥈', '🥉'];
  * @param {string|Date|null} updatedAt Horodatage de la collecte (si affiché depuis un cache)
  * @param {Map<string, {delta: number, percent: number|null, baselineDate: string}>} [growth] Voir src/history.js#computeGrowth
  * @param {number} [lookbackDays] Nombre de jours utilisé pour le calcul de croissance (affichage uniquement)
+ * @param {Set<string>} [records] Comptes ayant battu leur record aujourd'hui, voir src/history.js#detectRecords
  */
-export function buildLeaderboardEmbed(summary, updatedAt = null, growth = new Map(), lookbackDays = 7) {
+export function buildLeaderboardEmbed(summary, updatedAt = null, growth = new Map(), lookbackDays = 7, records = new Set()) {
   const sorted = [...summary].sort((a, b) => b.total - a.total);
 
   // null = pas de compte sur cette plateforme (voir buildViewsSummary) :
@@ -40,7 +41,8 @@ export function buildLeaderboardEmbed(summary, updatedAt = null, growth = new Ma
         const ig = formatPlatform(item.ig);
         const tt = formatPlatform(item.tt);
         const yt = formatPlatform(item.yt);
-        return `${prefix} **${item.account}**\n${total} vues (IG: ${ig} | TT: ${tt} | YT: ${yt})${formatGrowth(item.account)}`;
+        const recordBadge = records.has(item.account) ? ' 🎉 *Nouveau record !*' : '';
+        return `${prefix} **${item.account}**${recordBadge}\n${total} vues (IG: ${ig} | TT: ${tt} | YT: ${yt})${formatGrowth(item.account)}`;
       }).join('\n\n')
     : 'Aucune donnée disponible.';
 

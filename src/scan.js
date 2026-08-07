@@ -1,7 +1,7 @@
 import { buildViewsSummary } from './instagram.js';
 import { acquireLock, releaseLock } from './cache.js';
 import { config } from './config.js';
-import { loadHistory, appendToday, computeGrowth, detectStuckAccounts } from './history.js';
+import { loadHistory, appendToday, computeGrowth, detectStuckAccounts, detectRecords } from './history.js';
 
 // Lance une collecte complète immédiatement et affiche le résultat dans le
 // terminal, sans passer par Discord. Utile pour tester le scraping.
@@ -17,6 +17,7 @@ import { loadHistory, appendToday, computeGrowth, detectStuckAccounts } from './
 
     const historyBefore = loadHistory();
     const growth = computeGrowth(historyBefore, summary, config.historyLookbackDays);
+    const records = detectRecords(historyBefore, summary);
 
     const fmt = (v) => v === null ? 'Ban' : v;
     const fmtGrowth = (account) => {
@@ -30,7 +31,8 @@ import { loadHistory, appendToday, computeGrowth, detectStuckAccounts } from './
     console.log(`\nTerminé — ${summary.length} compte(s) traité(s) :\n`);
     for (const item of summary) {
       const warning = item.errors && item.errors.length > 0 ? ' ⚠️' : '';
-      console.log(`- ${item.account}${warning} : ${item.total} vues (IG: ${fmt(item.ig)} | TT: ${fmt(item.tt)} | YT: ${fmt(item.yt)})${fmtGrowth(item.account)}`);
+      const recordBadge = records.has(item.account) ? ' 🎉 record' : '';
+      console.log(`- ${item.account}${warning}${recordBadge} : ${item.total} vues (IG: ${fmt(item.ig)} | TT: ${fmt(item.tt)} | YT: ${fmt(item.yt)})${fmtGrowth(item.account)}`);
     }
 
     const historyAfter = appendToday(historyBefore, summary);

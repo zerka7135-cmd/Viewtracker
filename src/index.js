@@ -4,7 +4,7 @@ import { config, validateConfig } from './config.js';
 import { buildViewsSummary } from './instagram.js';
 import { buildLeaderboardEmbed, buildErrorReportEmbed, buildStuckAccountsEmbed } from './embed.js';
 import { acquireLock, releaseLock } from './cache.js';
-import { loadHistory, appendToday, computeGrowth, detectStuckAccounts } from './history.js';
+import { loadHistory, appendToday, computeGrowth, detectStuckAccounts, detectRecords } from './history.js';
 
 validateConfig();
 
@@ -24,8 +24,9 @@ async function scrapeAndBroadcast(channelId) {
     // de croissance (comparer aujourd'hui à aujourd'hui n'aurait pas de sens).
     const historyBefore = loadHistory();
     const growth = computeGrowth(historyBefore, summary, config.historyLookbackDays);
+    const records = detectRecords(historyBefore, summary);
 
-    const embed = buildLeaderboardEmbed(summary, new Date(), growth, config.historyLookbackDays);
+    const embed = buildLeaderboardEmbed(summary, new Date(), growth, config.historyLookbackDays, records);
     await channel.send({ embeds: [embed] });
 
     const historyAfter = appendToday(historyBefore, summary);
