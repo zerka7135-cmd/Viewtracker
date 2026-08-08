@@ -64,6 +64,92 @@ export function buildLeaderboardEmbed(summary, updatedAt = null, growth = new Ma
 }
 
 /**
+ * Construit l'embed du classement "Last 24h" : vues gagnées depuis la
+ * veille (voir src/history.js#computeGrowth24h), classé indépendamment du
+ * cumul all-time — un compte en tête du gain du jour n'est pas forcément
+ * en tête du cumul, et inversement.
+ * @param {Map<string, {total: number, ig: number, tt: number, yt: number}>} growth24h Voir src/history.js#computeGrowth24h
+ * @param {string|Date|null} updatedAt Horodatage de la collecte
+ */
+export function build24hEmbed(growth24h, updatedAt = null) {
+  const sorted = [...growth24h.entries()]
+    .map(([account, v]) => ({ account, ...v }))
+    .sort((a, b) => b.total - a.total);
+
+  const description = sorted.length
+    ? sorted.map((item, index) => {
+        const prefix = index < 3 ? medals[index] : `**${index + 1}.**`;
+        const total = item.total.toLocaleString('fr-FR');
+        const ig = item.ig.toLocaleString('fr-FR');
+        const tt = item.tt.toLocaleString('fr-FR');
+        const yt = item.yt.toLocaleString('fr-FR');
+        return `${prefix} **${item.account}**\n${total} vues (IG: ${ig} | TT: ${tt} | YT: ${yt})`;
+      }).join('\n\n')
+    : 'Pas encore assez d\'historique pour calculer un gain sur 24h.';
+
+  const embed = new EmbedBuilder()
+    .setTitle(`🔥 Classement dernières 24h — ${new Date().toLocaleDateString('fr-FR')}`)
+    .setDescription(description)
+    .setColor(0xE67E22)
+    .setTimestamp();
+
+  if (updatedAt) {
+    const date = new Date(updatedAt);
+    embed.setFooter({
+      text: `Dernière collecte : ${date.toLocaleDateString('fr-FR')} à ${date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+    });
+  }
+
+  return embed;
+}
+
+/**
+ * Construit l'embed du classement "all time" : cumul des totaux de chaque
+ * collecte déjà réalisée depuis le début du suivi (voir
+ * src/cumulativeViews.js#updateCumulativeViews), classé indépendamment du
+ * leaderboard du jour — un compte en tête du cumul n'est pas forcément en
+ * tête du résumé "derniers posts", et inversement.
+ * @param {Record<string, {total: number, ig: number, tt: number, yt: number}>} cumulativeViews Voir src/cumulativeViews.js
+ * @param {string|Date|null} updatedAt Horodatage de la dernière mise à jour du cumul
+ */
+export function buildAllTimeEmbed(cumulativeViews, updatedAt = null) {
+  const sorted = Object.entries(cumulativeViews)
+    .map(([account, v]) => ({ account, ...v }))
+    .sort((a, b) => b.total - a.total);
+
+  let description = sorted.length
+    ? sorted.map((item, index) => {
+        const prefix = index < 3 ? medals[index] : `**${index + 1}.**`;
+        const total = item.total.toLocaleString('fr-FR');
+        const ig = item.ig.toLocaleString('fr-FR');
+        const tt = item.tt.toLocaleString('fr-FR');
+        const yt = item.yt.toLocaleString('fr-FR');
+        return `${prefix} **${item.account}**\n${total} vues (IG: ${ig} | TT: ${tt} | YT: ${yt})`;
+      }).join('\n\n')
+    : 'Aucune donnée disponible.';
+
+  // Limite Discord : 4096 caractères pour une description d'embed.
+  if (description.length > 4000) {
+    description = `${description.slice(0, 3960)}…`;
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle('♾️ Classement all time — vues cumulées depuis le début du suivi')
+    .setDescription(description)
+    .setColor(0x9B59B6)
+    .setTimestamp();
+
+  if (updatedAt) {
+    const date = new Date(updatedAt);
+    embed.setFooter({
+      text: `Dernière mise à jour : ${date.toLocaleDateString('fr-FR')} à ${date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+    });
+  }
+
+  return embed;
+}
+
+/**
  * Construit l'embed des échecs de scraping, destiné à un message privé à
  * l'admin plutôt qu'au salon public. Retourne null s'il n'y a rien à
  * signaler (pas de message envoyé dans ce cas).

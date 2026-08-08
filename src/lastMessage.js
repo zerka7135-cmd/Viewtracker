@@ -8,23 +8,35 @@ import path from 'path';
 const LAST_MESSAGE_PATH = process.env.LAST_MESSAGE_PATH || path.resolve('./data/last-message.json');
 
 /**
- * @returns {{ channelId: string, messageId: string } | null} Le dernier
- * message de résumé envoyé, ou null si aucun n'a encore été enregistré
- * (premier lancement, ou fichier absent/corrompu).
+ * Un seul fichier peut suivre plusieurs messages édités indépendamment
+ * (ex. "daily" pour le leaderboard du jour, "allTime" pour le classement
+ * cumulé) — chacun sous sa propre clé.
+ * @param {string} key Identifiant du message suivi (ex. "daily", "allTime")
+ * @returns {{ channelId: string, messageId: string } | null}
  */
-export function loadLastMessage() {
+export function loadLastMessage(key) {
   try {
     if (!fs.existsSync(LAST_MESSAGE_PATH)) return null;
-    const parsed = JSON.parse(fs.readFileSync(LAST_MESSAGE_PATH, 'utf8'));
-    if (!parsed || !parsed.channelId || !parsed.messageId) return null;
-    return parsed;
+    const all = JSON.parse(fs.readFileSync(LAST_MESSAGE_PATH, 'utf8'));
+    const entry = all?.[key];
+    if (!entry || !entry.channelId || !entry.messageId) return null;
+    return entry;
   } catch (e) {
     console.error('Erreur de lecture du dernier message Discord, on repart de zéro :', e.message);
     return null;
   }
 }
 
-export function saveLastMessage(channelId, messageId) {
+export function saveLastMessage(key, channelId, messageId) {
   fs.mkdirSync(path.dirname(LAST_MESSAGE_PATH), { recursive: true });
-  fs.writeFileSync(LAST_MESSAGE_PATH, JSON.stringify({ channelId, messageId }, null, 2));
+
+  let all = {};
+  try {
+    if (fs.existsSync(LAST_MESSAGE_PATH)) all = JSON.parse(fs.readFileSync(LAST_MESSAGE_PATH, 'utf8')) || {};
+  } catch {
+    // Fichier corrompu : on repart d'un objet vide plutôt que de bloquer l'écriture.
+  }
+
+  all[key] = { channelId, messageId };
+  fs.writeFileSync(LAST_MESSAGE_PATH, JSON.stringify(all, null, 2));
 }

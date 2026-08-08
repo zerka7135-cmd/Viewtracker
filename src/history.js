@@ -105,6 +105,49 @@ export function computeGrowth(history, summary, lookbackDays = 7) {
 }
 
 /**
+ * Calcule les vues gagnées dans les dernières 24h, par plateforme, entre
+ * aujourd'hui et la collecte de la veille (ou la plus ancienne disponible
+ * si l'historique est encore trop jeune) — toujours sur 1 jour, contrairement
+ * à computeGrowth() dont le lookback est configurable. Les deltas ne sont
+ * jamais négatifs à l'affichage (une vidéo qui sort du top N ou un compte
+ * temporairement banni ne doit pas apparaître comme une "perte de vues").
+ * @param {Array} history Historique *avant* ajout du jour (baseline uniquement)
+ * @param {Array} summary Résumé du jour
+ * @returns {Map<string, {total: number, ig: number, tt: number, yt: number}>}
+ */
+export function computeGrowth24h(history, summary) {
+  const result = new Map();
+  if (history.length === 0) return result;
+
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const targetKey = yesterday.toLocaleDateString('en-CA', { timeZone: config.timezone });
+
+  const candidates = history.filter(h => h.date <= targetKey);
+  const baseline = candidates.length > 0 ? candidates[candidates.length - 1] : history[0];
+  if (!baseline) return result;
+
+  const diff = (curr, prev) => {
+    if (typeof curr !== 'number' || typeof prev !== 'number') return 0;
+    return Math.max(0, curr - prev);
+  };
+
+  for (const item of summary) {
+    const previous = baseline.accounts.find(a => a.account === item.account);
+    if (!previous) continue;
+
+    result.set(item.account, {
+      total: diff(item.total, previous.total),
+      ig: diff(item.ig, previous.ig),
+      tt: diff(item.tt, previous.tt),
+      yt: diff(item.yt, previous.yt)
+    });
+  }
+
+  return result;
+}
+
+/**
  * Détecte les comptes dont le total du jour dépasse leur meilleur total
  * jamais enregistré. Un compte sans historique préalable n'est jamais
  * considéré comme un record (sinon chaque nouveau compte "battrait un
