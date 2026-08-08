@@ -1,4 +1,5 @@
 import { EmbedBuilder } from 'discord.js';
+import { config } from './config.js';
 
 const medals = ['🥇', '🥈', '🥉'];
 
@@ -47,7 +48,7 @@ export function buildLeaderboardEmbed(summary, updatedAt = null, growth = new Ma
     : 'Aucune donnée disponible.';
 
   const embed = new EmbedBuilder()
-    .setTitle(`📊 Résumé des vues sur les 5 derniers posts — ${new Date().toLocaleDateString('fr-FR')}`)
+    .setTitle(`📊 Résumé des vues sur les ${config.postsLimit} derniers posts — ${new Date().toLocaleDateString('fr-FR')}`)
     .setDescription(description)
     .setColor(0x5865F2)
     .setTimestamp();
