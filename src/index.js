@@ -2,9 +2,9 @@ import { Client, GatewayIntentBits } from 'discord.js';
 import cron from 'node-cron';
 import { config, validateConfig } from './config.js';
 import { buildViewsSummary } from './instagram.js';
-import { buildLeaderboardEmbed, buildAllTimeEmbed, buildErrorReportEmbed, buildStuckAccountsEmbed } from './embed.js';
+import { build24hEmbed, buildAllTimeEmbed, buildErrorReportEmbed, buildStuckAccountsEmbed } from './embed.js';
 import { acquireLock, releaseLock } from './cache.js';
-import { loadHistory, appendToday, computeGrowth, detectStuckAccounts, detectRecords } from './history.js';
+import { loadHistory, appendToday, computeGrowth24h, detectStuckAccounts } from './history.js';
 import { loadLastMessage, saveLastMessage } from './lastMessage.js';
 import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from './cumulativeViews.js';
 
@@ -23,19 +23,18 @@ async function scrapeAndBroadcast(channelId) {
     const summary = await buildViewsSummary();
 
     // L'historique *avant* ajout du jour sert de référence pour le calcul
-    // de croissance (comparer aujourd'hui à aujourd'hui n'aurait pas de sens).
+    // du gain 24h (comparer aujourd'hui à aujourd'hui n'aurait pas de sens).
     const historyBefore = loadHistory();
-    const growth = computeGrowth(historyBefore, summary, config.historyLookbackDays);
-    const records = detectRecords(historyBefore, summary);
+    const growth24h = computeGrowth24h(historyBefore, summary);
 
-    // Cumul "all time", classé indépendamment du leaderboard du jour (voir
-    // src/cumulativeViews.js) — additionne le total de chaque collecte
-    // déjà réalisée, sans jamais repartir de zéro.
+    // Cumul "all time", classé indépendamment du leaderboard 24h (voir
+    // src/cumulativeViews.js) — additionne le gain de chaque collecte déjà
+    // réalisée, sans jamais repartir de zéro ni recompter le total brut.
     const cumulativeBefore = loadCumulativeViews();
-    const cumulativeAfter = updateCumulativeViews(cumulativeBefore, summary);
+    const cumulativeAfter = updateCumulativeViews(cumulativeBefore, growth24h, summary);
     saveCumulativeViews(cumulativeAfter);
 
-    const dailyEmbed = buildLeaderboardEmbed(summary, new Date(), growth, config.historyLookbackDays, records);
+    const dailyEmbed = build24hEmbed(growth24h, new Date());
     await sendOrEditSummary(channel, 'daily', dailyEmbed);
 
     const allTimeEmbed = buildAllTimeEmbed(cumulativeAfter, new Date());

@@ -1,7 +1,7 @@
 import { buildViewsSummary } from './instagram.js';
 import { acquireLock, releaseLock } from './cache.js';
 import { config } from './config.js';
-import { loadHistory, appendToday, computeGrowth, detectStuckAccounts, detectRecords } from './history.js';
+import { loadHistory, appendToday, computeGrowth24h, detectStuckAccounts } from './history.js';
 import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from './cumulativeViews.js';
 
 // Lance une collecte complète immédiatement et affiche le résultat dans le
@@ -17,27 +17,28 @@ import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from 
     const summary = await buildViewsSummary();
 
     const historyBefore = loadHistory();
-    const growth = computeGrowth(historyBefore, summary, config.historyLookbackDays);
-    const records = detectRecords(historyBefore, summary);
+    const growth24h = computeGrowth24h(historyBefore, summary);
 
     const cumulativeBefore = loadCumulativeViews();
-    const cumulativeAfter = updateCumulativeViews(cumulativeBefore, summary);
+    const cumulativeAfter = updateCumulativeViews(cumulativeBefore, growth24h, summary);
     saveCumulativeViews(cumulativeAfter);
 
     const fmt = (v) => v === null ? 'Ban' : v;
-    const fmtGrowth = (account) => {
-      const g = growth.get(account);
-      if (!g) return '';
-      const sign = g.delta > 0 ? '+' : '';
-      const percentText = g.percent !== null ? ` (${sign}${g.percent.toFixed(1)}%)` : '';
-      return ` — ${sign}${g.delta}${percentText} vs il y a ${config.historyLookbackDays}j`;
-    };
 
     console.log(`\nTerminé — ${summary.length} compte(s) traité(s) :\n`);
     for (const item of summary) {
       const warning = item.errors && item.errors.length > 0 ? ' ⚠️' : '';
-      const recordBadge = records.has(item.account) ? ' 🎉 record' : '';
-      console.log(`- ${item.account}${warning}${recordBadge} : ${item.total} vues (IG: ${fmt(item.ig)} | TT: ${fmt(item.tt)} | YT: ${fmt(item.yt)})${fmtGrowth(item.account)}`);
+      console.log(`- ${item.account}${warning} : ${item.total} vues (IG: ${fmt(item.ig)} | TT: ${fmt(item.tt)} | YT: ${fmt(item.yt)})`);
+    }
+
+    console.log('\n🔥 Classement dernières 24h :\n');
+    if (growth24h.size === 0) {
+      console.log("(pas encore assez d'historique pour calculer un gain sur 24h)");
+    } else {
+      const growth24hSorted = [...growth24h.entries()].sort((a, b) => b[1].total - a[1].total);
+      for (const [account, g] of growth24hSorted) {
+        console.log(`- ${account} : ${g.total} vues (IG: ${g.ig} | TT: ${g.tt} | YT: ${g.yt})`);
+      }
     }
 
     console.log('\n♾️  Classement all time :\n');

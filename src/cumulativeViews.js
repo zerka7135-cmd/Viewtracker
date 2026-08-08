@@ -29,22 +29,27 @@ export function saveCumulativeViews(cumulative) {
 }
 
 /**
- * Met à jour le cumul "all time" : contrairement au total du jour (photo
- * instantanée des derniers posts), le all-time additionne le total de
- * *chaque collecte déjà réalisée*, jour après jour, sans jamais repartir de
- * zéro — les mêmes vidéos sont donc recomptées à chaque cron, volontairement
- * (le all-time reflète l'activité cumulée suivie par le bot, pas le nombre
- * de vidéos distinctes).
+ * Met à jour le cumul "all time" à partir des vues gagnées dans les
+ * dernières 24h (`growth24h`, voir history.js#computeGrowth24h) : même
+ * mécanisme que le leaderboard "Last 24h" — ce qui est affiché comme gagné
+ * aujourd'hui est ce qui s'ajoute au cumul, jamais le total brut (sinon les
+ * mêmes vidéos seraient recomptées en entier chaque jour). Un delta négatif
+ * n'est jamais soustrait : le all-time ne peut que monter.
  *
  * Idempotent par jour (`lastUpdated` par compte) : relancer `npm run scan`
  * plusieurs fois le même jour, ou un cron qui se déclenche deux fois, ne
- * doit additionner le total du jour qu'une seule fois.
+ * doit ajouter la progression qu'une seule fois.
+ *
+ * Pour un compte jamais vu jusqu'ici (absent de `cumulative`), le total du
+ * jour sert de point de départ — la meilleure estimation disponible des vues
+ * déjà faites avant le début du suivi.
  *
  * @param {Record<string, {total: number, ig: number, tt: number, yt: number, lastUpdated: string}>} cumulative État actuel
+ * @param {Map<string, {total: number, ig: number, tt: number, yt: number}>} growth24h Voir history.js#computeGrowth24h
  * @param {Array<{account: string, ig: number|null, tt: number|null, yt: number|null, total: number}>} summary Résumé du jour
  * @returns {Record<string, {total: number, ig: number, tt: number, yt: number, lastUpdated: string}>} Le cumul mis à jour (nouvel objet, n'altère pas `cumulative`)
  */
-export function updateCumulativeViews(cumulative, summary) {
+export function updateCumulativeViews(cumulative, growth24h, summary) {
   const updated = { ...cumulative };
   const today = todayKey();
 
@@ -54,16 +59,25 @@ export function updateCumulativeViews(cumulative, summary) {
     const existing = updated[item.account];
     if (existing && existing.lastUpdated === today) continue; // déjà compté aujourd'hui
 
-    // null (compte absent sur cette plateforme, "Ban") ne contribue pour rien.
-    const ig = typeof item.ig === 'number' ? item.ig : 0;
-    const tt = typeof item.tt === 'number' ? item.tt : 0;
-    const yt = typeof item.yt === 'number' ? item.yt : 0;
+    if (!existing) {
+      // Premier jour de suivi pour ce compte : le total du jour sert de
+      // point de départ (null/"Ban" ne contribue pour rien).
+      updated[item.account] = {
+        total: item.total,
+        ig: typeof item.ig === 'number' ? item.ig : 0,
+        tt: typeof item.tt === 'number' ? item.tt : 0,
+        yt: typeof item.yt === 'number' ? item.yt : 0,
+        lastUpdated: today
+      };
+      continue;
+    }
 
+    const g = growth24h.get(item.account);
     updated[item.account] = {
-      total: (existing?.total || 0) + item.total,
-      ig: (existing?.ig || 0) + ig,
-      tt: (existing?.tt || 0) + tt,
-      yt: (existing?.yt || 0) + yt,
+      total: existing.total + (g?.total || 0),
+      ig: existing.ig + (g?.ig || 0),
+      tt: existing.tt + (g?.tt || 0),
+      yt: existing.yt + (g?.yt || 0),
       lastUpdated: today
     };
   }
