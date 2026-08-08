@@ -34,10 +34,10 @@ async function scrapeAndBroadcast(channelId) {
     const cumulativeAfter = updateCumulativeViews(cumulativeBefore, growth24h, summary);
     saveCumulativeViews(cumulativeAfter);
 
-    const dailyEmbed = build24hEmbed(growth24h, new Date());
+    const dailyEmbed = build24hEmbed(growth24h, summary, new Date());
     await sendOrEditSummary(channel, 'daily', dailyEmbed);
 
-    const allTimeEmbed = buildAllTimeEmbed(cumulativeAfter, new Date());
+    const allTimeEmbed = buildAllTimeEmbed(cumulativeAfter, summary, new Date());
     await sendOrEditSummary(channel, 'allTime', allTimeEmbed);
 
     const historyAfter = appendToday(historyBefore, summary);

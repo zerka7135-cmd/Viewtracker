@@ -63,15 +63,29 @@ export function buildLeaderboardEmbed(summary, updatedAt = null, growth = new Ma
   return embed;
 }
 
+// null = pas de compte sur cette plateforme (voir buildViewsSummary) : affiché
+// "Ban" plutôt qu'un 0 qui laisserait croire à un échec de scraping. À
+// l'inverse, un vrai 0 sur une plateforme configurée est suspect (compte actif
+// qui ne devrait normalement jamais totaliser aucune vue) : marqué ⚠️ plutôt
+// que silencieusement confondu avec "Ban".
+function formatPlatformValue(rawValue, computedValue) {
+  if (rawValue === null) return 'Ban';
+  const formatted = computedValue.toLocaleString('fr-FR');
+  return computedValue === 0 ? `⚠️ ${formatted}` : formatted;
+}
+
 /**
  * Construit l'embed du classement "Last 24h" : vues gagnées depuis la
  * veille (voir src/history.js#computeGrowth24h), classé indépendamment du
  * cumul all-time — un compte en tête du gain du jour n'est pas forcément
  * en tête du cumul, et inversement.
  * @param {Map<string, {total: number, ig: number, tt: number, yt: number}>} growth24h Voir src/history.js#computeGrowth24h
+ * @param {Array<{account: string, ig: number|null, tt: number|null, yt: number|null}>} summary Résumé du jour, pour distinguer "Ban" (null) d'un vrai 0
  * @param {string|Date|null} updatedAt Horodatage de la collecte
  */
-export function build24hEmbed(growth24h, updatedAt = null) {
+export function build24hEmbed(growth24h, summary, updatedAt = null) {
+  const rawByAccount = new Map(summary.map(item => [item.account, item]));
+
   const sorted = [...growth24h.entries()]
     .map(([account, v]) => ({ account, ...v }))
     .sort((a, b) => b.total - a.total);
@@ -79,10 +93,11 @@ export function build24hEmbed(growth24h, updatedAt = null) {
   const description = sorted.length
     ? sorted.map((item, index) => {
         const prefix = index < 3 ? medals[index] : `**${index + 1}.**`;
+        const raw = rawByAccount.get(item.account) || {};
         const total = item.total.toLocaleString('fr-FR');
-        const ig = item.ig.toLocaleString('fr-FR');
-        const tt = item.tt.toLocaleString('fr-FR');
-        const yt = item.yt.toLocaleString('fr-FR');
+        const ig = formatPlatformValue(raw.ig, item.ig);
+        const tt = formatPlatformValue(raw.tt, item.tt);
+        const yt = formatPlatformValue(raw.yt, item.yt);
         return `${prefix} **${item.account}**\n${total} vues (IG: ${ig} | TT: ${tt} | YT: ${yt})`;
       }).join('\n\n')
     : 'Pas encore assez d\'historique pour calculer un gain sur 24h.';
@@ -110,9 +125,12 @@ export function build24hEmbed(growth24h, updatedAt = null) {
  * leaderboard du jour — un compte en tête du cumul n'est pas forcément en
  * tête du résumé "derniers posts", et inversement.
  * @param {Record<string, {total: number, ig: number, tt: number, yt: number}>} cumulativeViews Voir src/cumulativeViews.js
+ * @param {Array<{account: string, ig: number|null, tt: number|null, yt: number|null}>} summary Résumé du jour, pour distinguer "Ban" (compte actuellement absent de cette plateforme) d'un vrai 0
  * @param {string|Date|null} updatedAt Horodatage de la dernière mise à jour du cumul
  */
-export function buildAllTimeEmbed(cumulativeViews, updatedAt = null) {
+export function buildAllTimeEmbed(cumulativeViews, summary, updatedAt = null) {
+  const rawByAccount = new Map(summary.map(item => [item.account, item]));
+
   const sorted = Object.entries(cumulativeViews)
     .map(([account, v]) => ({ account, ...v }))
     .sort((a, b) => b.total - a.total);
@@ -120,10 +138,11 @@ export function buildAllTimeEmbed(cumulativeViews, updatedAt = null) {
   let description = sorted.length
     ? sorted.map((item, index) => {
         const prefix = index < 3 ? medals[index] : `**${index + 1}.**`;
+        const raw = rawByAccount.get(item.account) || {};
         const total = item.total.toLocaleString('fr-FR');
-        const ig = item.ig.toLocaleString('fr-FR');
-        const tt = item.tt.toLocaleString('fr-FR');
-        const yt = item.yt.toLocaleString('fr-FR');
+        const ig = formatPlatformValue(raw.ig, item.ig);
+        const tt = formatPlatformValue(raw.tt, item.tt);
+        const yt = formatPlatformValue(raw.yt, item.yt);
         return `${prefix} **${item.account}**\n${total} vues (IG: ${ig} | TT: ${tt} | YT: ${yt})`;
       }).join('\n\n')
     : 'Aucune donnée disponible.';
