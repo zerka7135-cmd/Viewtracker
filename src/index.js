@@ -5,6 +5,7 @@ import { buildViewsSummary } from './instagram.js';
 import { buildLeaderboardEmbed, buildErrorReportEmbed, buildStuckAccountsEmbed } from './embed.js';
 import { acquireLock, releaseLock } from './cache.js';
 import { loadHistory, appendToday, computeGrowth, detectStuckAccounts, detectRecords } from './history.js';
+import { loadLastMessage, saveLastMessage } from './lastMessage.js';
 
 validateConfig();
 
@@ -27,7 +28,7 @@ async function scrapeAndBroadcast(channelId) {
     const records = detectRecords(historyBefore, summary);
 
     const embed = buildLeaderboardEmbed(summary, new Date(), growth, config.historyLookbackDays, records);
-    await channel.send({ embeds: [embed] });
+    await sendOrEditSummary(channel, embed);
 
     const historyAfter = appendToday(historyBefore, summary);
     await sendErrorReportToOwner(summary);
@@ -36,6 +37,28 @@ async function scrapeAndBroadcast(channelId) {
   } finally {
     releaseLock();
   }
+}
+
+// Édite le message de résumé de la veille au lieu d'en renvoyer un nouveau
+// à chaque cron, pour ne pas empiler un message par jour dans le salon.
+// Si l'édition échoue (message supprimé manuellement, trop ancien pour
+// Discord, ou premier lancement sans message enregistré), on retombe sur
+// un envoi classique et on mémorise ce nouveau message pour la prochaine fois.
+async function sendOrEditSummary(channel, embed) {
+  const last = loadLastMessage();
+
+  if (last && last.channelId === channel.id) {
+    try {
+      const message = await channel.messages.fetch(last.messageId);
+      await message.edit({ embeds: [embed] });
+      return;
+    } catch (error) {
+      console.error('Édition du message précédent impossible, envoi d\'un nouveau message :', error.message);
+    }
+  }
+
+  const message = await channel.send({ embeds: [embed] });
+  saveLastMessage(channel.id, message.id);
 }
 
 // Les échecs de scraping ne vont plus dans le salon public : seul le
