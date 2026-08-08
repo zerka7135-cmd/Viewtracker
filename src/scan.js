@@ -25,6 +25,15 @@ import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from 
 
     const fmt = (v) => v === null ? 'Ban' : v;
 
+    // null = pas de compte sur cette plateforme (Ban) ; un vrai 0 sur une
+    // plateforme configurée est suspect, marqué ⚠️ plutôt que confondu avec Ban.
+    const rawByAccount = new Map(summary.map(item => [item.account, item]));
+    const fmtComputed = (account, platform, computedValue) => {
+      const raw = rawByAccount.get(account)?.[platform];
+      if (raw === null) return 'Ban';
+      return computedValue === 0 ? `⚠️ 0` : computedValue;
+    };
+
     console.log(`\nTerminé — ${summary.length} compte(s) traité(s) :\n`);
     for (const item of summary) {
       const warning = item.errors && item.errors.length > 0 ? ' ⚠️' : '';
@@ -37,14 +46,14 @@ import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from 
     } else {
       const growth24hSorted = [...growth24h.entries()].sort((a, b) => b[1].total - a[1].total);
       for (const [account, g] of growth24hSorted) {
-        console.log(`- ${account} : ${g.total} vues (IG: ${g.ig} | TT: ${g.tt} | YT: ${g.yt})`);
+        console.log(`- ${account} : ${g.total} vues (IG: ${fmtComputed(account, 'ig', g.ig)} | TT: ${fmtComputed(account, 'tt', g.tt)} | YT: ${fmtComputed(account, 'yt', g.yt)})`);
       }
     }
 
     console.log('\n♾️  Classement all time :\n');
     const allTimeSorted = Object.entries(cumulativeAfter).sort((a, b) => b[1].total - a[1].total);
     for (const [account, v] of allTimeSorted) {
-      console.log(`- ${account} : ${v.total} vues (IG: ${v.ig} | TT: ${v.tt} | YT: ${v.yt})`);
+      console.log(`- ${account} : ${v.total} vues (IG: ${fmtComputed(account, 'ig', v.ig)} | TT: ${fmtComputed(account, 'tt', v.tt)} | YT: ${fmtComputed(account, 'yt', v.yt)})`);
     }
 
     const historyAfter = appendToday(historyBefore, summary);
