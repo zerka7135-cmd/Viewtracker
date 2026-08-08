@@ -2,6 +2,7 @@ import { buildViewsSummary } from './instagram.js';
 import { acquireLock, releaseLock } from './cache.js';
 import { config } from './config.js';
 import { loadHistory, appendToday, computeGrowth, detectStuckAccounts, detectRecords } from './history.js';
+import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from './cumulativeViews.js';
 
 // Lance une collecte complète immédiatement et affiche le résultat dans le
 // terminal, sans passer par Discord. Utile pour tester le scraping.
@@ -17,7 +18,12 @@ import { loadHistory, appendToday, computeGrowth, detectStuckAccounts, detectRec
 
     const historyBefore = loadHistory();
     const growth = computeGrowth(historyBefore, summary, config.historyLookbackDays);
+    const growth24h = computeGrowth(historyBefore, summary, 1);
     const records = detectRecords(historyBefore, summary);
+
+    const cumulativeBefore = loadCumulativeViews();
+    const cumulativeAfter = updateCumulativeViews(cumulativeBefore, growth24h, summary);
+    saveCumulativeViews(cumulativeAfter);
 
     const fmt = (v) => v === null ? 'Ban' : v;
     const fmtGrowth = (account) => {
@@ -27,12 +33,21 @@ import { loadHistory, appendToday, computeGrowth, detectStuckAccounts, detectRec
       const percentText = g.percent !== null ? ` (${sign}${g.percent.toFixed(1)}%)` : '';
       return ` — ${sign}${g.delta}${percentText} vs il y a ${config.historyLookbackDays}j`;
     };
+    const fmt24hAllTime = (account) => {
+      const g = growth24h.get(account);
+      const gained = g ? Math.max(0, g.delta) : null;
+      const allTime = cumulativeAfter[account]?.total;
+      const parts = [];
+      if (gained !== null) parts.push(`+${gained} (24h)`);
+      if (typeof allTime === 'number') parts.push(`${allTime} all time`);
+      return parts.length ? ` [${parts.join(' | ')}]` : '';
+    };
 
     console.log(`\nTerminé — ${summary.length} compte(s) traité(s) :\n`);
     for (const item of summary) {
       const warning = item.errors && item.errors.length > 0 ? ' ⚠️' : '';
       const recordBadge = records.has(item.account) ? ' 🎉 record' : '';
-      console.log(`- ${item.account}${warning}${recordBadge} : ${item.total} vues (IG: ${fmt(item.ig)} | TT: ${fmt(item.tt)} | YT: ${fmt(item.yt)})${fmtGrowth(item.account)}`);
+      console.log(`- ${item.account}${warning}${recordBadge} : ${item.total} vues (IG: ${fmt(item.ig)} | TT: ${fmt(item.tt)} | YT: ${fmt(item.yt)})${fmtGrowth(item.account)}${fmt24hAllTime(item.account)}`);
     }
 
     const historyAfter = appendToday(historyBefore, summary);

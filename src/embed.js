@@ -12,8 +12,10 @@ const medals = ['🥇', '🥈', '🥉'];
  * @param {Map<string, {delta: number, percent: number|null, baselineDate: string}>} [growth] Voir src/history.js#computeGrowth
  * @param {number} [lookbackDays] Nombre de jours utilisé pour le calcul de croissance (affichage uniquement)
  * @param {Set<string>} [records] Comptes ayant battu leur record aujourd'hui, voir src/history.js#detectRecords
+ * @param {Map<string, {delta: number}>} [growth24h] Voir src/history.js#computeGrowth, appelé avec lookbackDays=1
+ * @param {Record<string, number>} [cumulativeViews] Voir src/cumulativeViews.js#updateCumulativeViews
  */
-export function buildLeaderboardEmbed(summary, updatedAt = null, growth = new Map(), lookbackDays = 7, records = new Set()) {
+export function buildLeaderboardEmbed(summary, updatedAt = null, growth = new Map(), lookbackDays = 7, records = new Set(), growth24h = new Map(), cumulativeViews = {}) {
   const sorted = [...summary].sort((a, b) => b.total - a.total);
 
   // null = pas de compte sur cette plateforme (voir buildViewsSummary) :
@@ -34,6 +36,22 @@ export function buildLeaderboardEmbed(summary, updatedAt = null, growth = new Ma
     return `\n${arrow} ${deltaText}${percentText} vs il y a ${lookbackDays}j`;
   };
 
+  // Vues gagnées depuis la veille (delta jour à jour, jamais négatif à
+  // l'affichage — un delta négatif reflète une vidéo sortie du top N ou un
+  // compte temporairement banni, pas une perte de vues à proprement parler).
+  const format24h = (account) => {
+    const g = growth24h.get(account);
+    if (!g) return ''; // pas encore de collecte la veille pour comparer
+    const gained = Math.max(0, g.delta).toLocaleString('fr-FR');
+    return `🕐 +${gained} (dernières 24h)`;
+  };
+
+  const formatAllTime = (account) => {
+    const total = cumulativeViews[account];
+    if (typeof total !== 'number') return '';
+    return `♾️ ${total.toLocaleString('fr-FR')} vues all time`;
+  };
+
   const description = sorted.length
     ? sorted.map((item, index) => {
         const prefix = index < 3 ? medals[index] : `**${index + 1}.**`;
@@ -42,7 +60,8 @@ export function buildLeaderboardEmbed(summary, updatedAt = null, growth = new Ma
         const tt = formatPlatform(item.tt);
         const yt = formatPlatform(item.yt);
         const recordBadge = records.has(item.account) ? ' 🎉 *Nouveau record !*' : '';
-        return `${prefix} **${item.account}**${recordBadge}\n${total} vues (IG: ${ig} | TT: ${tt} | YT: ${yt})${formatGrowth(item.account)}`;
+        const extraLine = [format24h(item.account), formatAllTime(item.account)].filter(Boolean).join(' · ');
+        return `${prefix} **${item.account}**${recordBadge}\n${total} vues (IG: ${ig} | TT: ${tt} | YT: ${yt})${formatGrowth(item.account)}${extraLine ? `\n${extraLine}` : ''}`;
       }).join('\n\n')
     : 'Aucune donnée disponible.';
 

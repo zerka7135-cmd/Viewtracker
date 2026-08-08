@@ -6,6 +6,7 @@ import { buildLeaderboardEmbed, buildErrorReportEmbed, buildStuckAccountsEmbed }
 import { acquireLock, releaseLock } from './cache.js';
 import { loadHistory, appendToday, computeGrowth, detectStuckAccounts, detectRecords } from './history.js';
 import { loadLastMessage, saveLastMessage } from './lastMessage.js';
+import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews, cumulativeTotals } from './cumulativeViews.js';
 
 validateConfig();
 
@@ -25,9 +26,14 @@ async function scrapeAndBroadcast(channelId) {
     // de croissance (comparer aujourd'hui à aujourd'hui n'aurait pas de sens).
     const historyBefore = loadHistory();
     const growth = computeGrowth(historyBefore, summary, config.historyLookbackDays);
+    const growth24h = computeGrowth(historyBefore, summary, 1);
     const records = detectRecords(historyBefore, summary);
 
-    const embed = buildLeaderboardEmbed(summary, new Date(), growth, config.historyLookbackDays, records);
+    const cumulativeBefore = loadCumulativeViews();
+    const cumulativeAfter = updateCumulativeViews(cumulativeBefore, growth24h, summary);
+    saveCumulativeViews(cumulativeAfter);
+
+    const embed = buildLeaderboardEmbed(summary, new Date(), growth, config.historyLookbackDays, records, growth24h, cumulativeTotals(cumulativeAfter));
     await sendOrEditSummary(channel, embed);
 
     const historyAfter = appendToday(historyBefore, summary);
