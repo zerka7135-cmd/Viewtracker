@@ -273,7 +273,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
               await page.goto(`${cleanUrl}/reels/`, { waitUntil: 'networkidle', timeout: 30000 });
               await simulateHumanBehavior(page);
 
-              const result = await page.evaluate(() => {
+              const result = await page.evaluate((postsLimit) => {
                 function parseCount(raw) {
                   let val = raw.trim();
                   let mult = 1;
@@ -297,7 +297,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
                 // le innerText est directement le nombre de vues (ex. "277K"). C'est la
                 // structure actuelle de la page (remplace l'ancien affichage "277K vues").
                 // Les reels épinglés (badge "Pinned post icon") sont ignorés : ils ne
-                // reflètent pas l'activité récente et fausseraient la moyenne des 5 derniers.
+                // reflètent pas l'activité récente et fausseraient la moyenne des derniers posts.
                 //
                 // Attention : le conteneur "div._ac7v" regroupe toute une LIGNE de la
                 // grille (3 reels), pas une vignette individuelle — s'y fier directement
@@ -332,7 +332,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
                     total += val;
                     count++;
                     counted.push({ href: link.getAttribute('href'), text, val });
-                    if (count === 5) break;
+                    if (count === postsLimit) break;
                   }
                 }
 
@@ -349,12 +349,12 @@ export async function buildViewsSummary(accounts = config.accounts) {
                             total += val;
                             count++;
                             counted.push({ source: 'play_count', val });
-                            if (count === 5) break;
+                            if (count === postsLimit) break;
                           }
                         }
                       }
                     }
-                    if (count === 5) break;
+                    if (count === postsLimit) break;
                   }
                 }
 
@@ -363,7 +363,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
                   const bodyText = document.body.innerText;
                   const matches = bodyText.match(/([\d.,]+[kKmM]?)\s*(?:vues|views|plays)/g);
                   if (matches) {
-                    for (const m of matches.slice(0, 5)) {
+                    for (const m of matches.slice(0, postsLimit)) {
                       const raw = m.replace(/vues|views|plays|\s/g, '');
                       const val = parseCount(raw);
                       total += val;
@@ -373,7 +373,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
                 }
 
                 return { total, counted };
-              });
+              }, config.postsLimit);
 
               if (DEBUG_SCRAPE) console.log(`[IG debug] ${url} → total=${result.total} :`, JSON.stringify(result.counted));
               return result.total;
@@ -400,7 +400,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
 
             const apiUrl = new URL('https://tiktokapi.store/api/v1/user/posts');
             apiUrl.searchParams.set('unique_id', `@${username}`);
-            apiUrl.searchParams.set('count', '10'); // marge au-delà de 5 pour compenser les vidéos épinglées exclues
+            apiUrl.searchParams.set('count', String(Math.max(10, config.postsLimit * 2))); // marge au-delà de postsLimit pour compenser les vidéos épinglées exclues
             apiUrl.searchParams.set('cursor', '0');
 
             const res = await fetch(apiUrl, {
@@ -418,7 +418,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
             // IG/l'ancien scraping TikTok, pour ne pas fausser la mesure
             // d'activité récente.
             const videos = (body.data?.videos || []).filter(v => v.is_top !== 1);
-            const counted = videos.slice(0, 5).map(v => ({ title: v.title, val: v.play_count || 0 }));
+            const counted = videos.slice(0, config.postsLimit).map(v => ({ title: v.title, val: v.play_count || 0 }));
             const sum = counted.reduce((acc, v) => acc + v.val, 0);
 
             if (DEBUG_SCRAPE) console.log(`[TikTok debug] ${url} → total=${sum} :`, JSON.stringify(counted));
@@ -485,7 +485,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
               await randomDelay(1000, 2000);
               await simulateHumanBehavior(page);
 
-              return await page.evaluate(() => {
+              return await page.evaluate((postsLimit) => {
                 function parseViews(txt) {
                   const match = txt.match(/([\d.,]+)\s*([kKmM]?)\s*(?:vues|views)/i);
                   if (!match) return 0;
@@ -512,7 +512,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
                   if (val > 0) {
                     sum += val;
                     count++;
-                    if (count === 5) break;
+                    if (count === postsLimit) break;
                   }
                 }
 
@@ -525,13 +525,13 @@ export async function buildViewsSummary(accounts = config.accounts) {
                     if (val > 0) {
                       sum += val;
                       count++;
-                      if (count === 5) break;
+                      if (count === postsLimit) break;
                     }
                   }
                 }
 
                 return sum;
-              });
+              }, config.postsLimit);
             } finally {
               await ytContext.close().catch(() => {});
             }

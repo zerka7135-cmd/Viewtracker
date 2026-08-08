@@ -32,6 +32,9 @@ export const config = {
   // Nombre de jours en arrière utilisé comme référence pour le % de
   // croissance affiché dans le résumé (voir src/history.js).
   historyLookbackDays: Number(process.env.HISTORY_LOOKBACK_DAYS) || 7,
+  // Nombre de publications les plus récentes prises en compte pour le total
+  // de vues, sur les 3 plateformes (IG/TikTok/YouTube).
+  postsLimit: Number(process.env.IG_POSTS_LIMIT) || 5,
   // Nombre de collectes consécutives en échec sur un compte/plateforme
   // avant d'alerter le propriétaire (cookie expiré, sélecteur DOM cassé...).
   stuckAlertMinDays: Number(process.env.STUCK_ALERT_MIN_DAYS) || 3,
