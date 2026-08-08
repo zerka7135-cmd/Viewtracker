@@ -8,10 +8,9 @@ import { todayKey } from './history.js';
 const CUMULATIVE_PATH = process.env.CUMULATIVE_VIEWS_PATH || path.resolve('./data/cumulative-views.json');
 
 /**
- * @returns {Record<string, {total: number, lastUpdated: string}>} Total de
- * vues cumulées depuis le début du suivi, par compte, avec la date de
- * dernière mise à jour (voir updateCumulativeViews). {} si rien n'a encore
- * été enregistré.
+ * @returns {Record<string, {total: number, ig: number, tt: number, yt: number, lastUpdated: string}>}
+ * Cumul "all time" par compte, plateforme par plateforme. {} si rien n'a
+ * encore été enregistré.
  */
 export function loadCumulativeViews() {
   try {
@@ -30,31 +29,22 @@ export function saveCumulativeViews(cumulative) {
 }
 
 /**
- * Met à jour le cumul "all time" à partir de la progression du jour.
+ * Met à jour le cumul "all time" : contrairement au total du jour (photo
+ * instantanée des derniers posts), le all-time additionne le total de
+ * *chaque collecte déjà réalisée*, jour après jour, sans jamais repartir de
+ * zéro — les mêmes vidéos sont donc recomptées à chaque cron, volontairement
+ * (le all-time reflète l'activité cumulée suivie par le bot, pas le nombre
+ * de vidéos distinctes).
  *
- * Le "total" du jour n'est qu'une photo instantanée des derniers posts (pas
- * un compteur cumulatif en soi) : ce qu'on additionne ici, c'est la
- * *progression* observée depuis la veille (`growth24h`, delta jour à jour),
- * pas le total brut — sinon les mêmes vidéos seraient recomptées en entier
- * chaque jour. Un delta négatif (vidéo qui sort du top N, compte
- * temporairement banni...) n'est jamais soustrait du cumul : le all-time ne
- * peut que monter.
+ * Idempotent par jour (`lastUpdated` par compte) : relancer `npm run scan`
+ * plusieurs fois le même jour, ou un cron qui se déclenche deux fois, ne
+ * doit additionner le total du jour qu'une seule fois.
  *
- * Idempotent par jour (`lastUpdated`) : relancer `npm run scan` plusieurs
- * fois le même jour, ou un cron qui se déclenche deux fois, ne doit ajouter
- * la progression qu'une seule fois — sinon le cumul gonflerait à chaque
- * relance manuelle au lieu de refléter les vraies vues gagnées.
- *
- * Pour un compte jamais vu jusqu'ici (absent de `cumulative`), le total du
- * jour sert de point de départ — la meilleure estimation disponible des vues
- * déjà faites avant le début du suivi.
- *
- * @param {Record<string, {total: number, lastUpdated: string}>} cumulative État actuel (voir loadCumulativeViews)
- * @param {Map<string, {delta: number}>} growth24h Voir history.js#computeGrowth, appelé avec lookbackDays=1
- * @param {Array<{account: string, total: number}>} summary Résumé du jour
- * @returns {Record<string, {total: number, lastUpdated: string}>} Le cumul mis à jour (nouvel objet, n'altère pas `cumulative`)
+ * @param {Record<string, {total: number, ig: number, tt: number, yt: number, lastUpdated: string}>} cumulative État actuel
+ * @param {Array<{account: string, ig: number|null, tt: number|null, yt: number|null, total: number}>} summary Résumé du jour
+ * @returns {Record<string, {total: number, ig: number, tt: number, yt: number, lastUpdated: string}>} Le cumul mis à jour (nouvel objet, n'altère pas `cumulative`)
  */
-export function updateCumulativeViews(cumulative, growth24h, summary) {
+export function updateCumulativeViews(cumulative, summary) {
   const updated = { ...cumulative };
   const today = todayKey();
 
@@ -62,26 +52,21 @@ export function updateCumulativeViews(cumulative, growth24h, summary) {
     if (typeof item.total !== 'number') continue;
 
     const existing = updated[item.account];
+    if (existing && existing.lastUpdated === today) continue; // déjà compté aujourd'hui
 
-    if (!existing) {
-      updated[item.account] = { total: item.total, lastUpdated: today };
-      continue;
-    }
+    // null (compte absent sur cette plateforme, "Ban") ne contribue pour rien.
+    const ig = typeof item.ig === 'number' ? item.ig : 0;
+    const tt = typeof item.tt === 'number' ? item.tt : 0;
+    const yt = typeof item.yt === 'number' ? item.yt : 0;
 
-    if (existing.lastUpdated === today) continue; // déjà mis à jour aujourd'hui, on n'ajoute pas deux fois
-
-    const g = growth24h.get(item.account);
-    const delta = g ? Math.max(0, g.delta) : 0;
-    updated[item.account] = { total: existing.total + delta, lastUpdated: today };
+    updated[item.account] = {
+      total: (existing?.total || 0) + item.total,
+      ig: (existing?.ig || 0) + ig,
+      tt: (existing?.tt || 0) + tt,
+      yt: (existing?.yt || 0) + yt,
+      lastUpdated: today
+    };
   }
 
   return updated;
-}
-
-/**
- * @param {Record<string, {total: number, lastUpdated: string}>} cumulative
- * @returns {Record<string, number>} Juste les totaux, pour l'affichage (voir embed.js)
- */
-export function cumulativeTotals(cumulative) {
-  return Object.fromEntries(Object.entries(cumulative).map(([account, v]) => [account, v.total]));
 }

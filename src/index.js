@@ -2,11 +2,11 @@ import { Client, GatewayIntentBits } from 'discord.js';
 import cron from 'node-cron';
 import { config, validateConfig } from './config.js';
 import { buildViewsSummary } from './instagram.js';
-import { buildLeaderboardEmbed, buildErrorReportEmbed, buildStuckAccountsEmbed } from './embed.js';
+import { buildLeaderboardEmbed, buildAllTimeEmbed, buildErrorReportEmbed, buildStuckAccountsEmbed } from './embed.js';
 import { acquireLock, releaseLock } from './cache.js';
 import { loadHistory, appendToday, computeGrowth, detectStuckAccounts, detectRecords } from './history.js';
 import { loadLastMessage, saveLastMessage } from './lastMessage.js';
-import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews, cumulativeTotals } from './cumulativeViews.js';
+import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from './cumulativeViews.js';
 
 validateConfig();
 
@@ -26,15 +26,20 @@ async function scrapeAndBroadcast(channelId) {
     // de croissance (comparer aujourd'hui à aujourd'hui n'aurait pas de sens).
     const historyBefore = loadHistory();
     const growth = computeGrowth(historyBefore, summary, config.historyLookbackDays);
-    const growth24h = computeGrowth(historyBefore, summary, 1);
     const records = detectRecords(historyBefore, summary);
 
+    // Cumul "all time", classé indépendamment du leaderboard du jour (voir
+    // src/cumulativeViews.js) — additionne le total de chaque collecte
+    // déjà réalisée, sans jamais repartir de zéro.
     const cumulativeBefore = loadCumulativeViews();
-    const cumulativeAfter = updateCumulativeViews(cumulativeBefore, growth24h, summary);
+    const cumulativeAfter = updateCumulativeViews(cumulativeBefore, summary);
     saveCumulativeViews(cumulativeAfter);
 
-    const embed = buildLeaderboardEmbed(summary, new Date(), growth, config.historyLookbackDays, records, growth24h, cumulativeTotals(cumulativeAfter));
-    await sendOrEditSummary(channel, embed);
+    const dailyEmbed = buildLeaderboardEmbed(summary, new Date(), growth, config.historyLookbackDays, records);
+    await sendOrEditSummary(channel, 'daily', dailyEmbed);
+
+    const allTimeEmbed = buildAllTimeEmbed(cumulativeAfter, new Date());
+    await sendOrEditSummary(channel, 'allTime', allTimeEmbed);
 
     const historyAfter = appendToday(historyBefore, summary);
     await sendErrorReportToOwner(summary);
@@ -45,13 +50,15 @@ async function scrapeAndBroadcast(channelId) {
   }
 }
 
-// Édite le message de résumé de la veille au lieu d'en renvoyer un nouveau
-// à chaque cron, pour ne pas empiler un message par jour dans le salon.
-// Si l'édition échoue (message supprimé manuellement, trop ancien pour
-// Discord, ou premier lancement sans message enregistré), on retombe sur
-// un envoi classique et on mémorise ce nouveau message pour la prochaine fois.
-async function sendOrEditSummary(channel, embed) {
-  const last = loadLastMessage();
+// Édite le message de la veille au lieu d'en renvoyer un nouveau à chaque
+// cron, pour ne pas empiler un message par jour dans le salon. `key`
+// distingue les différents messages suivis (leaderboard du jour, all time...)
+// puisqu'ils s'éditent chacun indépendamment. Si l'édition échoue (message
+// supprimé manuellement, trop ancien pour Discord, ou premier lancement
+// sans message enregistré), on retombe sur un envoi classique et on
+// mémorise ce nouveau message pour la prochaine fois.
+async function sendOrEditSummary(channel, key, embed) {
+  const last = loadLastMessage(key);
 
   if (last && last.channelId === channel.id) {
     try {
@@ -59,12 +66,12 @@ async function sendOrEditSummary(channel, embed) {
       await message.edit({ embeds: [embed] });
       return;
     } catch (error) {
-      console.error('Édition du message précédent impossible, envoi d\'un nouveau message :', error.message);
+      console.error(`Édition du message "${key}" précédent impossible, envoi d'un nouveau message :`, error.message);
     }
   }
 
   const message = await channel.send({ embeds: [embed] });
-  saveLastMessage(channel.id, message.id);
+  saveLastMessage(key, channel.id, message.id);
 }
 
 // Les échecs de scraping ne vont plus dans le salon public : seul le

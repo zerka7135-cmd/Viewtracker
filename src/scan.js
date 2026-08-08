@@ -18,11 +18,10 @@ import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from 
 
     const historyBefore = loadHistory();
     const growth = computeGrowth(historyBefore, summary, config.historyLookbackDays);
-    const growth24h = computeGrowth(historyBefore, summary, 1);
     const records = detectRecords(historyBefore, summary);
 
     const cumulativeBefore = loadCumulativeViews();
-    const cumulativeAfter = updateCumulativeViews(cumulativeBefore, growth24h, summary);
+    const cumulativeAfter = updateCumulativeViews(cumulativeBefore, summary);
     saveCumulativeViews(cumulativeAfter);
 
     const fmt = (v) => v === null ? 'Ban' : v;
@@ -33,21 +32,18 @@ import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from 
       const percentText = g.percent !== null ? ` (${sign}${g.percent.toFixed(1)}%)` : '';
       return ` — ${sign}${g.delta}${percentText} vs il y a ${config.historyLookbackDays}j`;
     };
-    const fmt24hAllTime = (account) => {
-      const g = growth24h.get(account);
-      const gained = g ? Math.max(0, g.delta) : null;
-      const allTime = cumulativeAfter[account]?.total;
-      const parts = [];
-      if (gained !== null) parts.push(`+${gained} (24h)`);
-      if (typeof allTime === 'number') parts.push(`${allTime} all time`);
-      return parts.length ? ` [${parts.join(' | ')}]` : '';
-    };
 
     console.log(`\nTerminé — ${summary.length} compte(s) traité(s) :\n`);
     for (const item of summary) {
       const warning = item.errors && item.errors.length > 0 ? ' ⚠️' : '';
       const recordBadge = records.has(item.account) ? ' 🎉 record' : '';
-      console.log(`- ${item.account}${warning}${recordBadge} : ${item.total} vues (IG: ${fmt(item.ig)} | TT: ${fmt(item.tt)} | YT: ${fmt(item.yt)})${fmtGrowth(item.account)}${fmt24hAllTime(item.account)}`);
+      console.log(`- ${item.account}${warning}${recordBadge} : ${item.total} vues (IG: ${fmt(item.ig)} | TT: ${fmt(item.tt)} | YT: ${fmt(item.yt)})${fmtGrowth(item.account)}`);
+    }
+
+    console.log('\n♾️  Classement all time :\n');
+    const allTimeSorted = Object.entries(cumulativeAfter).sort((a, b) => b[1].total - a[1].total);
+    for (const [account, v] of allTimeSorted) {
+      console.log(`- ${account} : ${v.total} vues (IG: ${v.ig} | TT: ${v.tt} | YT: ${v.yt})`);
     }
 
     const historyAfter = appendToday(historyBefore, summary);
