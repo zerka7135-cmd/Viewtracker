@@ -73,42 +73,6 @@ export function appendToday(history, summary) {
 }
 
 /**
- * Calcule la croissance du total de vues par compte entre aujourd'hui et
- * la collecte la plus proche d'il y a `lookbackDays` jours (au plus tôt
- * disponible dans l'historique si l'ancienneté est insuffisante).
- * @param {Array} history Historique *avant* ajout du jour (baseline uniquement)
- * @param {Array} summary Résumé du jour
- * @param {number} lookbackDays
- * @returns {Map<string, {delta: number, percent: number|null, baselineDate: string}>}
- */
-export function computeGrowth(history, summary, lookbackDays = 7) {
-  const growth = new Map();
-  if (history.length === 0) return growth;
-
-  const targetDate = new Date();
-  targetDate.setDate(targetDate.getDate() - lookbackDays);
-  const targetKey = targetDate.toLocaleDateString('en-CA', { timeZone: config.timezone });
-
-  // Entrée la plus proche de la cible, sans la dépasser (le passé le plus
-  // récent disponible avant/à la date cible) — sinon la plus ancienne
-  // disponible si l'historique est encore trop jeune.
-  const candidates = history.filter(h => h.date <= targetKey);
-  const baseline = candidates.length > 0 ? candidates[candidates.length - 1] : history[0];
-  if (!baseline) return growth;
-
-  for (const item of summary) {
-    const previous = baseline.accounts.find(a => a.account === item.account);
-    if (!previous || typeof previous.total !== 'number') continue;
-
-    const delta = item.total - previous.total;
-    const percent = previous.total > 0 ? (delta / previous.total) * 100 : null;
-    growth.set(item.account, { delta, percent, baselineDate: baseline.date });
-  }
-
-  return growth;
-}
-
-/**
  * Calcule les vues gagnées dans les dernières 24h, par plateforme, entre
  * aujourd'hui et la collecte de la veille (ou la plus ancienne disponible
  * si l'historique est encore trop jeune) — toujours sur 1 jour, contrairement
@@ -184,34 +148,6 @@ export function computeGrowth24h(history, summary) {
   }
 
   return result;
-}
-
-/**
- * Détecte les comptes dont le total du jour dépasse leur meilleur total
- * jamais enregistré. Un compte sans historique préalable n'est jamais
- * considéré comme un record (sinon chaque nouveau compte "battrait un
- * record" dès sa première collecte, ce qui n'a pas de sens).
- * @param {Array} historyBefore Historique *avant* ajout du jour
- * @param {Array} summary Résumé du jour
- * @returns {Set<string>} noms des comptes en record aujourd'hui
- */
-export function detectRecords(historyBefore, summary) {
-  const records = new Set();
-
-  for (const item of summary) {
-    if (typeof item.total !== 'number' || item.total <= 0) continue;
-
-    const previousTotals = historyBefore
-      .map(entry => entry.accounts.find(a => a.account === item.account))
-      .filter(Boolean)
-      .map(a => a.total)
-      .filter(t => typeof t === 'number');
-
-    if (previousTotals.length === 0) continue;
-    if (item.total > Math.max(...previousTotals)) records.add(item.account);
-  }
-
-  return records;
 }
 
 /**
