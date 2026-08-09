@@ -136,12 +136,17 @@ export function computeGrowth24h(history, summary) {
     const previous = baseline.accounts.find(a => a.account === item.account);
     if (!previous) continue;
 
-    result.set(item.account, {
-      total: diff(item.total, previous.total),
-      ig: diff(item.ig, previous.ig),
-      tt: diff(item.tt, previous.tt),
-      yt: diff(item.yt, previous.yt)
-    });
+    const ig = diff(item.ig, previous.ig);
+    const tt = diff(item.tt, previous.tt);
+    const yt = diff(item.yt, previous.yt);
+
+    // total = somme des deltas par plateforme, pas un diff séparé sur
+    // item.total/previous.total : sinon un compte qui passe banni (IG ou
+    // YT à null) entre les deux collectes fait chuter le total brut, ce
+    // qui clampe le total global à 0 même si une autre plateforme (ex.
+    // TikTok) a réellement gagné des vues sur la période — total à 0
+    // affiché à côté d'un détail TT positif, incohérent à l'oeil.
+    result.set(item.account, { total: ig + tt + yt, ig, tt, yt });
   }
 
   return result;
