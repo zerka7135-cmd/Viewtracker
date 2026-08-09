@@ -53,7 +53,11 @@ export function appendToday(history, summary) {
       tt: item.tt,
       yt: item.yt,
       total: item.total,
-      errors: item.errors
+      errors: item.errors,
+      // Détail par vidéo (id -> vues), pour comparer les mêmes vidéos d'un
+      // jour à l'autre plutôt que la somme brute d'une fenêtre glissante —
+      // voir computeGrowth24h ci-dessous.
+      posts: item.posts || null
     }))
   };
 
@@ -108,9 +112,20 @@ export function computeGrowth(history, summary, lookbackDays = 7) {
  * Calcule les vues gagnées dans les dernières 24h, par plateforme, entre
  * aujourd'hui et la collecte de la veille (ou la plus ancienne disponible
  * si l'historique est encore trop jeune) — toujours sur 1 jour, contrairement
- * à computeGrowth() dont le lookback est configurable. Les deltas ne sont
- * jamais négatifs à l'affichage (une vidéo qui sort du top N ou un compte
- * temporairement banni ne doit pas apparaître comme une "perte de vues").
+ * à computeGrowth() dont le lookback est configurable.
+ *
+ * Ne suit que les 2 derniers posts par plateforme (voir config.postsLimit),
+ * donc le contenu de cette fenêtre change dès qu'un compte publie : sommer
+ * les totaux bruts d'un jour à l'autre confondrait "vidéo remplacée dans le
+ * top N" et "perte de vues". On compare donc les vidéos individuellement par
+ * ID (voir instagram.js#buildViewsSummary → `posts`) : une vidéo déjà vue
+ * hier ne compte que sa vraie progression, une vidéo neuve apporte ses vues
+ * telles quelles (elle vient forcément d'être publiée, la fenêtre étant si
+ * étroite). Si l'ID n'a pas pu être extrait ce jour-là (repli texte sans
+ * lien fiable, ou données d'avant cette fonctionnalité), on retombe sur
+ * l'ancien calcul par total brut pour cette plateforme. Dans tous les cas,
+ * un delta n'est jamais négatif à l'affichage (un compte temporairement
+ * banni ne doit pas apparaître comme une "perte de vues").
  * @param {Array} history Historique *avant* ajout du jour (baseline uniquement)
  * @param {Array} summary Résumé du jour
  * @returns {Map<string, {total: number, ig: number, tt: number, yt: number}>}
@@ -132,13 +147,32 @@ export function computeGrowth24h(history, summary) {
     return Math.max(0, curr - prev);
   };
 
+  // Delta par plateforme pour un compte : suivi par vidéo si les deux
+  // collectes ont pu extraire des IDs, sinon repli sur le total brut.
+  const platformDelta = (currentPosts, previousPosts, currentTotal, previousTotal) => {
+    if (!Array.isArray(currentPosts) || currentPosts.length === 0) {
+      return diff(currentTotal, previousTotal);
+    }
+
+    const previousViewsById = new Map(
+      (Array.isArray(previousPosts) ? previousPosts : []).map(p => [p.id, p.views])
+    );
+
+    let sum = 0;
+    for (const post of currentPosts) {
+      const previousViews = previousViewsById.get(post.id);
+      sum += typeof previousViews === 'number' ? Math.max(0, post.views - previousViews) : post.views;
+    }
+    return sum;
+  };
+
   for (const item of summary) {
     const previous = baseline.accounts.find(a => a.account === item.account);
     if (!previous) continue;
 
-    const ig = diff(item.ig, previous.ig);
-    const tt = diff(item.tt, previous.tt);
-    const yt = diff(item.yt, previous.yt);
+    const ig = platformDelta(item.posts?.ig, previous.posts?.ig, item.ig, previous.ig);
+    const tt = platformDelta(item.posts?.tt, previous.posts?.tt, item.tt, previous.tt);
+    const yt = platformDelta(item.posts?.yt, previous.posts?.yt, item.yt, previous.yt);
 
     // total = somme des deltas par plateforme, pas un diff séparé sur
     // item.total/previous.total : sinon un compte qui passe banni (IG ou
