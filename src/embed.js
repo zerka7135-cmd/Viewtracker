@@ -1,67 +1,6 @@
 import { EmbedBuilder } from 'discord.js';
-import { config } from './config.js';
 
 const medals = ['🥇', '🥈', '🥉'];
-
-/**
- * Construit un embed Discord classé à partir du résumé de vues, pour le
- * salon public. Volontairement sans aucun détail d'échec de scraping — ça
- * part en message privé à part (voir buildErrorReportEmbed) pour garder ce
- * résumé propre pour tout le monde.
- * @param {Array<{account: string, ig: number, tt: number, yt: number, total: number, errors?: Array<{platform: string, message: string}>}>} summary
- * @param {string|Date|null} updatedAt Horodatage de la collecte (si affiché depuis un cache)
- * @param {Map<string, {delta: number, percent: number|null, baselineDate: string}>} [growth] Voir src/history.js#computeGrowth
- * @param {number} [lookbackDays] Nombre de jours utilisé pour le calcul de croissance (affichage uniquement)
- * @param {Set<string>} [records] Comptes ayant battu leur record aujourd'hui, voir src/history.js#detectRecords
- */
-export function buildLeaderboardEmbed(summary, updatedAt = null, growth = new Map(), lookbackDays = 7, records = new Set()) {
-  const sorted = [...summary].sort((a, b) => b.total - a.total);
-
-  // null = pas de compte sur cette plateforme (voir buildViewsSummary) :
-  // affiché "Ban" plutôt qu'un 0 qui laisserait croire à un échec.
-  const formatPlatform = (value) => value === null ? 'Ban' : value.toLocaleString('fr-FR');
-
-  // Pas de flèche tant qu'on n'a pas assez d'historique pour comparer
-  // (nouveau compte, ou bot lancé depuis moins de `lookbackDays` jours).
-  const formatGrowth = (account) => {
-    const g = growth.get(account);
-    if (!g) return '';
-    const arrow = g.delta > 0 ? '📈' : g.delta < 0 ? '📉' : '➖';
-    const sign = g.delta > 0 ? '+' : '';
-    const deltaText = `${sign}${g.delta.toLocaleString('fr-FR')}`;
-    const percentText = g.percent !== null
-      ? ` (${sign}${g.percent.toFixed(1)}%)`
-      : ''; // baseline à 0 vue : un pourcentage n'aurait pas de sens
-    return `\n${arrow} ${deltaText}${percentText} vs il y a ${lookbackDays}j`;
-  };
-
-  const description = sorted.length
-    ? sorted.map((item, index) => {
-        const prefix = index < 3 ? medals[index] : `**${index + 1}.**`;
-        const total = item.total.toLocaleString('fr-FR');
-        const ig = formatPlatform(item.ig);
-        const tt = formatPlatform(item.tt);
-        const yt = formatPlatform(item.yt);
-        const recordBadge = records.has(item.account) ? ' 🎉 *Nouveau record !*' : '';
-        return `${prefix} **${item.account}**${recordBadge}\n${total} vues (IG: ${ig} | TT: ${tt} | YT: ${yt})${formatGrowth(item.account)}`;
-      }).join('\n\n')
-    : 'Aucune donnée disponible.';
-
-  const embed = new EmbedBuilder()
-    .setTitle(`📊 Résumé des vues sur les ${config.postsLimit} derniers posts — ${new Date().toLocaleDateString('fr-FR')}`)
-    .setDescription(description)
-    .setColor(0x5865F2)
-    .setTimestamp();
-
-  if (updatedAt) {
-    const date = new Date(updatedAt);
-    embed.setFooter({
-      text: `Dernière collecte : ${date.toLocaleDateString('fr-FR')} à ${date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
-    });
-  }
-
-  return embed;
-}
 
 // null = pas de compte sur cette plateforme (voir buildViewsSummary) : affiché
 // "Ban" plutôt qu'un 0 qui laisserait croire à un échec de scraping. À
