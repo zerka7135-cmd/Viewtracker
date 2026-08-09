@@ -1,0 +1,89 @@
+import { useState } from 'react';
+import { fmt, fmtDate } from '../format.js';
+
+// Graphe SVG à aire pleine + ligne, même principe que la maquette
+// d'origine, avec un tooltip au survol (date + valeur exacte) — sans ça,
+// impossible de lire une valeur précise sur la courbe, ce qui nuit à la
+// confiance dans un outil dont la valeur repose sur des chiffres.
+//
+// `data` : [{date, value}] — préféré à un simple tableau de valeurs pour
+// pouvoir afficher la date dans le tooltip. `values` (ancien prop, juste
+// des nombres) reste accepté pour compatibilité : dans ce cas le tooltip
+// n'affiche que la valeur, sans date.
+export default function AreaChart({ data, values, color, width = 560, height = 150 }) {
+  const [hoverIndex, setHoverIndex] = useState(null);
+
+  const points = data || (values || []).map((value) => ({ date: null, value }));
+  const safe = points.length > 1 ? points : [{ date: null, value: 0 }, { date: null, value: 0 }];
+  const nums = safe.map((p) => p.value ?? 0);
+  const max = Math.max(...nums);
+  const min = Math.min(...nums);
+  const range = Math.max(max - min, 1);
+
+  const dots = safe.map((p, i) => ({
+    x: (i / (safe.length - 1)) * width,
+    y: height - (((p.value ?? 0) - min) / range) * (height - 10),
+    date: p.date,
+    value: p.value ?? 0
+  }));
+  const line = dots.map((d) => `${d.x},${d.y}`).join(' ');
+  const area = `0,${height} ${line} ${width},${height}`;
+
+  const handleMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width === 0) return;
+    const relX = ((e.clientX - rect.left) / rect.width) * width;
+    let closest = 0;
+    let closestDist = Infinity;
+    dots.forEach((d, i) => {
+      const dist = Math.abs(d.x - relX);
+      if (dist < closestDist) { closestDist = dist; closest = i; }
+    });
+    setHoverIndex(closest);
+  };
+
+  const hovered = hoverIndex !== null ? dots[hoverIndex] : null;
+  const hoveredPct = hovered ? (hovered.x / width) * 100 : 0;
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        style={{ width: '100%', height, display: 'block', overflow: 'visible', cursor: dots.length > 1 ? 'crosshair' : 'default' }}
+        onMouseMove={handleMove}
+        onMouseLeave={() => setHoverIndex(null)}
+      >
+        <polygon points={area} fill={color} opacity="0.1" />
+        <polyline points={line} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        {hovered && (
+          <>
+            <line x1={hovered.x} y1="0" x2={hovered.x} y2={height} stroke={color} strokeWidth="1" strokeDasharray="3,3" opacity="0.4" />
+            <circle cx={hovered.x} cy={hovered.y} r="4" fill={color} stroke="var(--card)" strokeWidth="2" />
+          </>
+        )}
+      </svg>
+      {hovered && (
+        <div
+          style={{
+            position: 'absolute',
+            left: `${hoveredPct}%`,
+            top: 0,
+            transform: `translate(${hoveredPct < 15 ? '-4%' : hoveredPct > 85 ? '-96%' : '-50%'}, calc(-100% - 8px))`,
+            background: 'var(--card)',
+            border: '1px solid var(--border-strong)',
+            borderRadius: 8,
+            padding: '6px 10px',
+            fontSize: 11.5,
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
+            zIndex: 5
+          }}
+        >
+          {hovered.date && <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>{fmtDate(hovered.date)}</div>}
+          <div className="mono" style={{ fontWeight: 700 }}>{fmt(hovered.value)} vues</div>
+        </div>
+      )}
+    </div>
+  );
+}

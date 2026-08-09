@@ -1,42 +1,31 @@
-import fs from 'fs';
-import path from 'path';
+import { query } from './db.js';
 
-// Sur Railway, LAST_MESSAGE_PATH pointe vers le volume persistant monté sur
-// /data (même logique que HISTORY_PATH dans history.js), sinon l'ID du
-// message serait perdu à chaque redéploiement et le bot recréerait un
-// nouveau message au lieu d'éditer celui de la veille.
-const LAST_MESSAGE_PATH = process.env.LAST_MESSAGE_PATH || path.resolve('./data/last-message.json');
+// IDs des messages Discord édités plutôt que renvoyés à chaque collecte,
+// désormais stockés dans last_messages (voir
+// migrations/003_viewtracker_bot.sql) plutôt que data/last-message.json.
 
 /**
- * Un seul fichier peut suivre plusieurs messages édités indépendamment
- * (ex. "daily" pour le leaderboard du jour, "allTime" pour le classement
- * cumulé) — chacun sous sa propre clé.
+ * Un seul enregistrement par organisation peut suivre plusieurs messages
+ * édités indépendamment (ex. "daily" pour le leaderboard du jour,
+ * "allTime" pour le classement cumulé) — chacun sous sa propre clé.
+ * @param {string} orgId
  * @param {string} key Identifiant du message suivi (ex. "daily", "allTime")
- * @returns {{ channelId: string, messageId: string } | null}
+ * @returns {Promise<{ channelId: string, messageId: string } | null>}
  */
-export function loadLastMessage(key) {
-  try {
-    if (!fs.existsSync(LAST_MESSAGE_PATH)) return null;
-    const all = JSON.parse(fs.readFileSync(LAST_MESSAGE_PATH, 'utf8'));
-    const entry = all?.[key];
-    if (!entry || !entry.channelId || !entry.messageId) return null;
-    return entry;
-  } catch (e) {
-    console.error('Erreur de lecture du dernier message Discord, on repart de zéro :', e.message);
-    return null;
-  }
+export async function loadLastMessage(orgId, key) {
+  const { rows } = await query(
+    'SELECT channel_id, message_id FROM last_messages WHERE organization_id = $1 AND key = $2',
+    [orgId, key]
+  );
+  if (rows.length === 0) return null;
+  return { channelId: rows[0].channel_id, messageId: rows[0].message_id };
 }
 
-export function saveLastMessage(key, channelId, messageId) {
-  fs.mkdirSync(path.dirname(LAST_MESSAGE_PATH), { recursive: true });
-
-  let all = {};
-  try {
-    if (fs.existsSync(LAST_MESSAGE_PATH)) all = JSON.parse(fs.readFileSync(LAST_MESSAGE_PATH, 'utf8')) || {};
-  } catch {
-    // Fichier corrompu : on repart d'un objet vide plutôt que de bloquer l'écriture.
-  }
-
-  all[key] = { channelId, messageId };
-  fs.writeFileSync(LAST_MESSAGE_PATH, JSON.stringify(all, null, 2));
+export async function saveLastMessage(orgId, key, channelId, messageId) {
+  await query(
+    `INSERT INTO last_messages (organization_id, key, channel_id, message_id)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (organization_id, key) DO UPDATE SET channel_id = EXCLUDED.channel_id, message_id = EXCLUDED.message_id`,
+    [orgId, key, channelId, messageId]
+  );
 }

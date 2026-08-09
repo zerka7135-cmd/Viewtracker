@@ -1,31 +1,63 @@
-import fs from 'fs';
-import path from 'path';
+import { query, withTransaction } from './db.js';
 import { todayKey } from './history.js';
 
-// Même logique de persistance que history.js/lastMessage.js : sur Railway,
-// CUMULATIVE_VIEWS_PATH pointe vers le volume monté sur /data pour survivre
-// aux redéploiements.
-const CUMULATIVE_PATH = process.env.CUMULATIVE_VIEWS_PATH || path.resolve('./data/cumulative-views.json');
+// Cumul "all time" par créateur, désormais stocké dans
+// creator_cumulative_views (voir migrations/003_viewtracker_bot.sql)
+// plutôt que dans data/cumulative-views.json. updateCumulativeViews reste
+// une fonction pure inchangée — seule l'I/O (load/save) change.
 
 /**
- * @returns {Record<string, {total: number, ig: number, tt: number, yt: number, lastUpdated: string}>}
+ * @param {string} orgId
+ * @returns {Promise<Record<string, {total: number, ig: number, tt: number, yt: number, lastUpdated: string}>>}
  * Cumul "all time" par compte, plateforme par plateforme. {} si rien n'a
  * encore été enregistré.
  */
-export function loadCumulativeViews() {
-  try {
-    if (!fs.existsSync(CUMULATIVE_PATH)) return {};
-    const parsed = JSON.parse(fs.readFileSync(CUMULATIVE_PATH, 'utf8'));
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch (e) {
-    console.error('Erreur de lecture du cumul de vues, on repart de zéro :', e.message);
-    return {};
+export async function loadCumulativeViews(orgId) {
+  const { rows } = await query(
+    `SELECT c.name AS creator_name, ccv.total, ccv.ig, ccv.tt, ccv.yt, ccv.last_updated
+     FROM creator_cumulative_views ccv
+     JOIN creators c ON c.id = ccv.creator_id
+     WHERE c.organization_id = $1`,
+    [orgId]
+  );
+
+  const cumulative = {};
+  for (const row of rows) {
+    cumulative[row.creator_name] = {
+      total: Number(row.total),
+      ig: Number(row.ig),
+      tt: Number(row.tt),
+      yt: Number(row.yt),
+      lastUpdated: row.last_updated ? row.last_updated.toISOString().slice(0, 10) : todayKey()
+    };
   }
+  return cumulative;
 }
 
-export function saveCumulativeViews(cumulative) {
-  fs.mkdirSync(path.dirname(CUMULATIVE_PATH), { recursive: true });
-  fs.writeFileSync(CUMULATIVE_PATH, JSON.stringify(cumulative, null, 2));
+/**
+ * @param {string} orgId
+ * @param {Record<string, {total: number, ig: number, tt: number, yt: number, lastUpdated: string}>} cumulative
+ */
+export async function saveCumulativeViews(orgId, cumulative) {
+  const { rows } = await query(
+    `SELECT c.id AS creator_id, c.name FROM creators c WHERE c.organization_id = $1`,
+    [orgId]
+  );
+  const creatorIdByName = new Map(rows.map((r) => [r.name, r.creator_id]));
+
+  await withTransaction(async (client) => {
+    for (const [name, v] of Object.entries(cumulative)) {
+      const creatorId = creatorIdByName.get(name);
+      if (!creatorId) continue; // compte supprimé entre temps : ignoré plutôt que planter
+
+      await client.query(
+        `INSERT INTO creator_cumulative_views (creator_id, total, ig, tt, yt, last_updated)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (creator_id) DO UPDATE SET total = EXCLUDED.total, ig = EXCLUDED.ig, tt = EXCLUDED.tt, yt = EXCLUDED.yt, last_updated = EXCLUDED.last_updated`,
+        [creatorId, v.total, v.ig, v.tt, v.yt, v.lastUpdated]
+      );
+    }
+  });
 }
 
 /**

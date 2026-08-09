@@ -1,75 +1,141 @@
-import fs from 'fs';
-import path from 'path';
 import { config } from './config.js';
+import { query, withTransaction } from './db.js';
 
-// Sur Railway, HISTORY_PATH pointe vers le volume persistant monté sur
-// /data (sinon le fichier serait effacé à chaque redéploiement). En local,
-// on retombe sur un chemin relatif classique.
-const HISTORY_PATH = process.env.HISTORY_PATH || path.resolve('./data/history.json');
+// Historique des collectes, désormais stocké dans la table `snapshots`
+// (granularity='raw', une ligne par tracked_account par jour — voir
+// migrations/003_viewtracker_bot.sql) plutôt que dans data/history.json.
+// loadHistory() reconstruit exactement la forme attendue par
+// computeGrowth24h/detectStuckAccounts ci-dessous
+// (`[{date, accounts:[{account, ig, tt, yt, total, errors, posts}]}]`),
+// qui restent des fonctions pures inchangées — seule l'I/O change.
 
-// Nombre d'entrées (jours de collecte) conservées avant purge des plus
-// anciennes — largement suffisant pour les tendances, sans laisser le
-// fichier grossir indéfiniment.
 const MAX_ENTRIES = 90;
+const PLATFORM_LABEL = { instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube' };
+const APP_PLATFORM = { instagram: 'ig', tiktok: 'tt', youtube: 'yt' };
+// item.errors (voir instagram.js#buildViewsSummary) utilise les noms
+// affichés ("Instagram"/"TikTok"/"YouTube"), pas les codes internes ig/tt/yt.
+const APP_TO_LABEL = { ig: 'Instagram', tt: 'TikTok', yt: 'YouTube' };
 
-/** Date du jour au format YYYY-MM-DD, dans le fuseau configuré (cf. config.timezone). */
+/** Date au format YYYY-MM-DD, dans le fuseau donné (cf. config.timezone). */
+function dateKeyInTimezone(date, timezone) {
+  return date.toLocaleDateString('en-CA', { timeZone: timezone });
+}
+
+/** Date du jour au format YYYY-MM-DD, dans le fuseau configuré. */
 export function todayKey(timezone = config.timezone) {
-  return new Date().toLocaleDateString('en-CA', { timeZone: timezone });
+  return dateKeyInTimezone(new Date(), timezone);
 }
 
 /**
- * Charge l'historique des collectes précédentes.
- * @returns {Array<{date: string, accounts: Array}>} trié du plus ancien au plus récent
+ * Charge l'historique des collectes précédentes pour une organisation.
+ * @param {string} orgId
+ * @returns {Promise<Array<{date: string, accounts: Array}>>} trié du plus ancien au plus récent
  */
-export function loadHistory() {
-  try {
-    if (!fs.existsSync(HISTORY_PATH)) return [];
-    const raw = fs.readFileSync(HISTORY_PATH, 'utf8');
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    // Un historique corrompu ne doit jamais faire planter la collecte du
-    // jour : on repart d'un historique vide plutôt que de crasher.
-    console.error('Erreur de lecture de l\'historique, on repart de zéro :', e.message);
-    return [];
+export async function loadHistory(orgId) {
+  const { rows } = await query(
+    `SELECT c.id AS creator_id, c.name AS creator_name, ta.platform,
+            s.captured_at, s.views, s.raw_payload
+     FROM creators c
+     JOIN tracked_accounts ta ON ta.creator_id = c.id
+     JOIN snapshots s ON s.tracked_account_id = ta.id AND s.granularity = 'raw'
+     WHERE c.organization_id = $1
+     ORDER BY s.captured_at`,
+    [orgId]
+  );
+
+  // date -> creatorId -> entrée en construction
+  const byDate = new Map();
+
+  for (const row of rows) {
+    const date = dateKeyInTimezone(new Date(row.captured_at), config.timezone);
+    if (!byDate.has(date)) byDate.set(date, new Map());
+    const dayAccounts = byDate.get(date);
+
+    if (!dayAccounts.has(row.creator_id)) {
+      dayAccounts.set(row.creator_id, {
+        account: row.creator_name,
+        ig: null, tt: null, yt: null, total: 0,
+        errors: [],
+        posts: { ig: null, tt: null, yt: null }
+      });
+    }
+    const entry = dayAccounts.get(row.creator_id);
+    const appPlatform = APP_PLATFORM[row.platform];
+    const payload = row.raw_payload || {};
+
+    entry[appPlatform] = row.views === null ? 0 : Number(row.views);
+    entry.posts[appPlatform] = payload.posts || null;
+    if (payload.error) entry.errors.push({ platform: PLATFORM_LABEL[row.platform], message: payload.error });
   }
-}
 
-/**
- * Ajoute (ou remplace, si déjà présente) l'entrée du jour et persiste le
- * résultat. Remplacer plutôt que dupliquer permet de relancer `npm run scan`
- * plusieurs fois le même jour sans fausser l'historique.
- * @param {Array} history Résultat de loadHistory()
- * @param {Array} summary Résumé du jour (retour de buildViewsSummary)
- * @returns {Array} l'historique mis à jour
- */
-export function appendToday(history, summary) {
-  const date = todayKey();
-  const entry = {
-    date,
-    accounts: summary.map(item => ({
-      account: item.account,
-      ig: item.ig,
-      tt: item.tt,
-      yt: item.yt,
-      total: item.total,
-      errors: item.errors,
-      // Détail par vidéo (id -> vues), pour comparer les mêmes vidéos d'un
-      // jour à l'autre plutôt que la somme brute d'une fenêtre glissante —
-      // voir computeGrowth24h ci-dessous.
-      posts: item.posts || null
+  const history = [...byDate.entries()]
+    .map(([date, dayAccounts]) => ({
+      date,
+      accounts: [...dayAccounts.values()].map((a) => ({ ...a, total: (a.ig || 0) + (a.tt || 0) + (a.yt || 0) }))
     }))
-  };
-
-  const withoutToday = history.filter(h => h.date !== date);
-  const updated = [...withoutToday, entry]
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(-MAX_ENTRIES);
 
-  fs.mkdirSync(path.dirname(HISTORY_PATH), { recursive: true });
-  fs.writeFileSync(HISTORY_PATH, JSON.stringify(updated, null, 2));
+  return history;
+}
 
-  return updated;
+/**
+ * Enregistre le résumé du jour (résultat de buildViewsSummary) — upsert un
+ * snapshot "raw" par tracked_account existant pour chaque compte scrapé,
+ * pour rester idempotent si `npm run scan` est relancé le même jour.
+ * @param {string} orgId
+ * @param {Array} history Ignoré ici (gardé pour compatibilité de signature
+ *   avec l'ancienne version fichier — l'historique est relu depuis la DB
+ *   par les appelants qui en ont besoin après coup, voir scanCycle.js)
+ * @param {Array} summary Résumé du jour (retour de buildViewsSummary)
+ */
+export async function appendToday(orgId, summary) {
+  const { rows } = await query(
+    `SELECT ta.id, ta.platform, c.id AS creator_id, c.name AS creator_name
+     FROM tracked_accounts ta
+     JOIN creators c ON c.id = ta.creator_id
+     WHERE c.organization_id = $1`,
+    [orgId]
+  );
+  const trackedAccountId = new Map(rows.map((r) => [`${r.creator_name}:${APP_PLATFORM[r.platform]}`, r.id]));
+
+  await withTransaction(async (client) => {
+    for (const item of summary) {
+      for (const platform of ['ig', 'tt', 'yt']) {
+        if (item[platform] === null) continue; // pas de compte sur cette plateforme ("Ban") : rien à enregistrer
+
+        const taId = trackedAccountId.get(`${item.account}:${platform}`);
+        if (!taId) continue; // compte supprimé/renommé entre le chargement et l'écriture : ignoré plutôt que planter
+
+        const error = (item.errors || []).find((e) => e.platform === APP_TO_LABEL[platform]);
+        const payload = { posts: item.posts?.[platform] || null, error: error?.message || null };
+
+        // Idempotence par jour (fuseau du bot, pas celui de la session
+        // Postgres) : une même journée ne doit produire qu'un seul
+        // snapshot "raw" par tracked_account, quel que soit le nombre de
+        // fois où `npm run scan`/le cron tournent ce jour-là.
+        const todayStart = new Date(`${todayKey()}T00:00:00`);
+        const existing = await client.query(
+          `SELECT id FROM snapshots WHERE tracked_account_id = $1 AND granularity = 'raw' AND captured_at >= $2 ORDER BY captured_at DESC LIMIT 1`,
+          [taId, todayStart]
+        );
+
+        if (existing.rows.length > 0) {
+          await client.query('UPDATE snapshots SET views = $1, raw_payload = $2, captured_at = now() WHERE id = $3', [
+            item[platform], JSON.stringify(payload), existing.rows[0].id
+          ]);
+        } else {
+          await client.query(
+            `INSERT INTO snapshots (tracked_account_id, captured_at, granularity, views, raw_payload)
+             VALUES ($1, now(), 'raw', $2, $3)`,
+            [taId, item[platform], JSON.stringify(payload)]
+          );
+        }
+      }
+    }
+  });
+
+  return loadHistory(orgId);
 }
 
 /**

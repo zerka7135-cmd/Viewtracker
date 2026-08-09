@@ -34,7 +34,25 @@ export const config = {
   // avant d'alerter le propriétaire (cookie expiré, sélecteur DOM cassé...).
   stuckAlertMinDays: Number(process.env.STUCK_ALERT_MIN_DAYS) || 3,
   // Liste des comptes à suivre, définie en JSON dans le .env (voir .env.example)
-  accounts: parseAccounts(process.env.ACCOUNTS)
+  accounts: parseAccounts(process.env.ACCOUNTS),
+  // URL du microservice Python/Scrapling qui scrape IG/YT (voir
+  // scraper-service/ et src/scraperClient.js) — http://localhost:8000 en
+  // dev, réseau privé Railway en production.
+  scraperServiceUrl: process.env.SCRAPER_SERVICE_URL || 'http://localhost:8000',
+  // Port du serveur HTTP du dashboard web (voir src/server.js).
+  port: Number(process.env.PORT) || 3000,
+  // Base Postgres partagée (creator_leaderboard en local, voir README
+  // section Postgres) — src/db.js, src/org.js.
+  databaseUrl: process.env.DATABASE_URL,
+  // Envoi d'email (mot de passe oublié, voir src/email.js) via l'API
+  // Resend. resendFrom doit être une adresse d'un domaine vérifié dans
+  // Resend en production ; "onboarding@resend.dev" fonctionne sans
+  // vérification pour tester.
+  resendApiKey: process.env.RESEND_API_KEY,
+  resendFrom: process.env.RESEND_FROM || 'onboarding@resend.dev',
+  // URL publique du dashboard, utilisée pour construire le lien de
+  // réinitialisation de mot de passe dans l'email envoyé.
+  publicUrl: process.env.PUBLIC_URL || `http://localhost:${Number(process.env.PORT) || 3000}`
 };
 
 function parseAccounts(raw) {
@@ -57,5 +75,8 @@ export function validateConfig() {
   }
   if (!config.accounts || config.accounts.length === 0) {
     throw new Error('Aucun compte défini dans ACCOUNTS dans le fichier .env');
+  }
+  if (!config.databaseUrl) {
+    throw new Error('DATABASE_URL est manquant dans le fichier .env (connexion à la base Postgres)');
   }
 }

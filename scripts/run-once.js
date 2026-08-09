@@ -1,5 +1,8 @@
 import { Client, GatewayIntentBits } from 'discord.js';
 import { config, validateConfig } from '../src/config.js';
+import { runMigrations } from '../src/db.js';
+import { getDefaultOrgId } from '../src/org.js';
+import { loadAccounts } from '../src/accountsStore.js';
 import { buildViewsSummary } from '../src/instagram.js';
 import { build24hEmbed, buildAllTimeEmbed, buildErrorReportEmbed, buildStuckAccountsEmbed } from '../src/embed.js';
 import { acquireLock, releaseLock } from '../src/cache.js';
@@ -10,15 +13,18 @@ import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from 
 // Déclenche manuellement un seul cycle de collecte + diffusion, en dehors
 // du cron planifié. Édite les messages Discord existants comme le ferait
 // le cron normal (voir sendOrEditSummary ci-dessous) — n'en crée jamais de
-// nouveaux tant que lastMessage.json pointe vers un message éditable :
-// utile pour republier des stats corrigées suite à un fix de calcul, sans
-// attendre le prochain créneau cron ni dupliquer les messages du salon.
+// nouveaux tant qu'un message éditable est enregistré en base (voir
+// last_messages, src/lastMessage.js) : utile pour republier des stats
+// corrigées suite à un fix de calcul, sans attendre le prochain créneau
+// cron ni dupliquer les messages du salon.
 validateConfig();
+await runMigrations();
+const orgId = await getDefaultOrgId();
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 async function sendOrEditSummary(channel, key, embed) {
-  const last = loadLastMessage(key);
+  const last = await loadLastMessage(orgId, key);
 
   if (last && last.channelId === channel.id) {
     try {
@@ -32,7 +38,7 @@ async function sendOrEditSummary(channel, key, embed) {
   }
 
   const message = await channel.send({ embeds: [embed] });
-  saveLastMessage(key, channel.id, message.id);
+  await saveLastMessage(orgId, key, channel.id, message.id);
   console.log(`Message "${key}" envoyé (aucun message précédent à éditer, id ${message.id}).`);
 }
 
@@ -64,14 +70,14 @@ client.once('clientReady', async () => {
 
   try {
     const channel = await client.channels.fetch(config.discordChannelId);
-    const summary = await buildViewsSummary();
+    const summary = await buildViewsSummary(await loadAccounts(orgId));
 
-    const historyBefore = loadHistory();
+    const historyBefore = await loadHistory(orgId);
     const growth24h = computeGrowth24h(historyBefore, summary);
 
-    const cumulativeBefore = loadCumulativeViews();
+    const cumulativeBefore = await loadCumulativeViews(orgId);
     const cumulativeAfter = updateCumulativeViews(cumulativeBefore, growth24h, summary);
-    saveCumulativeViews(cumulativeAfter);
+    await saveCumulativeViews(orgId, cumulativeAfter);
 
     const dailyEmbed = build24hEmbed(growth24h, summary, new Date());
     await sendOrEditSummary(channel, 'daily', dailyEmbed);
@@ -79,7 +85,7 @@ client.once('clientReady', async () => {
     const allTimeEmbed = buildAllTimeEmbed(cumulativeAfter, summary, new Date());
     await sendOrEditSummary(channel, 'allTime', allTimeEmbed);
 
-    const historyAfter = appendToday(historyBefore, summary);
+    const historyAfter = await appendToday(orgId, summary);
     await sendErrorReportToOwner(summary);
     await sendStuckAlertToOwner(historyAfter);
 
