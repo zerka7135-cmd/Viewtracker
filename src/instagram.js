@@ -157,19 +157,20 @@ async function simulateHumanBehavior(page) {
 }
 
 /**
- * Exécute `scrapeFn` (qui doit renvoyer un total de vues) avec une nouvelle
+ * Exécute `scrapeFn` (qui doit renvoyer `{ total, posts }`, `posts` étant le
+ * détail par vidéo — voir extractIdFromHref ci-dessous) avec une nouvelle
  * tentative en cas d'échec (exception ou total à 0) : un échec ponctuel
  * (rendu lent, bandeau de consentement raté, léger ralentissement réseau)
  * ne fait alors pas remonter une fausse alerte "sélecteurs obsolètes".
- * @returns {{ total: number, error: string|null }}
+ * @returns {{ total: number, posts: Array<{id: string, views: number}>, error: string|null }}
  */
 async function scrapeWithRetry(platform, scrapeFn, attempts = 2) {
   let lastMessage = null;
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      const total = await scrapeFn();
-      if (total > 0) return { total, error: null };
+      const result = await scrapeFn();
+      if (result.total > 0) return { total: result.total, posts: result.posts || [], error: null };
       lastMessage = 'Aucune vue détectée (page inattendue ou sélecteurs obsolètes)';
     } catch (e) {
       console.error(`Erreur ${platform} (tentative ${attempt}/${attempts}) :`, e.message);
@@ -185,7 +186,19 @@ async function scrapeWithRetry(platform, scrapeFn, attempts = 2) {
     }
   }
 
-  return { total: 0, error: lastMessage };
+  return { total: 0, posts: [], error: lastMessage };
+}
+
+// Extrait l'identifiant unique d'une vidéo depuis son URL (ex. l'ID du reel
+// dans "/username/reel/DQe-xxxx/"), pour pouvoir suivre ses vues dans le
+// temps même quand elle change de position dans le top N suivi. `null` si
+// l'URL n'a pas le format attendu — le post est alors ignoré du suivi par ID
+// (voir history.js#computeGrowth24h, qui retombe sur l'ancien calcul par
+// total brut quand aucun ID n'a pu être extrait).
+function extractIdFromHref(href, pattern) {
+  if (!href) return null;
+  const match = href.match(pattern);
+  return match ? match[1] : null;
 }
 
 export async function buildViewsSummary(accounts = config.accounts) {
@@ -217,6 +230,12 @@ export async function buildViewsSummary(accounts = config.accounts) {
       let igTotal = null;
       let ttTotal = null;
       let ytTotal = null;
+      // Détail par vidéo ({id, views}[]) pour le suivi de croissance par ID
+      // plutôt que par total brut de la fenêtre — voir history.js#computeGrowth24h.
+      // null tant que la plateforme n'est pas configurée, comme les *Total ci-dessus.
+      let igPosts = null;
+      let ttPosts = null;
+      let ytPosts = null;
       const errors = []; // Trace des échecs de scraping pour ce compte (visible dans le résumé)
 
       // Pause plus marquée entre deux comptes qu'entre deux requêtes d'un
@@ -233,7 +252,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
 
        // --- INSTAGRAM ---
         if (url.includes('instagram.com')) {
-          const { total, error } = await scrapeWithRetry('IG', async () => {
+          const { total, posts, error } = await scrapeWithRetry('IG', async () => {
             // Délai plus large que TikTok/YouTube : Instagram est la seule
             // plateforme où on utilise une session connectée, donc le compte
             // le plus exposé à une détection basée sur le rythme des requêtes.
@@ -376,19 +395,30 @@ export async function buildViewsSummary(accounts = config.accounts) {
               }, config.postsLimit);
 
               if (DEBUG_SCRAPE) console.log(`[IG debug] ${url} → total=${result.total} :`, JSON.stringify(result.counted));
-              return result.total;
+
+              // Seule la voie 1 (grille) fournit un href par reel, donc un ID
+              // exploitable pour le suivi par vidéo (voir extractIdFromHref) —
+              // les fallbacks 2/3 n'ont aucun identifiant fiable et sont donc
+              // absents de `posts`, ce qui fait retomber history.js sur
+              // l'ancien calcul par total brut pour ce compte/ce jour-là.
+              const posts = result.counted
+                .map(c => ({ id: extractIdFromHref(c.href, /\/reel\/([^/?]+)/), views: c.val }))
+                .filter(p => p.id);
+
+              return { total: result.total, posts };
             } finally {
               await igContext.close().catch(() => {});
             }
           });
 
           igTotal = total;
+          igPosts = posts;
           if (error) errors.push({ platform: 'Instagram', message: error });
         }
 
         // --- TIKTOK ---
         else if (url.includes('tiktok.com')) {
-          const { total, error } = await scrapeWithRetry('TikTok', async () => {
+          const { total, posts, error } = await scrapeWithRetry('TikTok', async () => {
             // TikTok bloque désormais Playwright derrière un captcha slider
             // ("Drag the slider to fit the puzzle"), reproductible même avec
             // IP résidentielle, navigateur non-headless, cookies frais et
@@ -418,20 +448,23 @@ export async function buildViewsSummary(accounts = config.accounts) {
             // IG/l'ancien scraping TikTok, pour ne pas fausser la mesure
             // d'activité récente.
             const videos = (body.data?.videos || []).filter(v => v.is_top !== 1);
-            const counted = videos.slice(0, config.postsLimit).map(v => ({ title: v.title, val: v.play_count || 0 }));
+            const counted = videos.slice(0, config.postsLimit).map(v => ({ id: v.video_id, title: v.title, val: v.play_count || 0 }));
             const sum = counted.reduce((acc, v) => acc + v.val, 0);
 
             if (DEBUG_SCRAPE) console.log(`[TikTok debug] ${url} → total=${sum} :`, JSON.stringify(counted));
-            return sum;
+
+            const posts = counted.filter(c => c.id).map(c => ({ id: c.id, views: c.val }));
+            return { total: sum, posts };
           });
 
           ttTotal = total;
+          ttPosts = posts;
           if (error) errors.push({ platform: 'TikTok', message: error });
         }
 
         // --- YOUTUBE ---
         else if (url.includes('youtube.com')) {
-          const { total, error } = await scrapeWithRetry('YT', async () => {
+          const { total, posts, error } = await scrapeWithRetry('YT', async () => {
             await randomDelay(3000, 8000);
 
             const ytContext = await browser.newContext({
@@ -485,7 +518,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
               await randomDelay(1000, 2000);
               await simulateHumanBehavior(page);
 
-              return await page.evaluate((postsLimit) => {
+              const result = await page.evaluate((postsLimit) => {
                 function parseViews(txt) {
                   const match = txt.match(/([\d.,]+)\s*([kKmM]?)\s*(?:vues|views)/i);
                   if (!match) return 0;
@@ -502,14 +535,19 @@ export async function buildViewsSummary(accounts = config.accounts) {
 
                 let sum = 0;
                 let count = 0;
+                const counted = []; // Détail par short, avec ID quand dispo (voie 1 seulement).
 
                 // 1. Grille des shorts : chaque item est un
                 // <ytm-shorts-lockup-view-model> dont le texte contient
-                // "X views" (ex. "Check out my business...\n11K views").
+                // "X views" (ex. "Check out my business...\n11K views"), et
+                // dont un lien interne pointe vers "/shorts/VIDEO_ID" — c'est
+                // cet ID qui sert au suivi par vidéo (voir extractIdFromHref).
                 const items = Array.from(document.querySelectorAll('ytm-shorts-lockup-view-model'));
                 for (const item of items) {
                   const val = parseViews(item.innerText);
                   if (val > 0) {
+                    const link = item.querySelector('a[href*="/shorts/"]');
+                    counted.push({ href: link ? link.getAttribute('href') : null, val });
                     sum += val;
                     count++;
                     if (count === postsLimit) break;
@@ -518,11 +556,13 @@ export async function buildViewsSummary(accounts = config.accounts) {
 
                 // 2. Fallback : ancienne structure générique par span, au cas où
                 // la chaîne n'a pas de Shorts ou que la page rend différemment.
+                // Aucun lien fiable vers la vidéo dans ce cas, donc pas d'ID.
                 if (count === 0) {
                   const spans = Array.from(document.querySelectorAll('span')).filter(s => s.innerText && /vue|views/i.test(s.innerText));
                   for (const el of spans) {
                     const val = parseViews(el.innerText.trim());
                     if (val > 0) {
+                      counted.push({ href: null, val });
                       sum += val;
                       count++;
                       if (count === postsLimit) break;
@@ -530,14 +570,23 @@ export async function buildViewsSummary(accounts = config.accounts) {
                   }
                 }
 
-                return sum;
+                return { total: sum, counted };
               }, config.postsLimit);
+
+              if (DEBUG_SCRAPE) console.log(`[YT debug] ${url} → total=${result.total} :`, JSON.stringify(result.counted));
+
+              const posts = result.counted
+                .map(c => ({ id: extractIdFromHref(c.href, /\/shorts\/([^/?]+)/), views: c.val }))
+                .filter(p => p.id);
+
+              return { total: result.total, posts };
             } finally {
               await ytContext.close().catch(() => {});
             }
           });
 
           ytTotal = total;
+          ytPosts = posts;
           if (error) errors.push({ platform: 'YouTube', message: error });
         }
       }
@@ -548,7 +597,8 @@ export async function buildViewsSummary(accounts = config.accounts) {
         tt: ttTotal,
         yt: ytTotal,
         total: (igTotal || 0) + (ttTotal || 0) + (ytTotal || 0),
-        errors
+        errors,
+        posts: { ig: igPosts, tt: ttPosts, yt: ytPosts }
       });
     }
 
