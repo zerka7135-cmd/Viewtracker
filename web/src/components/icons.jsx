@@ -86,6 +86,26 @@ export function IconLogout(props) {
   );
 }
 
+export function IconEye(props) {
+  return (
+    <Svg {...props}>
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+      <circle cx="12" cy="12" r="3" />
+    </Svg>
+  );
+}
+
+export function IconEyeOff(props) {
+  return (
+    <Svg {...props}>
+      <path d="M3 3l18 18" />
+      <path d="M10.6 5.6A10.6 10.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a15.4 15.4 0 0 1-3.2 4" />
+      <path d="M6.6 6.6C4 8.4 2.5 12 2.5 12S6 18.5 12 18.5a9.9 9.9 0 0 0 4-.8" />
+      <path d="M9.9 10a3 3 0 0 0 4.1 4.1" />
+    </Svg>
+  );
+}
+
 export function IconEdit(props) {
   return (
     <Svg {...props}>

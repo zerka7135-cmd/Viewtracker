@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { login, setupPassword } from '../api.js';
-import { IconLogo } from './icons.jsx';
+import { IconLogo, IconEye, IconEyeOff } from './icons.jsx';
 
 // Écran de connexion à deux panneaux (identité ViewTracker : bleu
 // --accent, IconLogo, formes discrètes) — même composition qu'une
@@ -15,6 +15,14 @@ export default function LoginScreen({ setupMode, onSuccess }) {
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [reveal, setReveal] = useState(false);
+  const [capsLock, setCapsLock] = useState(false);
+
+  const confirmMismatch = setupMode && confirm.length > 0 && password !== confirm;
+
+  const trackCapsLock = (e) => {
+    if (typeof e.getModifierState === 'function') setCapsLock(e.getModifierState('CapsLock'));
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -51,42 +59,79 @@ export default function LoginScreen({ setupMode, onSuccess }) {
           </div>
         </div>
 
-        <form className="login-panel-form" onSubmit={submit}>
+        <form className="login-panel-form" onSubmit={submit} autoComplete="on">
           <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
             {setupMode ? 'Créer un mot de passe' : 'Connexion'}
           </div>
           <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 18 }}>
-            {setupMode ? 'Au moins 8 caractères — à retenir, il n\'y a pas d\'autre compte.' : 'Mot de passe du dashboard.'}
+            {setupMode ? 'À retenir, il n\'y a pas d\'autre compte ni de récupération.' : 'Mot de passe du dashboard.'}
           </div>
 
-          <label className="login-field-label">Mot de passe</label>
-          <input
-            className="input"
-            type="password"
-            autoFocus
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            style={{ marginBottom: setupMode ? 12 : 18 }}
-          />
+          <label className="login-field-label" htmlFor="login-password">Mot de passe</label>
+          <div className="login-input-wrap" style={{ marginBottom: setupMode ? 6 : 4 }}>
+            <input
+              id="login-password"
+              className="input"
+              type={reveal ? 'text' : 'password'}
+              autoFocus
+              autoComplete={setupMode ? 'new-password' : 'current-password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyUp={trackCapsLock}
+              onKeyDown={trackCapsLock}
+              placeholder="••••••••"
+            />
+            <button
+              type="button"
+              className="login-reveal-btn"
+              onClick={() => setReveal((v) => !v)}
+              tabIndex={-1}
+              aria-label={reveal ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+            >
+              {reveal ? <IconEyeOff size={16} /> : <IconEye size={16} />}
+            </button>
+          </div>
+
+          {setupMode && (
+            <div className={`login-strength-hint ${password.length >= 8 ? 'is-ok' : ''}`} style={{ marginBottom: 12 }}>
+              {password.length >= 8 ? '✓' : '○'} Au moins 8 caractères ({password.length}/8)
+            </div>
+          )}
+          {!setupMode && <div style={{ marginBottom: 18 }} />}
 
           {setupMode && (
             <>
-              <label className="login-field-label">Confirmer le mot de passe</label>
+              <label className="login-field-label" htmlFor="login-confirm">Confirmer le mot de passe</label>
               <input
+                id="login-confirm"
                 className="input"
-                type="password"
+                type={reveal ? 'text' : 'password'}
+                autoComplete="new-password"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 placeholder="••••••••"
-                style={{ marginBottom: 18 }}
+                style={{ marginBottom: 6, borderColor: confirmMismatch ? 'var(--red)' : undefined }}
               />
+              <div style={{ minHeight: 18, marginBottom: 12 }}>
+                {confirmMismatch && <div className="login-strength-hint">✕ Les mots de passe ne correspondent pas</div>}
+              </div>
             </>
           )}
 
-          {error && <div className="login-error">{error}</div>}
+          {capsLock && <div className="login-caps-hint">⚠ Verr. Maj activé</div>}
+          {error && (
+            <div className="login-error">
+              <span aria-hidden="true">⚠</span> {error}
+            </div>
+          )}
 
-          <button type="submit" className="btn btn-accent" disabled={submitting || !password} style={{ width: '100%', justifyContent: 'center', padding: '11px 0' }}>
+          <button
+            type="submit"
+            className="btn btn-accent"
+            disabled={submitting || !password || (setupMode && (password.length < 8 || confirmMismatch))}
+            style={{ width: '100%', justifyContent: 'center', padding: '11px 0', gap: 8 }}
+          >
+            {submitting && <span className="login-spinner" aria-hidden="true" />}
             {submitting ? 'Un instant…' : setupMode ? 'Créer et se connecter' : 'Se connecter'}
           </button>
         </form>
