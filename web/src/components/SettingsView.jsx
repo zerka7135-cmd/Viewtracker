@@ -109,7 +109,7 @@ export default function SettingsView({ settings, onToggle, onUpdateSettings, the
         timezone: timezone.trim(),
         postsLimit: Number(postsLimit)
       });
-      onToast('Réglages de collecte mis à jour — effectifs au prochain redémarrage du bot');
+      onToast('Réglages de collecte mis à jour — posts par plateforme dès la prochaine collecte, heure/fuseau au prochain redémarrage du bot');
     } catch {
       // onUpdateSettings affiche déjà le toast d'erreur (voir App.jsx)
     } finally {
@@ -164,13 +164,13 @@ export default function SettingsView({ settings, onToggle, onUpdateSettings, the
         <div className="card" style={{ padding: '18px 22px' }}>
           <div className="card-title" style={{ marginBottom: 4 }}>Collecte</div>
           <form onSubmit={saveCollecteSettings} className="settings-table">
-            <Row label="Heure de collecte (cron)" description="Format cron, ex. 30 22 * * *.">
+            <Row label="Heure de collecte (cron)" description="Format cron, ex. 30 22 * * *. Effectif au prochain redémarrage du bot.">
               <input className="input mono" value={cronSchedule} onChange={(e) => setCronSchedule(e.target.value)} placeholder="30 22 * * *" style={{ width: '100%', maxWidth: 220 }} />
             </Row>
-            <Row label="Fuseau horaire">
+            <Row label="Fuseau horaire" description="Effectif au prochain redémarrage du bot.">
               <input className="input" value={timezone} onChange={(e) => setTimezone(e.target.value)} placeholder="Europe/Paris" style={{ width: '100%', maxWidth: 220 }} />
             </Row>
-            <Row label="Posts par plateforme" description="Nombre de publications récentes prises en compte.">
+            <Row label="Posts par plateforme" description="Nombre de publications récentes prises en compte. Effectif dès la prochaine collecte.">
               <input className="input" type="number" min="1" max="20" value={postsLimit} onChange={(e) => setPostsLimit(e.target.value)} style={{ width: '100%', maxWidth: 100 }} />
             </Row>
             <Row label="">

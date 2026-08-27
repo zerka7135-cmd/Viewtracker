@@ -4,6 +4,7 @@ import { config } from './config.js';
 import { loadHistory, appendToday, computeGrowth24h, detectStuckAccounts } from './history.js';
 import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from './cumulativeViews.js';
 import { loadAccounts } from './accountsStore.js';
+import { loadSettings } from './settingsStore.js';
 
 // Lance une collecte complète immédiatement et affiche le résultat dans le
 // terminal, sans passer par Discord. Utile pour tester le scraping.
@@ -15,7 +16,7 @@ import { loadAccounts } from './accountsStore.js';
 
   try {
     console.log('Lancement de la collecte manuelle...');
-    const summary = await buildViewsSummary(loadAccounts());
+    const summary = await buildViewsSummary(loadAccounts(), loadSettings().postsLimit);
 
     const historyBefore = loadHistory();
     const growth24h = computeGrowth24h(historyBefore, summary);

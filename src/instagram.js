@@ -201,7 +201,7 @@ function extractIdFromHref(href, pattern) {
   return match ? match[1] : null;
 }
 
-export async function buildViewsSummary(accounts = config.accounts) {
+export async function buildViewsSummary(accounts = config.accounts, postsLimit = config.postsLimit) {
   const summary = [];
   const browser = await chromium.launch({
     headless: true,
@@ -404,7 +404,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
                 }
 
                 return { total, counted };
-              }, config.postsLimit);
+              }, postsLimit);
 
               if (DEBUG_SCRAPE) console.log(`[IG debug] ${url} → total=${result.total} :`, JSON.stringify(result.counted));
 
@@ -450,7 +450,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
 
             const apiUrl = new URL('https://tiktokapi.store/api/v1/user/posts');
             apiUrl.searchParams.set('unique_id', `@${username}`);
-            apiUrl.searchParams.set('count', String(Math.max(10, config.postsLimit * 2))); // marge au-delà de postsLimit pour compenser les vidéos épinglées exclues
+            apiUrl.searchParams.set('count', String(Math.max(10, postsLimit * 2))); // marge au-delà de postsLimit pour compenser les vidéos épinglées exclues
             apiUrl.searchParams.set('cursor', '0');
 
             const res = await fetch(apiUrl, {
@@ -468,7 +468,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
             // IG/l'ancien scraping TikTok, pour ne pas fausser la mesure
             // d'activité récente.
             const videos = (body.data?.videos || []).filter(v => v.is_top !== 1);
-            const counted = videos.slice(0, config.postsLimit).map(v => ({ id: v.video_id, title: v.title, val: v.play_count || 0 }));
+            const counted = videos.slice(0, postsLimit).map(v => ({ id: v.video_id, title: v.title, val: v.play_count || 0 }));
             const sum = counted.reduce((acc, v) => acc + v.val, 0);
 
             if (DEBUG_SCRAPE) console.log(`[TikTok debug] ${url} → total=${sum} :`, JSON.stringify(counted));
@@ -595,7 +595,7 @@ export async function buildViewsSummary(accounts = config.accounts) {
                 }
 
                 return { total: sum, counted };
-              }, config.postsLimit);
+              }, postsLimit);
 
               if (DEBUG_SCRAPE) console.log(`[YT debug] ${url} → total=${result.total} :`, JSON.stringify(result.counted));
 

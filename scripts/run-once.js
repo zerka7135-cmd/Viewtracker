@@ -74,7 +74,7 @@ client.once('clientReady', async () => {
   try {
     const settings = loadSettings();
     const channel = settings.discordChannelId ? await client.channels.fetch(settings.discordChannelId) : null;
-    const summary = await buildViewsSummary(loadAccounts());
+    const summary = await buildViewsSummary(loadAccounts(), settings.postsLimit);
 
     const historyBefore = loadHistory();
     const growth24h = computeGrowth24h(historyBefore, summary);
