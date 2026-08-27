@@ -2,15 +2,28 @@ import { EmbedBuilder } from 'discord.js';
 
 const medals = ['🥇', '🥈', '🥉'];
 
+// Clé interne (ig/tt/yt) -> nom de plateforme tel qu'enregistré dans
+// item.errors par buildViewsSummary (voir instagram.js).
+const PLATFORM_LABELS = { ig: 'Instagram', tt: 'TikTok', yt: 'YouTube' };
+
+// Vrai s'il y a eu un échec de scraping enregistré pour cette plateforme lors
+// de la collecte du jour (voir buildViewsSummary). scrapeWithRetry ne renvoie
+// une erreur que si le total du jour est resté à 0 après épuisement des
+// tentatives — un delta à 0 causé par une erreur a donc toujours une entrée
+// ici, contrairement à un delta à 0 par simple absence de nouvelles vues.
+function hasScrapingError(errors, platformKey) {
+  return Boolean(errors?.some(e => e.platform === PLATFORM_LABELS[platformKey]));
+}
+
 // null = pas de compte sur cette plateforme (voir buildViewsSummary) : affiché
-// "Ban" plutôt qu'un 0 qui laisserait croire à un échec de scraping. À
-// l'inverse, un vrai 0 sur une plateforme configurée est suspect (compte actif
-// qui ne devrait normalement jamais totaliser aucune vue) : marqué ⚠️ plutôt
-// que silencieusement confondu avec "Ban".
-function formatPlatformValue(rawValue, computedValue) {
+// "Ban" plutôt qu'un 0 qui laisserait croire à un échec de scraping. Un vrai 0
+// sans erreur enregistrée (stagnation réelle, ex. mêmes vidéos qu'hier avec le
+// même total de vues) s'affiche tel quel, sans ⚠️ — l'icône ne signale plus
+// que les échecs de scraping avérés ce jour-là.
+function formatPlatformValue(rawValue, computedValue, hasError) {
   if (rawValue === null) return 'Ban';
   const formatted = computedValue.toLocaleString('fr-FR');
-  return computedValue === 0 ? `⚠️ ${formatted}` : formatted;
+  return hasError ? `⚠️ ${formatted}` : formatted;
 }
 
 /**
@@ -34,9 +47,9 @@ export function build24hEmbed(growth24h, summary, updatedAt = null) {
         const prefix = index < 3 ? medals[index] : `**${index + 1}.**`;
         const raw = rawByAccount.get(item.account) || {};
         const total = item.total.toLocaleString('fr-FR');
-        const ig = formatPlatformValue(raw.ig, item.ig);
-        const tt = formatPlatformValue(raw.tt, item.tt);
-        const yt = formatPlatformValue(raw.yt, item.yt);
+        const ig = formatPlatformValue(raw.ig, item.ig, hasScrapingError(raw.errors, 'ig'));
+        const tt = formatPlatformValue(raw.tt, item.tt, hasScrapingError(raw.errors, 'tt'));
+        const yt = formatPlatformValue(raw.yt, item.yt, hasScrapingError(raw.errors, 'yt'));
         return `${prefix} **${item.account}**\n${total} vues (IG: ${ig} | TT: ${tt} | YT: ${yt})`;
       }).join('\n\n')
     : 'Pas encore assez d\'historique pour calculer un gain sur 24h.';
@@ -79,9 +92,9 @@ export function buildAllTimeEmbed(cumulativeViews, summary, updatedAt = null) {
         const prefix = index < 3 ? medals[index] : `**${index + 1}.**`;
         const raw = rawByAccount.get(item.account) || {};
         const total = item.total.toLocaleString('fr-FR');
-        const ig = formatPlatformValue(raw.ig, item.ig);
-        const tt = formatPlatformValue(raw.tt, item.tt);
-        const yt = formatPlatformValue(raw.yt, item.yt);
+        const ig = formatPlatformValue(raw.ig, item.ig, hasScrapingError(raw.errors, 'ig'));
+        const tt = formatPlatformValue(raw.tt, item.tt, hasScrapingError(raw.errors, 'tt'));
+        const yt = formatPlatformValue(raw.yt, item.yt, hasScrapingError(raw.errors, 'yt'));
         return `${prefix} **${item.account}**\n${total} vues (IG: ${ig} | TT: ${tt} | YT: ${yt})`;
       }).join('\n\n')
     : 'Aucune donnée disponible.';

@@ -19,7 +19,11 @@ GLOBAL_TEXT_PATTERN = re.compile(r"([\d.,]+[kKmM]?)\s*(?:vues|views|plays)")
 # Marqueurs d'une page de login/challenge Instagram plutôt qu'un vrai
 # profil — signe que la session (cookies) est invalide/expirée, à ne pas
 # confondre avec un changement de structure de page (voir detect_blocked_page).
-BLOCKED_URL_MARKERS = ["/accounts/login", "/challenge/", "/accounts/suspended"]
+# "/consent/" : flow "pay or consent" de Meta (conformité UE), qui peut
+# rediriger n'importe quelle navigation vers un écran bloquant tant que la
+# session ne l'a pas validé une fois — a déjà fait échouer tous les comptes
+# IG d'un coup avec un générique "aucune vue détectée", sans piste claire.
+BLOCKED_URL_MARKERS = ["/accounts/login", "/challenge/", "/accounts/suspended", "/consent/"]
 BLOCKED_TEXT_MARKERS = [
     "Connecte-toi à Instagram",
     "Log in to Instagram",

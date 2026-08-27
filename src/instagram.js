@@ -161,6 +161,12 @@ export async function buildViewsSummary(accounts = config.accounts, postsLimit =
           // 08/08/2026, les 4 pistes ont échoué. On passe donc par l'API
           // tierce tiktokapi.store (scraping fait côté fournisseur), qui
           // évite complètement le navigateur pour cette plateforme.
+          // Court délai avant chaque appel : sans lui, les ~20 comptes tapaient
+          // l'API en rafale (aucune pause entre eux), ce qui a probablement
+          // aggravé une panne fournisseur passée où 14 comptes sur 20 ont
+          // échoué en "fetch failed" d'un coup.
+          await randomDelay(500, 1500);
+
           const username = new URL(url).pathname.replace(/^\/@?/, '').replace(/\/$/, '');
 
           const apiUrl = new URL('https://tiktokapi.store/api/v1/user/posts');
@@ -187,7 +193,11 @@ export async function buildViewsSummary(accounts = config.accounts, postsLimit =
 
           const posts = counted.filter(c => c.id).map(c => ({ id: c.id, views: c.val }));
           return { total: sum, posts };
-        });
+        // 3 tentatives au lieu des 2 par défaut : un "fetch failed" réseau
+        // côté fournisseur n'est pas un problème de contenu — une tentative
+        // de plus, avec le backoff exponentiel déjà en place, laisse plus de
+        // chances à un simple hoquet de passer tout seul.
+        }, 3);
 
         ttTotal = total;
         ttPosts = posts;
