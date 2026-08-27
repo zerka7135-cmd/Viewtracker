@@ -8,10 +8,30 @@ import { getScanStatus } from './scanStatus.js';
 import {
   isPasswordSet, setInitialPassword, checkPassword, changePassword,
   setSessionCookie, clearSessionCookie, isAuthenticated,
-  recordLoginFailure, recordLoginSuccess, loginDelayMs
+  recordLoginFailure, recordLoginSuccess, loginDelayMs, shouldAlertOwner
 } from './auth.js';
 
 const WEB_DIST = path.resolve('./web/dist');
+
+// CSP calibrée pour ce bundle précis (voir web/dist/index.html) : un seul
+// <script type="module"> et une seule feuille de style, tous deux servis
+// depuis notre propre origine, aucun script inline, aucune ressource
+// externe (pas de police/CDN/image tierce — voir web/src/theme.css). Le
+// bundle React utilise des styles inline via la prop `style` (donc
+// style-src doit accepter 'unsafe-inline' — c'est le seul assouplissement
+// nécessaire ici, script-src reste strict).
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'self'",
+  "frame-ancestors 'none'"
+].join('; ');
 
 // Serveur HTTP du dashboard (API + assets statiques du build React, voir
 // web/) — mot de passe unique (voir auth.js), pas de multi-utilisateur/
@@ -22,23 +42,32 @@ const WEB_DIST = path.resolve('./web/dist');
 // Aucune route ne déclenche de scan : la collecte reste uniquement pilotée
 // par le cron planifié ou les scripts CLI (npm run scan / run-once) — voir
 // src/scanStatus.js. GET /api/scan/status est en lecture seule.
-export async function startServer() {
+//
+// `client` : instance discord.js déjà connectée (voir index.js), utilisée
+// uniquement pour envoyer un MP d'alerte à l'owner en cas de tentatives de
+// connexion suspectes (voir /api/login ci-dessous) — optionnel, undefined
+// dans les scripts qui démarrent le serveur seul (tests locaux).
+export async function startServer(client) {
   const app = express();
   app.use(express.json());
-  // Nécessaire pour que req.secure reflète le HTTPS réel derrière le proxy
-  // Railway (qui termine le TLS et transmet en HTTP en interne) — sinon le
-  // cookie de session ne serait jamais marqué `secure` en production.
+  // Nécessaire pour que req.secure/req.ip reflètent le HTTPS/IP réels
+  // derrière le proxy Railway (qui termine le TLS et transmet en HTTP en
+  // interne) — sinon le cookie de session ne serait jamais marqué `secure`,
+  // et req.ip renverrait toujours l'IP interne du proxy plutôt que celle du
+  // visiteur (voir rate-limit par IP sur /api/login ci-dessous).
   app.set('trust proxy', 1);
 
-  // En-têtes de sécurité basiques — pas de CSP stricte ici : le bundle React
-  // s'appuie sur des styles inline via la prop `style` (pas des balises
-  // <style>/attributs style="", donc déjà hors du champ de style-src, mais
-  // une CSP mal calibrée casserait facilement autre chose sans y avoir
-  // vraiment goûté d'abord, pas le moment de le risquer juste avant la prod).
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Content-Security-Policy', CSP);
+    // HSTS seulement sur une requête déjà en HTTPS : l'envoyer en clair sur
+    // http:// n'aurait aucun effet (le navigateur l'ignore hors HTTPS) et
+    // ça évite de piéger un accès local en http:// pendant le dev.
+    if (req.secure) {
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
     next();
   });
 
@@ -66,15 +95,17 @@ export async function startServer() {
 
   app.post('/api/login', async (req, res, next) => {
     try {
-      const delay = loginDelayMs();
+      const ip = req.ip;
+      const delay = loginDelayMs(ip);
       if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
 
       const valid = await checkPassword(req.body?.password || '');
       if (!valid) {
-        recordLoginFailure();
+        recordLoginFailure(ip);
+        if (shouldAlertOwner(ip)) sendLoginAlert(client, ip).catch(() => {});
         return res.status(401).json({ error: 'Mot de passe incorrect' });
       }
-      recordLoginSuccess();
+      recordLoginSuccess(ip);
       setSessionCookie(req, res);
       res.json({ ok: true });
     } catch (error) {
@@ -207,4 +238,21 @@ export async function startServer() {
 function normalizeUrls(urls) {
   const arr = Array.isArray(urls) ? urls : [];
   return [0, 1, 2].map(i => (arr[i] || '').trim());
+}
+
+// MP à l'owner dès qu'une IP dépasse le seuil d'échecs de connexion
+// consécutifs (voir auth.js#shouldAlertOwner) — visibilité minimale sur une
+// tentative de bruteforce en cours, sans bloquer personne. N'échoue jamais
+// bruyamment : un souci d'envoi ne doit pas casser la réponse HTTP du login
+// (voir l'appel .catch(() => {}) ci-dessus).
+async function sendLoginAlert(client, ip) {
+  if (!client) return;
+  const { discordOwnerId } = loadSettings();
+  if (!discordOwnerId) return;
+  try {
+    const owner = await client.users.fetch(discordOwnerId);
+    await owner.send(`🔐 Plusieurs tentatives de connexion échouées au dashboard depuis l'IP \`${ip}\`. Si ce n'est pas toi, le mot de passe tient toujours (juste ralenti), mais surveille.`);
+  } catch (error) {
+    console.error('Erreur lors de l\'envoi de l\'alerte de connexion :', error);
+  }
 }

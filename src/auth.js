@@ -155,18 +155,53 @@ export function isAuthenticated(req) {
 
 // Limite grossière contre le bruteforce du mot de passe : pas de compte à
 // verrouiller (un seul mot de passe pour tout le monde), donc on retarde
-// plutôt qu'on bloque — 5 échecs consécutifs déclenchent un délai
-// artificiel côté serveur avant chaque tentative suivante, qui grossit à
-// chaque nouvel échec. Remis à zéro sur succès. En mémoire seule (pas
-// persisté) : redémarrer le bot réinitialise le compteur, acceptable ici.
-let consecutiveFailures = 0;
-export function recordLoginFailure() {
-  consecutiveFailures++;
+// plutôt qu'on bloque — au-delà de 3 échecs consécutifs *pour une IP
+// donnée*, un délai artificiel s'ajoute avant chaque tentative suivante de
+// cette même IP, qui grossit à chaque nouvel échec. Remis à zéro sur
+// succès. Par IP (et non global) : sinon un seul acharné ralentirait aussi
+// ta propre connexion légitime. En mémoire seule (pas persisté) :
+// redémarrer le bot réinitialise les compteurs, acceptable ici (Railway
+// redémarre rarement en pleine tentative de bruteforce).
+const failuresByIp = new Map(); // ip -> { count, lastAt, alerted }
+const FAILURE_ENTRY_TTL_MS = 60 * 60 * 1000; // 1h d'inactivité avant purge
+const ALERT_THRESHOLD = 5;
+
+function pruneStaleEntries() {
+  const now = Date.now();
+  for (const [ip, entry] of failuresByIp) {
+    if (now - entry.lastAt > FAILURE_ENTRY_TTL_MS) failuresByIp.delete(ip);
+  }
 }
-export function recordLoginSuccess() {
-  consecutiveFailures = 0;
+
+export function recordLoginFailure(ip) {
+  pruneStaleEntries();
+  const entry = failuresByIp.get(ip) || { count: 0, lastAt: 0, alerted: false };
+  entry.count++;
+  entry.lastAt = Date.now();
+  failuresByIp.set(ip, entry);
 }
-export function loginDelayMs() {
-  if (consecutiveFailures <= 3) return 0;
-  return Math.min(30000, 2 ** (consecutiveFailures - 3) * 1000);
+
+export function recordLoginSuccess(ip) {
+  failuresByIp.delete(ip);
+}
+
+export function loginDelayMs(ip) {
+  const entry = failuresByIp.get(ip);
+  if (!entry || entry.count <= 3) return 0;
+  return Math.min(30000, 2 ** (entry.count - 3) * 1000);
+}
+
+/**
+ * true une seule fois par "série" d'échecs (pas à chaque tentative
+ * au-delà du seuil) dès qu'une IP atteint ALERT_THRESHOLD échecs
+ * consécutifs — sert à déclencher un MP Discord à l'owner sans le
+ * spammer à chaque nouvelle tentative. Remis à zéro par
+ * recordLoginSuccess (nouvelle série possible après une connexion
+ * réussie, ou après la purge d'inactivité).
+ */
+export function shouldAlertOwner(ip) {
+  const entry = failuresByIp.get(ip);
+  if (!entry || entry.count < ALERT_THRESHOLD || entry.alerted) return false;
+  entry.alerted = true;
+  return true;
 }
