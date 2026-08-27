@@ -1,6 +1,6 @@
-// Petit wrapper fetch vers l'API Express (src/server.js). Version sans
-// auth/multi-organisation (voir backup/dashboard-rewrite-27-08 pour la
-// version complète) — pas de cookie de session à transmettre.
+// Petit wrapper fetch vers l'API Express (src/server.js). Mot de passe
+// unique (voir auth.js) — cookie de session inclus (credentials:'include'),
+// nécessaire même en dev où Vite tourne sur un port différent d'Express.
 
 class ApiError extends Error {
   constructor(message, status) {
@@ -11,6 +11,7 @@ class ApiError extends Error {
 
 async function request(path, opts = {}) {
   const res = await fetch(`/api${path}`, {
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     ...opts
   });
@@ -29,6 +30,12 @@ async function request(path, opts = {}) {
 }
 
 export { ApiError };
+
+export const me = () => request('/me');
+export const setupPassword = (password) => request('/setup-password', { method: 'POST', body: JSON.stringify({ password }) });
+export const login = (password) => request('/login', { method: 'POST', body: JSON.stringify({ password }) });
+export const logout = () => request('/logout', { method: 'POST' });
+export const changePassword = (currentPassword, newPassword) => request('/account/password', { method: 'PATCH', body: JSON.stringify({ currentPassword, newPassword }) });
 
 export const getDashboard = () => request('/dashboard');
 export const addAccount = (name, urls) => request('/accounts', { method: 'POST', body: JSON.stringify({ name, urls }) });

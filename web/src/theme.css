@@ -305,6 +305,21 @@ button, select, input {
 .sidebar-logout {
   display: flex;
   align-items: center;
+  margin-top: auto;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13.5px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.sidebar-logout:hover {
+  background: var(--card);
+  color: var(--text);
 }
 .sidebar-logout span {
   overflow: hidden;
@@ -817,6 +832,91 @@ button, select, input {
 .login-error {
   color: var(--red);
   font-size: 12.5px;
+}
+
+/* Carte à deux panneaux (voir LoginScreen.jsx) : bandeau de bienvenue à
+   gauche (dégradé --accent, formes décoratives, jamais plus voyantes que
+   le formulaire), formulaire à droite sur la surface --card habituelle —
+   même carte visuelle que le reste de l'app, pas un habillage à part. */
+.login-split-card {
+  width: min(760px, calc(100vw - 32px));
+  min-height: 460px;
+  display: flex;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+}
+.login-panel-brand {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  padding: 40px 36px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 10px;
+  background: linear-gradient(155deg, var(--accent), color-mix(in oklab, var(--accent) 55%, #1c1c1e));
+  color: #fff;
+  overflow: hidden;
+}
+.login-panel-shapes {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.login-panel-brand-mark {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+.login-panel-brand-title {
+  position: relative;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+.login-panel-brand-sub {
+  position: relative;
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.5;
+  max-width: 320px;
+}
+.login-panel-form {
+  flex: 1;
+  min-width: 280px;
+  background: var(--card);
+  padding: 44px 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.login-field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+@media (max-width: 640px) {
+  .login-split-card {
+    flex-direction: column;
+    min-height: 0;
+  }
+  .login-panel-brand {
+    padding: 28px 24px;
+    min-height: 160px;
+  }
+  .login-panel-form {
+    padding: 28px 24px;
+  }
 }
 
 /* --- Responsive (mêmes seuils que la maquette d'origine) --- */

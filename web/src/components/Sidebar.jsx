@@ -1,4 +1,4 @@
-import { IconDashboard, IconSettings, IconChevronLeft, IconChevronRight, IconLogo } from './icons.jsx';
+import { IconDashboard, IconSettings, IconChevronLeft, IconChevronRight, IconLogo, IconLogout } from './icons.jsx';
 
 // "Historique" et "Comptes" ont été fusionnés dans Dashboard (graphique de
 // tendance + répartition par plateforme + gestion des comptes suivis —
@@ -18,9 +18,9 @@ const NAV_ITEMS = [
 // que le repli soit une transition fluide plutôt qu'une disparition
 // brutale du texte pendant que la largeur anime encore.
 //
-// Pas de bloc "Organisation"/déconnexion ici (version sans auth/multi-
-// organisation, voir App.jsx).
-export default function Sidebar({ view, onNavigate, collapsed, onToggleCollapsed }) {
+// Pas de bloc "Organisation" (version sans multi-organisation, voir
+// App.jsx) — juste la déconnexion, un seul mot de passe pour tout le monde.
+export default function Sidebar({ view, onNavigate, collapsed, onToggleCollapsed, onLogout }) {
   return (
     <div className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-brand">
@@ -50,6 +50,10 @@ export default function Sidebar({ view, onNavigate, collapsed, onToggleCollapsed
         ))}
       </div>
 
+      <button type="button" className="sidebar-logout" onClick={onLogout} title={collapsed ? 'Se déconnecter' : undefined}>
+        <IconLogout size={16} />
+        <span className="nav-item-label">Se déconnecter</span>
+      </button>
     </div>
   );
 }

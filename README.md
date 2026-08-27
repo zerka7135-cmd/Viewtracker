@@ -211,15 +211,25 @@ dès sa création — `ACCOUNTS` ne sert plus que de valeur de départ). Pas de
 bouton "Lancer un scan" : la collecte reste pilotée uniquement par le cron
 planifié (ou `npm run scan`/`npm run run-once` en CLI).
 
-**Pas d'authentification** — un seul bot, un seul jeu de données : le
-dashboard est protégé en amont par le réseau (ex. domaine Railway privé,
-ou VPN) plutôt que par un login applicatif. Ne l'exposez pas publiquement
-sans mettre un accès devant (reverse proxy avec auth, IP allowlist...).
-**Ce point est particulièrement important depuis que Paramètres > Discord
-permet d'éditer le Token/Client ID/Guild ID du bot** (voir plus bas) :
-sans protection réseau, quiconque atteint le dashboard peut remplacer ces
-identifiants et prendre le contrôle complet du bot. Version avec comptes
-utilisateurs/organisations et suivi de clics : voir la branche
+**Authentification par mot de passe unique** (voir `src/auth.js`) — un seul
+bot, un seul propriétaire, pas de compte par personne. Le mot de passe est
+créé au tout premier accès (écran "Créer un mot de passe" si
+`data/auth.json` n'existe pas encore), puis un cookie de session signé
+(HMAC, secret régénéré à chaque redémarrage) protège les routes `/api/*`
+pendant 30 jours. Changer le mot de passe (Paramètres > Compte) invalide
+immédiatement toutes les sessions ouvertes, y compris sur d'autres
+appareils. Un ralentissement croissant (jusqu'à 30s) s'applique après 3
+échecs de connexion consécutifs.
+
+**Ça reste un mot de passe partagé, pas un vrai contrôle d'accès par
+personne** — protégez quand même l'accès réseau en plus (ex. domaine
+Railway privé, VPN) si plusieurs personnes différentes ne devraient pas
+toutes avoir la main sur le bot. **Ce point est particulièrement important
+depuis que Paramètres > Discord permet d'éditer le Token/Client ID/Guild
+ID du bot** (voir plus bas) : quiconque connaît le mot de passe peut
+remplacer ces identifiants et prendre le contrôle complet du bot — traitez
+ce mot de passe avec le même sérieux que le token lui-même. Version avec
+comptes utilisateurs/organisations et rôles : voir la branche
 `backup/dashboard-rewrite-27-08`, qui nécessite en plus une base Postgres
 externe (non utilisée par la version actuelle).
 
@@ -258,7 +268,8 @@ sur Railway, où ces variables sont injectées directement dans
 `process.env` (dotenv ne les écraserait jamais depuis un `.env` local).
 Le token n'est jamais renvoyé en clair par l'API, seulement un aperçu
 masqué ; volontairement exclu de la sauvegarde quotidienne en MP (voir
-section 7). Voir l'avertissement plus haut sur l'absence d'authentification.
+section 7). Voir l'avertissement plus haut : le mot de passe du dashboard
+protège aussi cette section.
 
 ## 7. Alertes et sauvegarde (MP à `DISCORD_OWNER_ID`)
 

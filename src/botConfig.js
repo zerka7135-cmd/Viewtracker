@@ -15,11 +15,11 @@ import path from 'path';
 // l'ordre de priorité : le fichier local (s'il contient une valeur)
 // gagne sur process.env, lu par config.js au démarrage.
 //
-// ⚠️ Sécurité : le dashboard n'a pas d'authentification (voir README) —
-// quiconque y accède peut donc changer le token et prendre le contrôle
-// du bot. Le token n'est jamais renvoyé en clair par l'API (voir
-// getBotConfigStatus), mais rien n'empêche de le remplacer sans y être
-// autorisé : protégez l'accès réseau au dashboard.
+// ⚠️ Sécurité : le dashboard est protégé par un seul mot de passe partagé
+// (voir auth.js), pas un compte par personne — quiconque le connaît peut
+// changer le token et prendre le contrôle du bot. Le token n'est jamais
+// renvoyé en clair par l'API (voir getBotConfigStatus). Traitez ce mot de
+// passe avec le même sérieux que le token lui-même.
 export const BOT_CONFIG_PATH = process.env.BOT_CONFIG_PATH || path.resolve('./data/bot-config.json');
 
 function readOverrides() {

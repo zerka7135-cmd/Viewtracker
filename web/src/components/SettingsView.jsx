@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react';
-import { getBotConfig, updateBotConfig } from '../api.js';
+import { getBotConfig, updateBotConfig, changePassword } from '../api.js';
 import SegmentedControl from './SegmentedControl.jsx';
 
 const THEME_OPTIONS = [['dark', 'Sombre'], ['light', 'Clair']];
 
-// Version sans auth/multi-organisation (voir backup/dashboard-rewrite-27-08
-// pour la version complète) : pas d'onglets "Compte" (mot de passe) ni
-// "Organisation" (renommage/suppression), qui n'ont pas de sens ici — un
-// seul bot, personne à identifier.
+// Version sans multi-organisation (voir backup/dashboard-rewrite-27-08
+// pour cette version-là, qui a besoin de Postgres) : pas d'onglet
+// "Organisation" (renommage/suppression), qui n'a pas de sens ici — un
+// seul bot. "Compte" existe en revanche : un seul mot de passe partagé
+// (voir auth.js), mais reste modifiable.
 const TABS = [
   ['general', 'Général'],
   ['discord', 'Discord'],
-  ['collecte', 'Collecte']
+  ['collecte', 'Collecte'],
+  ['compte', 'Compte']
 ];
 
 function SettingsTabs({ active, onChange }) {
@@ -111,9 +113,10 @@ function DiscordSection({ settings, onUpdateSettings, onToast }) {
 // donc fonctionne aussi sur un hébergeur comme Railway où ces variables
 // ne viennent pas d'un .env. Effet après redémarrage du bot (npm start).
 //
-// ⚠️ Pas d'authentification sur ce dashboard — quiconque y accède peut
-// remplacer ces identifiants et prendre le contrôle du bot. Le token
-// n'est jamais renvoyé en clair par l'API, seulement un aperçu masqué.
+// ⚠️ Un seul mot de passe protège tout le dashboard (voir auth.js) —
+// quiconque le connaît peut remplacer ces identifiants et prendre le
+// contrôle du bot. Le token n'est jamais renvoyé en clair par l'API,
+// seulement un aperçu masqué.
 function BotIdentitySection({ onToast }) {
   const [status, setStatus] = useState(null);
   const [clientId, setClientId] = useState('');
@@ -166,7 +169,7 @@ function BotIdentitySection({ onToast }) {
     <div className="card" style={{ padding: '18px 22px', border: '1px solid rgba(255,159,10,0.3)' }}>
       <div className="card-title" style={{ marginBottom: 4 }}>Identifiants du bot</div>
       <div style={{ fontSize: 11.5, color: 'var(--orange)', marginBottom: 6, lineHeight: 1.5 }}>
-        ⚠ Ce dashboard n'a pas d'authentification — quiconque y accède peut changer ces valeurs et prendre le contrôle du bot. Protégez l'accès réseau.
+        ⚠ Quiconque connaît le mot de passe du dashboard peut changer ces valeurs et prendre le contrôle du bot — gardez-le aussi confidentiel que le token lui-même.
       </div>
 
       <form onSubmit={submit} className="settings-table">
@@ -201,6 +204,58 @@ function BotIdentitySection({ onToast }) {
         <Row label="">
           <button type="submit" className="btn btn-ghost" disabled={savingToken || !token.trim()} style={{ borderRadius: 8 }}>
             {savingToken ? 'Enregistrement…' : 'Enregistrer le token'}
+          </button>
+        </Row>
+      </form>
+    </div>
+  );
+}
+
+function ChangePasswordSection({ onToast }) {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (next !== confirm) {
+      onToast('Erreur : les deux mots de passe ne correspondent pas');
+      return;
+    }
+    setSaving(true);
+    try {
+      await changePassword(current, next);
+      onToast('Mot de passe mis à jour');
+      setCurrent('');
+      setNext('');
+      setConfirm('');
+    } catch (err) {
+      onToast(`Erreur : ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="card" style={{ padding: '18px 22px' }}>
+      <div className="card-title" style={{ marginBottom: 4 }}>Mot de passe</div>
+      <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 6, lineHeight: 1.5 }}>
+        Un seul mot de passe protège tout le dashboard — le changer déconnecte tous les appareils déjà connectés au prochain rechargement.
+      </div>
+      <form onSubmit={submit} className="settings-table">
+        <Row label="Mot de passe actuel">
+          <input className="input" type="password" value={current} onChange={(e) => setCurrent(e.target.value)} style={{ width: '100%', maxWidth: 220 }} />
+        </Row>
+        <Row label="Nouveau mot de passe" description="Au moins 8 caractères.">
+          <input className="input" type="password" value={next} onChange={(e) => setNext(e.target.value)} style={{ width: '100%', maxWidth: 220 }} />
+        </Row>
+        <Row label="Confirmer">
+          <input className="input" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} style={{ width: '100%', maxWidth: 220 }} />
+        </Row>
+        <Row label="">
+          <button type="submit" className="btn btn-ghost" disabled={saving || !current || !next} style={{ borderRadius: 8 }}>
+            {saving ? 'Mise à jour…' : 'Changer le mot de passe'}
           </button>
         </Row>
       </form>
@@ -301,6 +356,8 @@ export default function SettingsView({ settings, onToggle, onUpdateSettings, the
           </form>
         </div>
       )}
+
+      {activeTab === 'compte' && <ChangePasswordSection onToast={onToast} />}
     </div>
   );
 }
