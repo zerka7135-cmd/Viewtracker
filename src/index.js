@@ -138,8 +138,13 @@ client.on('error', (error) => console.error('Erreur client Discord :', error));
 process.on('unhandledRejection', (reason) => console.error('unhandledRejection :', reason));
 
 // Le dashboard reste consultable même si le client Discord est en cours de
-// (re)connexion — démarré indépendamment, pas dans clientReady.
-startServer().catch((error) => console.error('Erreur au démarrage du dashboard :', error));
+// (re)connexion — démarré indépendamment, pas dans clientReady. `client`
+// est passé (déjà en cours de connexion, pas forcément prêt) pour que le
+// serveur puisse envoyer un MP d'alerte à l'owner en cas de tentatives de
+// connexion suspectes au dashboard (voir server.js#sendLoginAlert) —
+// discord.js met en file d'attente les envois tant que le client n'est pas
+// encore "ready", pas besoin d'attendre clientReady ici.
+startServer(client).catch((error) => console.error('Erreur au démarrage du dashboard :', error));
 
 // --- Planification automatique ---
 client.once('clientReady', () => {
