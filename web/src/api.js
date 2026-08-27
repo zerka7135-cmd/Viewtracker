@@ -1,6 +1,6 @@
-// Petit wrapper fetch vers l'API Express (src/server.js). Version sans
-// auth/multi-organisation (voir backup/dashboard-rewrite-27-08 pour la
-// version complète) — pas de cookie de session à transmettre.
+// Petit wrapper fetch vers l'API Express (src/server.js). Mot de passe
+// unique (voir auth.js) — cookie de session inclus (credentials:'include'),
+// nécessaire même en dev où Vite tourne sur un port différent d'Express.
 
 class ApiError extends Error {
   constructor(message, status) {
@@ -11,6 +11,7 @@ class ApiError extends Error {
 
 async function request(path, opts = {}) {
   const res = await fetch(`/api${path}`, {
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     ...opts
   });
@@ -30,6 +31,12 @@ async function request(path, opts = {}) {
 
 export { ApiError };
 
+export const me = () => request('/me');
+export const setupPassword = (password) => request('/setup-password', { method: 'POST', body: JSON.stringify({ password }) });
+export const login = (password) => request('/login', { method: 'POST', body: JSON.stringify({ password }) });
+export const logout = () => request('/logout', { method: 'POST' });
+export const changePassword = (currentPassword, newPassword) => request('/account/password', { method: 'PATCH', body: JSON.stringify({ currentPassword, newPassword }) });
+
 export const getDashboard = () => request('/dashboard');
 export const addAccount = (name, urls) => request('/accounts', { method: 'POST', body: JSON.stringify({ name, urls }) });
 export const updateAccount = (currentName, name, urls) => request(`/accounts/${encodeURIComponent(currentName)}`, { method: 'PATCH', body: JSON.stringify({ name, urls }) });
@@ -44,6 +51,13 @@ export const getAccountHistory = (name, days, platform) => request(`/accounts/${
 
 export const getSettings = () => request('/settings');
 export const updateSettings = (patch) => request('/settings', { method: 'PATCH', body: JSON.stringify(patch) });
+
+// Token/Client ID/Guild ID du bot Discord (voir botConfig.js) — distincts
+// des réglages ci-dessus : ils identifient le bot lui-même et prennent le
+// dessus sur les variables d'environnement (Railway ou .env), effet après
+// redémarrage du bot (npm start). Le token n'est jamais renvoyé en clair.
+export const getBotConfig = () => request('/bot-config');
+export const updateBotConfig = (patch) => request('/bot-config', { method: 'PATCH', body: JSON.stringify(patch) });
 
 // Pas de déclenchement de scan depuis le dashboard (voir server.js) —
 // uniquement le statut, en lecture seule, pour refléter les collectes du

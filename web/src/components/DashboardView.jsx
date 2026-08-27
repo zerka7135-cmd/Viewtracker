@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
-import { fmt, fmtShort, platformLabel } from '../format.js';
-import { getHistory } from '../api.js';
+import { fmtShort, platformLabel } from '../format.js';
+import { getHistory, deleteAccount as deleteAccountApi } from '../api.js';
 import { useAccountFilters } from '../useAccountFilters.js';
 import Sparkline from './Sparkline.jsx';
 import AreaChart from './AreaChart.jsx';
-import StackedBarChart from './StackedBarChart.jsx';
-import { IconSearch } from './icons.jsx';
+import MultiLineChart from './MultiLineChart.jsx';
+import CountUp from './CountUp.jsx';
+import AddAccountModal from './AddAccountModal.jsx';
+import ConfirmModal from './ConfirmModal.jsx';
+import { IconSearch, IconEdit, IconTrash, IconPlus } from './icons.jsx';
 
 const PLATFORM_COLOR = { ig: '#e0409e', tt: '#1a93c0', yt: '#ff453a' };
 const PLATFORM_NAME = { ig: 'Instagram', tt: 'TikTok', yt: 'YouTube' };
@@ -31,10 +34,29 @@ function rangeShortLabel(range) {
 // Version sans mode Clics (voir backup/dashboard-rewrite-27-08 pour la
 // version complète avec suivi de lien en bio) — juste les vues pour
 // l'instant.
-export default function DashboardView({ kpis, accounts, onOpenDrawer }) {
+//
+// Page Comptes fusionnée ici (voir Sidebar.jsx) : le classement affiché
+// sous le graphique porte maintenant aussi les actions de gestion
+// (ajouter/modifier/supprimer un compte) — plus de page séparée qui
+// dupliquait presque le même tableau.
+export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccountsChanged, onToast }) {
   const [chartRange, setChartRange] = useState(CHART_RANGES[2]); // 14j par défaut
   const [platformSeries, setPlatformSeries] = useState({ ig: [], tt: [], yt: [] });
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingAccount, setEditingAccount] = useState(null);
+  const [deletingAccount, setDeletingAccount] = useState(null);
   const f = useAccountFilters(accounts);
+
+  const confirmDelete = async () => {
+    try {
+      const res = await deleteAccountApi(deletingAccount.name);
+      onAccountsChanged(res.accounts);
+      onToast(`Compte "${deletingAccount.name}" supprimé`);
+      setDeletingAccount(null);
+    } catch (err) {
+      onToast(`Erreur : ${err.message}`);
+    }
+  };
 
   // Une seule requête (les 3 séries par plateforme) alimente le graphique
   // fusionné ci-dessous : en filtre "Plateforme : toutes", les barres
@@ -67,19 +89,19 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div className="kpi-grid">
-        <div className="card kpi-card">
+        <div className="card kpi-card enter-stagger" style={{ '--enter-delay': '0ms' }}>
           <div className="kpi-label">Vues totales (all-time)</div>
-          <div className="kpi-value">{fmt(kpis.totalAllTime)}</div>
+          <div className="kpi-value"><CountUp value={kpis.totalAllTime} /></div>
           <div className="kpi-sub">sur {kpis.accountsCount} comptes suivis</div>
         </div>
-        <div className="card kpi-card">
+        <div className="card kpi-card enter-stagger" style={{ '--enter-delay': '50ms' }}>
           <div className="kpi-label">Vues gagnées (24h)</div>
-          <div className="kpi-value">{fmt(kpis.totalGrowth24h)}</div>
+          <div className="kpi-value"><CountUp value={kpis.totalGrowth24h} /></div>
           <div className="kpi-sub" style={{ color: 'var(--green)' }}>depuis la dernière collecte</div>
         </div>
-        <div className="card kpi-card">
+        <div className="card kpi-card enter-stagger" style={{ '--enter-delay': '100ms' }}>
           <div className="kpi-label">Comptes suivis</div>
-          <div className="kpi-value">{kpis.accountsCount}</div>
+          <div className="kpi-value"><CountUp value={kpis.accountsCount} /></div>
           <div className="kpi-sub" style={{ color: warningsCount ? 'var(--orange)' : 'var(--text-muted)' }}>
             {warningsCount ? `${warningsCount} en attente de configuration` : 'tous configurés'}
           </div>
@@ -88,14 +110,14 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer }) {
 
       <div className="content-grid">
         <div className="stack">
-          <div className="card" style={{ padding: '20px 22px' }}>
+          <div className="card enter-stagger" style={{ padding: '20px 22px', '--enter-delay': '150ms' }}>
             <div className="card-header">
               <div>
                 <div className="card-title">
                   Vues {f.platform === 'all' ? 'totales' : PLATFORM_NAME[f.platform]} — {rangeLongLabel(chartRange)}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                  {f.platform === 'all' ? 'Tendance et répartition par plateforme' : `Isolé sur ${PLATFORM_NAME[f.platform]} — change le filtre « Plateforme » ci-dessous pour comparer`}
+                  {f.platform === 'all' ? 'Une ligne par plateforme, même échelle' : `Isolé sur ${PLATFORM_NAME[f.platform]} — change le filtre « Plateforme » ci-dessous pour comparer`}
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -125,7 +147,7 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer }) {
 
             {f.platform === 'all' ? (
               <>
-                <StackedBarChart data={combinedChart} colors={PLATFORM_COLOR} />
+                <MultiLineChart data={combinedChart} colors={PLATFORM_COLOR} />
                 <div style={{ display: 'flex', gap: 18, marginTop: 14, fontSize: 11.5, color: 'var(--text-faint)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ width: 8, height: 8, borderRadius: 2, background: PLATFORM_COLOR.ig }} />Instagram</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><div style={{ width: 8, height: 8, borderRadius: 2, background: PLATFORM_COLOR.tt }} />TikTok</div>
@@ -137,7 +159,7 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer }) {
             )}
           </div>
 
-          <div className="card" style={{ padding: '20px 22px' }}>
+          <div className="card enter-stagger" style={{ padding: '20px 22px', '--enter-delay': '200ms' }}>
             <div className="card-header">
               <div>
                 <div className="card-title">Classement des comptes</div>
@@ -149,7 +171,12 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer }) {
                   </div>
                 )}
               </div>
-              <div className="mono" style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{f.filtered.length} compte(s)</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div className="mono" style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{f.filtered.length} compte(s)</div>
+                <button type="button" className="btn btn-accent" onClick={() => setShowAddModal(true)}>
+                  <IconPlus size={14} /> Ajouter
+                </button>
+              </div>
             </div>
             <div className="filters-row" style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
               <div className="search-input-wrap" style={{ flex: 1, minWidth: 110 }}>
@@ -176,14 +203,14 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer }) {
             </div>
 
             <div className="table-scroll">
-              <div className="table-header" style={{ gridTemplateColumns: '20px minmax(0,1.3fr) 40px 40px 40px 46px 34px' }}>
-                <div>#</div><div className="ellipsis">Compte</div><div>IG</div><div>TT</div><div>YT</div><div>Total</div><div></div>
+              <div className="table-header" style={{ gridTemplateColumns: '20px minmax(0,1.3fr) 40px 40px 40px 46px 34px 64px' }}>
+                <div>#</div><div className="ellipsis">Compte</div><div>IG</div><div>TT</div><div>YT</div><div>Total</div><div></div><div></div>
               </div>
               {f.filtered.map((a, i) => (
                 <div
                   key={a.name}
                   className="table-row"
-                  style={{ gridTemplateColumns: '20px minmax(0,1.3fr) 40px 40px 40px 46px 34px' }}
+                  style={{ gridTemplateColumns: '20px minmax(0,1.3fr) 40px 40px 40px 46px 34px 64px' }}
                   onClick={() => onOpenDrawer(a.name)}
                 >
                   <div className="table-cell-hide-mobile" style={{ fontWeight: 600, color: f.sort === 'total' && i === 0 ? 'var(--orange)' : 'var(--text-muted)', fontSize: 13 }}>
@@ -200,6 +227,24 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer }) {
                   <div className="table-cell-hide-mobile">
                     <Sparkline values={a.spark} color={a.growth24h >= 0 ? 'var(--green)' : 'var(--red)'} />
                   </div>
+                  <div className="table-cell-actions" style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      title="Modifier"
+                      onClick={(e) => { e.stopPropagation(); setEditingAccount(a); }}
+                    >
+                      <IconEdit size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn icon-btn-danger"
+                      title="Supprimer"
+                      onClick={(e) => { e.stopPropagation(); setDeletingAccount(a); }}
+                    >
+                      <IconTrash size={15} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -210,11 +255,36 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer }) {
           {warningsCount > 0 && (
             <div className="card" style={{ background: 'rgba(255,159,10,0.12)', border: '1px solid rgba(255,159,10,0.35)', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--orange)' }}>⚠ {warningsCount} compte(s) sans donnée</div>
-              <div style={{ fontSize: 12, color: '#d1a45c', lineHeight: 1.5 }}>Aucune vue détectée à la dernière collecte — vérifiez les URLs dans Comptes ou les logs du scraping.</div>
+              <div style={{ fontSize: 12, color: '#d1a45c', lineHeight: 1.5 }}>Aucune vue détectée à la dernière collecte — vérifiez les URLs ci-dessus ou les logs du scraping.</div>
             </div>
           )}
         </div>
       </div>
+
+      {showAddModal && (
+        <AddAccountModal
+          onClose={() => setShowAddModal(false)}
+          onAdded={onAccountsChanged}
+          onToast={onToast}
+        />
+      )}
+      {editingAccount && (
+        <AddAccountModal
+          account={editingAccount}
+          onClose={() => setEditingAccount(null)}
+          onAdded={onAccountsChanged}
+          onToast={onToast}
+        />
+      )}
+      {deletingAccount && (
+        <ConfirmModal
+          title="Supprimer le compte"
+          message={<>Supprimer <strong>{deletingAccount.name}</strong> ? Son historique de vues sera perdu.</>}
+          confirmLabel="Supprimer"
+          onConfirm={confirmDelete}
+          onCancel={() => setDeletingAccount(null)}
+        />
+      )}
     </div>
   );
 }

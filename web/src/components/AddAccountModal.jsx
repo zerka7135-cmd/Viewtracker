@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { addAccount as addAccountApi, updateAccount as updateAccountApi } from '../api.js';
 
 // Sert à la fois pour ajouter un nouveau compte et pour éditer un compte
-// existant (voir AccountsView.jsx) — passer `account` (avec ses `urls`,
+// existant (voir DashboardView.jsx) — passer `account` (avec ses `urls`,
 // voir dashboardData.js) bascule en mode édition.
 export default function AddAccountModal({ account, onClose, onAdded, onToast }) {
   const isEdit = !!account;

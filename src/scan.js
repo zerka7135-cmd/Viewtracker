@@ -1,9 +1,9 @@
 import { buildViewsSummary } from './instagram.js';
 import { acquireLock, releaseLock } from './cache.js';
-import { config } from './config.js';
 import { loadHistory, appendToday, computeGrowth24h, detectStuckAccounts } from './history.js';
 import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from './cumulativeViews.js';
 import { loadAccounts } from './accountsStore.js';
+import { loadSettings } from './settingsStore.js';
 
 // Lance une collecte complète immédiatement et affiche le résultat dans le
 // terminal, sans passer par Discord. Utile pour tester le scraping.
@@ -15,7 +15,8 @@ import { loadAccounts } from './accountsStore.js';
 
   try {
     console.log('Lancement de la collecte manuelle...');
-    const summary = await buildViewsSummary(loadAccounts());
+    const settings = loadSettings();
+    const summary = await buildViewsSummary(loadAccounts(), settings.postsLimit);
 
     const historyBefore = loadHistory();
     const growth24h = computeGrowth24h(historyBefore, summary);
@@ -58,7 +59,7 @@ import { loadAccounts } from './accountsStore.js';
     }
 
     const historyAfter = appendToday(historyBefore, summary);
-    const stuckAccounts = detectStuckAccounts(historyAfter, config.stuckAlertMinDays);
+    const stuckAccounts = detectStuckAccounts(historyAfter, settings.stuckAlertMinDays);
     if (stuckAccounts.length > 0) {
       console.log('\n🔴 Comptes bloqués depuis plusieurs collectes consécutives :');
       for (const s of stuckAccounts) {

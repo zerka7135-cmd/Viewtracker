@@ -18,7 +18,8 @@ const DEFAULTS = {
   discordOwnerId: null,
   cronSchedule: null,
   timezone: null,
-  postsLimit: null
+  postsLimit: null,
+  stuckAlertMinDays: null
 };
 
 function readStored() {
@@ -43,7 +44,8 @@ export function loadSettings() {
     discordOwnerId: stored.discordOwnerId || config.discordOwnerId,
     cronSchedule: stored.cronSchedule || config.cronSchedule,
     timezone: stored.timezone || config.timezone,
-    postsLimit: stored.postsLimit || config.postsLimit
+    postsLimit: stored.postsLimit || config.postsLimit,
+    stuckAlertMinDays: stored.stuckAlertMinDays || config.stuckAlertMinDays
   };
 }
 

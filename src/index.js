@@ -30,7 +30,7 @@ async function scrapeAndBroadcast() {
     // activée/désactivée) prend effet dès le prochain cycle, sans
     // redémarrage — voir settingsStore.js.
     const settings = loadSettings();
-    const summary = await buildViewsSummary(loadAccounts());
+    const summary = await buildViewsSummary(loadAccounts(), settings.postsLimit);
 
     // L'historique *avant* ajout du jour sert de référence pour le calcul
     // du gain 24h (comparer aujourd'hui à aujourd'hui n'aurait pas de sens).
@@ -61,7 +61,7 @@ async function scrapeAndBroadcast() {
     const historyAfter = appendToday(historyBefore, summary);
     if (settings.notifWarnings) {
       await sendErrorReportToOwner(summary, settings.discordOwnerId);
-      await sendStuckAlertToOwner(historyAfter, settings.discordOwnerId);
+      await sendStuckAlertToOwner(historyAfter, settings.discordOwnerId, settings.stuckAlertMinDays);
       await sendDataBackupToOwner(client, settings.discordOwnerId);
     }
     markScanFinished();
@@ -119,10 +119,10 @@ async function sendErrorReportToOwner(summary, discordOwnerId) {
 // déclenche que si un compte/plateforme échoue plusieurs collectes de
 // suite (cookie expiré, sélecteur DOM cassé...), signe d'un vrai problème
 // à corriger plutôt qu'un raté isolé.
-async function sendStuckAlertToOwner(history, discordOwnerId) {
+async function sendStuckAlertToOwner(history, discordOwnerId, stuckAlertMinDays) {
   if (!discordOwnerId) return;
 
-  const stuckAccounts = detectStuckAccounts(history, config.stuckAlertMinDays);
+  const stuckAccounts = detectStuckAccounts(history, stuckAlertMinDays);
   const stuckEmbed = buildStuckAccountsEmbed(stuckAccounts);
   if (!stuckEmbed) return;
 
@@ -145,8 +145,18 @@ startServer().catch((error) => console.error('Erreur au démarrage du dashboard 
 client.once('clientReady', () => {
   console.log(`Connecté en tant que ${client.user.tag}`);
 
+  // Réglages de collecte relus une fois au démarrage : contrairement à
+  // discordChannelId/discordOwnerId/notifDaily/notifWarnings (relus à
+  // chaque cycle, voir scrapeAndBroadcast), cronSchedule/timezone ne
+  // peuvent prendre effet qu'en ré-enregistrant le job, donc seulement au
+  // prochain redémarrage — c'est bien ce que l'UI (SettingsView.jsx)
+  // annonce, mais jusqu'ici rien ne lisait réellement ces réglages : la
+  // planification restait figée sur config.cronSchedule/config.timezone
+  // (.env) quoi qu'on change depuis le dashboard.
+  const { cronSchedule, timezone } = loadSettings();
+
   cron.schedule(
-    config.cronSchedule,
+    cronSchedule,
     async () => {
       // Décale le déclenchement réel de 0 à 120 min après l'heure planifiée :
       // une collecte qui démarre à la seconde près, tous les jours depuis la
@@ -162,10 +172,10 @@ client.once('clientReady', () => {
         console.error('Erreur lors de l\'envoi automatique du résumé :', error);
       }
     },
-    { timezone: config.timezone }
+    { timezone }
   );
 
-  console.log(`Planification active : "${config.cronSchedule}" (${config.timezone})`);
+  console.log(`Planification active : "${cronSchedule}" (${timezone})`);
 });
 
 client.login(config.discordToken);
