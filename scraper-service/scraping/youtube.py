@@ -2,12 +2,24 @@ import re
 
 from scrapling.fetchers import StealthyFetcher
 
-from .common import extract_id_from_href, parse_count
+from .common import detect_blocked_page, extract_id_from_href, parse_count, run_with_hard_timeout
 
 SHORTS_ITEM_SELECTOR = "ytm-shorts-lockup-view-model"
 SHORTS_LINK_SELECTOR = 'a[href*="/shorts/"]'
 SHORTS_ID_PATTERN = r"/shorts/([^/?]+)"
 VIEWS_TEXT_PATTERN = re.compile(r"([\d.,]+)\s*([kKmM]?)\s*(?:vues|views)", re.I)
+
+# YouTube ne demande pas de session, donc pas de "cookie expiré" possible
+# ici — mais une chaîne inexistante/supprimée ou un mur de consentement non
+# géré par CONSENT_COOKIES redirige/affiche une page très différente d'une
+# vraie page Shorts, avec le même risque de confusion avec un DOM cassé.
+BLOCKED_URL_MARKERS = ["/consent.youtube.com", "/accounts.google.com"]
+BLOCKED_TEXT_MARKERS = [
+    "This channel does not exist",
+    "Cette chaîne n'existe pas",
+    "Avant de continuer sur YouTube",
+    "Before you continue to YouTube",
+]
 
 # Mêmes cookies de consentement que l'ancien scraping Node
 # (src/instagram.js) : évitent le bandeau cookies qui masque le contenu.
@@ -30,17 +42,27 @@ def scrape_youtube(url: str, posts_limit: int) -> dict:
     clean_url = url.rstrip("/")
 
     try:
-        page = StealthyFetcher.fetch(
+        page = run_with_hard_timeout(lambda: StealthyFetcher.fetch(
             f"{clean_url}/shorts",
             headless=True,
             cookies=CONSENT_COOKIES,
             network_idle=True,
-        )
+        ))
     except Exception as e:
         return {"total": 0, "posts": [], "error": f"Échec du fetch YouTube (StealthyFetcher) : {e}"}
 
+    blocked = detect_blocked_page(page, BLOCKED_URL_MARKERS, BLOCKED_TEXT_MARKERS)
+    if blocked:
+        return {
+            "total": 0,
+            "posts": [],
+            "error": f"Chaîne YouTube inaccessible pour {clean_url} (mur de consentement ou chaîne "
+                     f"introuvable) plutôt qu'un vrai échec de sélecteurs. Détail : {blocked}",
+        }
+
     total = 0
     counted = []
+    fallback_level = 0
 
     # 1. Grille des shorts, sélecteur "adaptatif" — voir instagram.py pour
     # le même mécanisme et la raison d'être (relocalisation automatique si
@@ -59,6 +81,7 @@ def scrape_youtube(url: str, posts_limit: int) -> dict:
     # 2. Fallback : ancienne structure générique par span, sans lien fiable
     # vers la vidéo (pas d'ID, comme dans l'ancien code Node).
     if not counted:
+        fallback_level = 2
         for span in page.css("span"):
             text = (span.text or "").strip()
             if not re.search(r"vue|views", text, re.I):
@@ -76,4 +99,8 @@ def scrape_youtube(url: str, posts_limit: int) -> dict:
         if extract_id_from_href(c["href"], SHORTS_ID_PATTERN)
     ]
 
-    return {"total": total, "posts": posts, "error": None}
+    warning = None
+    if fallback_level > 0 and total > 0:
+        warning = f"Sélecteur principal des shorts sans résultat, repli niveau {fallback_level} utilisé"
+
+    return {"total": total, "posts": posts, "error": None, "fallbackLevel": fallback_level, "warning": warning}

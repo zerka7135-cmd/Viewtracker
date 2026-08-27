@@ -2,13 +2,33 @@ import re
 
 from scrapling.fetchers import StealthyFetcher
 
-from .common import extract_id_from_href, page_text, parse_count
+from .common import (
+    detect_blocked_page,
+    extract_id_from_href,
+    page_text,
+    parse_count,
+    run_with_hard_timeout,
+)
 
 PINNED_ICON_SELECTOR = 'svg[aria-label="Pinned post icon"]'
 REEL_LINK_SELECTOR = 'a[href*="/reel/"]'
 REEL_ID_PATTERN = r"/reel/([^/?]+)"
 COUNT_TEXT_PATTERN = re.compile(r"^[\d.,]+[kKmM]?$")
 GLOBAL_TEXT_PATTERN = re.compile(r"([\d.,]+[kKmM]?)\s*(?:vues|views|plays)")
+
+# Marqueurs d'une page de login/challenge Instagram plutôt qu'un vrai
+# profil — signe que la session (cookies) est invalide/expirée, à ne pas
+# confondre avec un changement de structure de page (voir detect_blocked_page).
+BLOCKED_URL_MARKERS = ["/accounts/login", "/challenge/", "/accounts/suspended"]
+BLOCKED_TEXT_MARKERS = [
+    "Connecte-toi à Instagram",
+    "Log in to Instagram",
+    "Confirm it's you",
+    "Confirme que c'est toi",
+    "Suspicious Login Attempt",
+    "Tentative de connexion suspecte",
+    "This Account has Been Restricted",
+]
 
 # "adaptive_domain" isole les sélecteurs appris pour instagram.com des
 # autres domaines suivis par ce service (voir scraping/youtube.py) : si IG
@@ -45,19 +65,29 @@ def scrape_instagram(url: str, posts_limit: int, cookies: list) -> dict:
     clean_url = url.rstrip("/")
 
     try:
-        page = StealthyFetcher.fetch(
+        page = run_with_hard_timeout(lambda: StealthyFetcher.fetch(
             f"{clean_url}/reels/",
             headless=True,
             cookies=cookies or None,
             network_idle=True,
             wait_selector=REEL_LINK_SELECTOR,
             wait_selector_state="attached",
-        )
+        ))
     except Exception as e:
         return {"total": 0, "posts": [], "error": f"Échec du fetch Instagram (StealthyFetcher) : {e}"}
 
+    blocked = detect_blocked_page(page, BLOCKED_URL_MARKERS, BLOCKED_TEXT_MARKERS)
+    if blocked:
+        return {
+            "total": 0,
+            "posts": [],
+            "error": f"Session Instagram invalide ou expirée pour {clean_url} — régénérez les cookies "
+                     f"(node src/login.js ou npm run export-ig-cookies). Détail : {blocked}",
+        }
+
     total = 0
     counted = []
+    fallback_level = 0
     pinned_hrefs = _find_pinned_hrefs(page)
 
     # 1. Grille des reels : chaque vignette est un lien dont le texte est le
@@ -77,6 +107,7 @@ def scrape_instagram(url: str, posts_limit: int, cookies: list) -> dict:
 
     # 2. Fallback : ancien format JSON GraphQL embarqué avec play_count.
     if total == 0:
+        fallback_level = 2
         for script in page.css('script[type="application/json"]'):
             content = script.text or ""
             if "play_count" not in content:
@@ -95,6 +126,7 @@ def scrape_instagram(url: str, posts_limit: int, cookies: list) -> dict:
     # Aucun href fiable dans ce cas, donc pas d'ID exploitable pour le suivi
     # par vidéo (comportement identique à l'ancien code Node).
     if total == 0:
+        fallback_level = 3
         for raw in GLOBAL_TEXT_PATTERN.findall(page_text(page))[:posts_limit]:
             val = parse_count(raw)
             total += val
@@ -106,4 +138,12 @@ def scrape_instagram(url: str, posts_limit: int, cookies: list) -> dict:
         if extract_id_from_href(c["href"], REEL_ID_PATTERN)
     ]
 
-    return {"total": total, "posts": posts, "error": None}
+    # fallback_level > 0 : le sélecteur principal n'a rien trouvé mais un
+    # fallback a compensé — le résultat est correct, mais c'est un signal
+    # avant-coureur qu'Instagram a changé sa page (à surveiller côté logs
+    # avant que ça finisse par tomber à 0 pour de bon).
+    warning = None
+    if fallback_level > 0 and total > 0:
+        warning = f"Sélecteur principal des reels sans résultat, repli niveau {fallback_level} utilisé"
+
+    return {"total": total, "posts": posts, "error": None, "fallbackLevel": fallback_level, "warning": warning}

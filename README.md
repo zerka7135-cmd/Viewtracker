@@ -438,3 +438,29 @@ spécifiquement si des crashs apparaissent en plein scan.
   être mise à jour dans `scraper-service/scraping/instagram.py` ou
   `youtube.py`. TikTok passe par `tiktokapi.store` (`TIKTOK_API_KEY`), sans
   scraping de page.
+- **Distinction blocage/session vs. sélecteurs cassés** : `scraper-service`
+  détecte les pages de login/challenge Instagram et les murs de consentement/
+  chaînes introuvables YouTube (`detect_blocked_page` dans
+  `scraping/common.py`) et remonte un message d'erreur explicite dans ce
+  cas, distinct du "aucune vue détectée" générique — si les logs Discord
+  (MP au propriétaire, voir "Alertes de scraping") mentionnent une session
+  invalide, régénérez les cookies (`node src/login.js`) plutôt que de
+  chercher un sélecteur cassé.
+- **Timeout dur côté service** : chaque fetch Scrapling est borné à 40s
+  (`run_with_hard_timeout` dans `scraping/common.py`), indépendamment du
+  timeout de 45s côté client Node (`src/scraperClient.js`) — évite qu'un
+  fetch bloqué continue de tourner côté `scraper-service` après que Node a
+  déjà abandonné la requête.
+- **Détection précoce de dégradation** : quand le sélecteur principal ne
+  trouve rien mais qu'un fallback compense (résultat correct mais signe
+  avant-coureur), un warning est loggé côté bot Node
+  (`[scraper-service] ...`, voir `src/scraperClient.js`) — à surveiller
+  avant que ça finisse par tomber à 0 pour de bon.
+- **Tests** : `scraper-service/tests/test_common.py` couvre le parsing
+  (`parse_count`, `extract_id_from_href`, `run_with_hard_timeout`), au
+  coeur de tout calcul de vues. Lancer avec :
+  ```bash
+  cd scraper-service
+  pip install -r requirements-dev.txt
+  pytest
+  ```

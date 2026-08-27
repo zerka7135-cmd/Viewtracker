@@ -34,6 +34,13 @@ async function callScraper(path, body) {
   const data = await res.json();
   if (data.error) throw new Error(data.error);
 
+  // Le sélecteur principal n'a rien trouvé mais un fallback a compensé
+  // (voir scraper-service/scraping/{instagram,youtube}.py) : le total
+  // renvoyé est correct, mais c'est un signe avant-coureur qu'une des deux
+  // plateformes a changé sa page — à surveiller dans les logs avant que ça
+  // finisse par retomber à 0 pour de bon.
+  if (data.warning) console.warn(`[scraper-service] ${path} : ${data.warning}`);
+
   return { total: data.total, posts: data.posts || [] };
 }
 
