@@ -12,9 +12,14 @@ const base = {
   strokeLinejoin: 'round'
 };
 
+// aria-hidden par défaut : ces icônes sont toujours à côté d'un texte ou
+// dans un bouton déjà nommé (aria-label/texte visible) — sans ça, chaque
+// <svg> serait exposé comme contenu graphique sans nom aux lecteurs
+// d'écran, du bruit plutôt que de l'info. Surchargeable via `aria-hidden`
+// dans les rares cas où l'icône porte l'information à elle seule.
 function Svg({ size = 18, children, ...rest }) {
   return (
-    <svg {...base} width={size} height={size} {...rest}>
+    <svg {...base} width={size} height={size} aria-hidden="true" {...rest}>
       {children}
     </svg>
   );

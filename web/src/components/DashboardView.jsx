@@ -206,12 +206,34 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
               <div className="table-header" style={{ gridTemplateColumns: '20px minmax(0,1.3fr) 40px 40px 40px 46px 34px 64px' }}>
                 <div>#</div><div className="ellipsis">Compte</div><div>IG</div><div>TT</div><div>YT</div><div>Total</div><div></div><div></div>
               </div>
+              {f.filtered.length === 0 && (
+                <div className="table-empty">
+                  {accounts.length === 0 ? (
+                    <>
+                      <div className="table-empty-title">Aucun compte suivi</div>
+                      <div className="table-empty-sub">Ajoute un compte Instagram, TikTok ou YouTube pour démarrer le suivi.</div>
+                      <button type="button" className="btn btn-accent" onClick={() => setShowAddModal(true)} style={{ marginTop: 12 }}>
+                        <IconPlus size={14} /> Ajouter un compte
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="table-empty-title">Aucun résultat</div>
+                      <div className="table-empty-sub">Aucun compte ne correspond à ces filtres.</div>
+                      {f.active && <button type="button" className="btn-link" onClick={f.reset} style={{ marginTop: 8 }}>Réinitialiser les filtres</button>}
+                    </>
+                  )}
+                </div>
+              )}
               {f.filtered.map((a, i) => (
                 <div
                   key={a.name}
+                  role="button"
+                  tabIndex={0}
                   className="table-row"
                   style={{ gridTemplateColumns: '20px minmax(0,1.3fr) 40px 40px 40px 46px 34px 64px' }}
                   onClick={() => onOpenDrawer(a.name)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenDrawer(a.name); } }}
                 >
                   <div className="table-cell-hide-mobile" style={{ fontWeight: 600, color: f.sort === 'total' && i === 0 ? 'var(--orange)' : 'var(--text-muted)', fontSize: 13 }}>
                     {i + 1}
@@ -231,7 +253,7 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
                     <button
                       type="button"
                       className="icon-btn"
-                      title="Modifier"
+                      title="Modifier" aria-label="Modifier le compte"
                       onClick={(e) => { e.stopPropagation(); setEditingAccount(a); }}
                     >
                       <IconEdit size={15} />
@@ -239,7 +261,7 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
                     <button
                       type="button"
                       className="icon-btn icon-btn-danger"
-                      title="Supprimer"
+                      title="Supprimer" aria-label="Supprimer le compte"
                       onClick={(e) => { e.stopPropagation(); setDeletingAccount(a); }}
                     >
                       <IconTrash size={15} />

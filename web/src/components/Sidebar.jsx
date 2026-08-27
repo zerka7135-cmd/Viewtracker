@@ -31,17 +31,25 @@ export default function Sidebar({ view, onNavigate, collapsed, onToggleCollapsed
           className="sidebar-collapse-btn"
           onClick={onToggleCollapsed}
           title={collapsed ? 'Déplier la navigation' : 'Replier la navigation'}
+          aria-label={collapsed ? 'Déplier la navigation' : 'Replier la navigation'}
         >
           {collapsed ? <IconChevronRight size={14} /> : <IconChevronLeft size={14} />}
         </button>
       </div>
 
+      {/* role="button"+tabIndex+onKeyDown : un <div onClick> seul n'est ni
+          focusable au clavier ni activable par Entrée/Espace — c'était le
+          cas ici (nav principale entièrement hors de portée du clavier). */}
       <div className="nav">
         {NAV_ITEMS.map(([key, label, Icon]) => (
           <div
             key={key}
+            role="button"
+            tabIndex={0}
+            aria-current={view === key ? 'page' : undefined}
             className={`nav-item ${view === key ? 'active' : ''}`}
             onClick={() => onNavigate(key)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate(key); } }}
             title={collapsed ? label : undefined}
           >
             <span className="nav-item-icon"><Icon size={16} /></span>

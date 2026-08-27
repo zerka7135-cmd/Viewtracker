@@ -6,6 +6,7 @@ import AreaChart from './AreaChart.jsx';
 import AddAccountModal from './AddAccountModal.jsx';
 import ConfirmModal from './ConfirmModal.jsx';
 import { IconEdit, IconTrash } from './icons.jsx';
+import { useEscapeKey } from '../useEscapeKey.js';
 
 const PLATFORMS = [
   { key: 'ig', name: 'Instagram', color: '#e0409e' },
@@ -87,6 +88,7 @@ function AccountHistoryChart({ accountName }) {
 export default function AccountDrawer({ account, onClose, onAccountsChanged, onToast }) {
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  useEscapeKey(onClose, Boolean(account) && !editing && !deleting);
 
   if (!account) return null;
 
@@ -114,13 +116,18 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button type="button" className="icon-btn" title="Modifier" onClick={() => setEditing(true)}>
+            <button type="button" className="icon-btn" title="Modifier" aria-label="Modifier le compte" onClick={() => setEditing(true)}>
               <IconEdit size={15} />
             </button>
-            <button type="button" className="icon-btn icon-btn-danger" title="Supprimer" onClick={() => setDeleting(true)}>
+            <button type="button" className="icon-btn icon-btn-danger" title="Supprimer" aria-label="Supprimer le compte" onClick={() => setDeleting(true)}>
               <IconTrash size={15} />
             </button>
-            <div onClick={onClose} style={{ cursor: 'pointer', color: 'var(--text-muted)', fontSize: 22, lineHeight: 1, padding: 4, marginLeft: 4 }}>×</div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Fermer"
+              style={{ cursor: 'pointer', background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: 22, lineHeight: 1, padding: 4, marginLeft: 4 }}
+            >×</button>
           </div>
         </div>
 
