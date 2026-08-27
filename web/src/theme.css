@@ -832,6 +832,15 @@ button, select, input {
 .login-error {
   color: var(--red);
   font-size: 12.5px;
+  margin-bottom: 12px;
+  animation: loginErrorIn 0.3s ease;
+}
+@keyframes loginErrorIn {
+  0% { transform: translateX(0); opacity: 0; }
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(5px); }
+  75% { transform: translateX(-3px); }
+  100% { transform: translateX(0); opacity: 1; }
 }
 
 /* Carte à deux panneaux (voir LoginScreen.jsx) : bandeau de bienvenue à
@@ -845,6 +854,11 @@ button, select, input {
   border-radius: 20px;
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  animation: loginCardIn 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes loginCardIn {
+  from { transform: translateY(14px) scale(0.98); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
 }
 .login-panel-brand {
   position: relative;
@@ -875,6 +889,11 @@ button, select, input {
   align-items: center;
   justify-content: center;
   margin-bottom: 12px;
+  animation: loginMarkIn 0.5s 0.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes loginMarkIn {
+  from { transform: scale(0.6); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }
 .login-panel-brand-title {
   position: relative;
@@ -882,6 +901,7 @@ button, select, input {
   font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 1.15;
+  animation: loginTextIn 0.45s 0.16s ease both;
 }
 .login-panel-brand-sub {
   position: relative;
@@ -889,6 +909,11 @@ button, select, input {
   color: rgba(255, 255, 255, 0.78);
   line-height: 1.5;
   max-width: 320px;
+  animation: loginTextIn 0.45s 0.22s ease both;
+}
+@keyframes loginTextIn {
+  from { transform: translateY(6px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 .login-panel-form {
   flex: 1;
@@ -898,12 +923,84 @@ button, select, input {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  animation: loginTextIn 0.45s 0.12s ease both;
 }
 .login-field-label {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   margin-bottom: 6px;
+}
+
+/* Décor : dérive lente, jamais au premier plan — coupée si l'utilisateur
+   préfère moins d'animation. */
+@media (prefers-reduced-motion: no-preference) {
+  .login-panel-shapes {
+    animation: loginShapesDrift 18s ease-in-out infinite;
+  }
+}
+@keyframes loginShapesDrift {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-6px, 8px); }
+}
+
+.login-input-wrap {
+  position: relative;
+  display: flex;
+}
+.login-input-wrap .input {
+  flex: 1;
+  padding-right: 40px;
+  transition: border-color 0.15s ease;
+}
+.login-reveal-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.login-reveal-btn:hover {
+  background: var(--card-alt);
+  color: var(--text);
+}
+
+.login-strength-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: color 0.15s ease;
+}
+.login-strength-hint.is-ok {
+  color: var(--green, #34c759);
+}
+
+.login-caps-hint {
+  font-size: 12px;
+  color: var(--yellow, #ffb020);
+  margin-bottom: 8px;
+  animation: loginTextIn 0.2s ease both;
+}
+
+.login-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: loginSpin 0.7s linear infinite;
+}
+@keyframes loginSpin {
+  to { transform: rotate(360deg); }
 }
 @media (max-width: 640px) {
   .login-split-card {
