@@ -7,6 +7,7 @@ import DashboardView from './components/DashboardView.jsx';
 import SettingsView from './components/SettingsView.jsx';
 import AccountDrawer from './components/AccountDrawer.jsx';
 import LoadingScreen from './components/LoadingScreen.jsx';
+import WelcomeScreen from './components/WelcomeScreen.jsx';
 import LoginScreen from './components/LoginScreen.jsx';
 import Toast from './components/Toast.jsx';
 import { getStoredTheme, applyTheme } from './theme.js';
@@ -35,6 +36,22 @@ export default function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [passwordSet, setPasswordSet] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
+
+  // Écran de bienvenue affiché une fois par onglet (pas à chaque
+  // rechargement/reconnexion dans la même session navigateur) avant
+  // l'écran de connexion — voir WelcomeScreen.jsx.
+  const [showWelcome, setShowWelcome] = useState(() => {
+    try { return sessionStorage.getItem('vt-welcome-seen') !== '1'; } catch { return true; }
+  });
+  const [welcomeExiting, setWelcomeExiting] = useState(false);
+  const dismissWelcome = () => {
+    setWelcomeExiting(true);
+    try { sessionStorage.setItem('vt-welcome-seen', '1'); } catch { /* non bloquant */ }
+    // Laisse l'animation de sortie (welcomeOut, 0.35s) se jouer avant de
+    // démonter l'écran — sinon le login apparaît en même temps qu'il
+    // disparaît plutôt qu'après.
+    setTimeout(() => setShowWelcome(false), 340);
+  };
 
   useEffect(() => {
     api.me().then((res) => {
@@ -139,6 +156,7 @@ export default function App() {
   };
 
   if (!authChecked) return <LoadingScreen />;
+  if (!authenticated && showWelcome) return <WelcomeScreen exiting={welcomeExiting} onContinue={dismissWelcome} />;
   if (!authenticated) return <LoginScreen setupMode={!passwordSet} onSuccess={() => setAuthenticated(true)} />;
   if (!loaded) return <LoadingScreen />;
 

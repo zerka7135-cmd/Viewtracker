@@ -822,6 +822,88 @@ button, select, input {
   justify-content: center;
   background: var(--bg);
 }
+
+/* --- Écran de bienvenue (avant login, voir WelcomeScreen.jsx) --- */
+
+.welcome-screen {
+  position: relative;
+  overflow: hidden;
+  animation: welcomeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.welcome-screen.is-exiting {
+  animation: welcomeOut 0.35s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+@keyframes welcomeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes welcomeOut {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.97); }
+}
+.welcome-shapes {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .welcome-shapes {
+    animation: loginShapesDrift 22s ease-in-out infinite;
+  }
+}
+.welcome-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 440px;
+  padding: 0 24px;
+}
+.welcome-mark {
+  width: 84px;
+  height: 84px;
+  border-radius: 22px;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12px 32px rgba(10, 132, 255, 0.35);
+  margin-bottom: 24px;
+  animation: loginMarkIn 0.55s 0.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.welcome-title {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin-bottom: 12px;
+  animation: loginTextIn 0.45s 0.18s ease both;
+}
+.welcome-sub {
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  margin-bottom: 32px;
+  animation: loginTextIn 0.45s 0.24s ease both;
+}
+.welcome-cta {
+  padding: 12px 26px;
+  font-size: 14.5px;
+  gap: 8px;
+  animation: loginTextIn 0.45s 0.3s ease both;
+}
+.welcome-cta-arrow {
+  display: inline-block;
+  transition: transform 0.18s ease;
+}
+.welcome-cta:hover .welcome-cta-arrow {
+  transform: translateX(3px);
+}
+
 .login-card {
   width: 320px;
   display: flex;
