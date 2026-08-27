@@ -45,6 +45,11 @@ export default function AreaChart({ data, values, color, width = 560, height = 1
   const hovered = hoverIndex !== null ? dots[hoverIndex] : null;
   const hoveredPct = hovered ? (hovered.x / width) * 100 : 0;
 
+  // Fingerprint du jeu de données affiché : sert de `key` React pour
+  // remonter la ligne et rejouer son animation de tracé à chaque
+  // changement de filtre/période, pas seulement au tout premier rendu.
+  const datasetKey = `${safe.length}-${safe[0]?.date || ''}-${safe[safe.length - 1]?.date || ''}`;
+
   return (
     <div style={{ position: 'relative' }}>
       <svg
@@ -53,8 +58,10 @@ export default function AreaChart({ data, values, color, width = 560, height = 1
         onMouseMove={handleMove}
         onMouseLeave={() => setHoverIndex(null)}
       >
-        <polygon points={area} fill={color} opacity="0.1" />
-        <polyline points={line} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <g key={datasetKey} className="chart-reveal">
+          <polygon points={area} fill={color} opacity="0.1" />
+          <polyline points={line} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
         {hovered && (
           <>
             <line x1={hovered.x} y1="0" x2={hovered.x} y2={height} stroke={color} strokeWidth="1" strokeDasharray="3,3" opacity="0.4" />

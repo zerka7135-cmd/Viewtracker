@@ -1,11 +1,11 @@
-import { IconDashboard, IconAccounts, IconSettings, IconChevronLeft, IconChevronRight, IconLogo } from './icons.jsx';
+import { IconDashboard, IconSettings, IconChevronLeft, IconChevronRight, IconLogo } from './icons.jsx';
 
-// "Historique" a été fusionné dans Dashboard (graphique de tendance +
-// répartition par plateforme, avec les mêmes filtres période/plateforme
-// que le classement — voir DashboardView.jsx) : plus d'entrée dédiée.
+// "Historique" et "Comptes" ont été fusionnés dans Dashboard (graphique de
+// tendance + répartition par plateforme + gestion des comptes suivis —
+// voir DashboardView.jsx) : plus d'entrées dédiées, un seul tableau qui
+// fait les deux plutôt que deux pages qui affichaient presque la même chose.
 const NAV_ITEMS = [
   ['dashboard', 'Dashboard', IconDashboard],
-  ['accounts', 'Comptes', IconAccounts],
   ['settings', 'Paramètres', IconSettings]
 ];
 

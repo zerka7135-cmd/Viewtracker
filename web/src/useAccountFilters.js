@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 
-// Filtrage/tri partagé entre DashboardView et AccountsView — appliqué
-// côté client sur le payload complet renvoyé par GET /api/accounts (ou
-// /api/dashboard), comme dans la maquette d'origine (renderVals()).
+// Filtrage/tri du tableau de comptes de DashboardView — appliqué côté
+// client sur le payload complet renvoyé par GET /api/dashboard, comme
+// dans la maquette d'origine (renderVals()).
 export function useAccountFilters(accounts) {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');

@@ -360,6 +360,38 @@ button, select, input {
   animation: pulseDot 2s ease-in-out infinite;
 }
 
+/* Entrée en cascade des cartes du dashboard au premier rendu (voir
+   DashboardView.jsx) — chaque carte porte --enter-delay pour échelonner
+   l'apparition. Repliée entièrement sous prefers-reduced-motion : les
+   cartes gardent leur opacité par défaut (1), aucune propriété
+   d'animation appliquée, plutôt qu'un état "figé à mi-animation". */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes cardEnter {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .enter-stagger {
+    animation: cardEnter 0.4s ease both;
+    animation-delay: var(--enter-delay, 0ms);
+  }
+
+  /* Révélation des graphiques (lignes + points) à l'apparition, via
+     clip-path plutôt que stroke-dasharray/pathLength — ce dernier casse
+     une fois combiné à un SVG étiré en preserveAspectRatio="none" (ligne
+     bloquée à mi-parcours, vécu sur MultiLineChart). Un clip-path en
+     pourcentage n'a pas ce problème : il découpe le rendu final, peu
+     importe comment les coordonnées internes du SVG ont été mises à
+     l'échelle. Marche aussi bien pour un polyline seul (AreaChart) que
+     plusieurs (MultiLineChart) puisqu'il découpe le groupe entier. */
+  @keyframes chartReveal {
+    from { clip-path: inset(0 100% 0 0); }
+    to { clip-path: inset(0 0% 0 0); }
+  }
+  .chart-reveal {
+    animation: chartReveal 0.6s ease forwards;
+  }
+}
+
 .main {
   flex: 1;
   min-width: 0;
@@ -827,7 +859,7 @@ button, select, input {
 @media (max-width: 640px) {
   /* Cartes empilées à la place du tableau en grille : chaque compte
      devient une carte verticale, un champ par ligne avec son libellé
-     (voir data-label sur les cellules dans AccountsView.jsx/
+     (voir data-label sur les cellules dans DashboardView.jsx/
      DashboardView.jsx) — plus de scroll horizontal ni de colonnes
      écrasées. Le libellé est injecté en ::before via l'attribut
      data-label plutôt que dupliqué en JSX. */

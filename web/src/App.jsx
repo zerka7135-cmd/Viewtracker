@@ -4,7 +4,6 @@ import Sidebar from './components/Sidebar.jsx';
 import TopBar from './components/TopBar.jsx';
 import ScanStatusIndicator from './components/ScanStatusIndicator.jsx';
 import DashboardView from './components/DashboardView.jsx';
-import AccountsView from './components/AccountsView.jsx';
 import SettingsView from './components/SettingsView.jsx';
 import AccountDrawer from './components/AccountDrawer.jsx';
 import LoadingScreen from './components/LoadingScreen.jsx';
@@ -130,12 +129,6 @@ export default function App() {
         {view === 'dashboard' && kpis && (
           <DashboardView
             kpis={kpis}
-            accounts={accounts}
-            onOpenDrawer={setDrawerAccountName}
-          />
-        )}
-        {view === 'accounts' && (
-          <AccountsView
             accounts={accounts}
             onOpenDrawer={setDrawerAccountName}
             onAccountsChanged={setAccounts}

@@ -81,7 +81,7 @@ function AccountHistoryChart({ accountName }) {
 }
 
 // Modifier/Supprimer réutilisent AddAccountModal (mode édition) et la même
-// route de suppression que le tableau de la page Comptes (AccountsView.jsx)
+// route de suppression que le tableau de comptes de Dashboard (DashboardView.jsx)
 // — le tiroir de détail est un autre point d'entrée vers le même compte,
 // pas une fonctionnalité séparée.
 export default function AccountDrawer({ account, onClose, onAccountsChanged, onToast }) {
