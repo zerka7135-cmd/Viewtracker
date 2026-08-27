@@ -7,6 +7,9 @@ import { loadHistory, appendToday, computeGrowth24h, detectStuckAccounts } from 
 import { loadLastMessage, saveLastMessage } from '../src/lastMessage.js';
 import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from '../src/cumulativeViews.js';
 import { sendDataBackupToOwner } from '../src/backup.js';
+import { loadAccounts } from '../src/accountsStore.js';
+import { loadSettings } from '../src/settingsStore.js';
+import { markScanStarted, markScanFinished } from '../src/scanStatus.js';
 
 // Déclenche manuellement un seul cycle de collecte + diffusion, en dehors
 // du cron planifié. Édite les messages Discord existants comme le ferait
@@ -14,6 +17,10 @@ import { sendDataBackupToOwner } from '../src/backup.js';
 // nouveaux tant que lastMessage.json pointe vers un message éditable :
 // utile pour republier des stats corrigées suite à un fix de calcul, sans
 // attendre le prochain créneau cron ni dupliquer les messages du salon.
+//
+// Comptes et réglages viennent des mêmes fichiers que le dashboard
+// (accountsStore.js/settingsStore.js), pas de ACCOUNTS/.env directement —
+// un compte ajouté depuis le dashboard est donc bien inclus ici.
 validateConfig();
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -37,20 +44,20 @@ async function sendOrEditSummary(channel, key, embed) {
   console.log(`Message "${key}" envoyé (aucun message précédent à éditer, id ${message.id}).`);
 }
 
-async function sendErrorReportToOwner(summary) {
-  if (!config.discordOwnerId) return;
+async function sendErrorReportToOwner(summary, discordOwnerId) {
+  if (!discordOwnerId) return;
   const errorEmbed = buildErrorReportEmbed(summary);
   if (!errorEmbed) return;
-  const owner = await client.users.fetch(config.discordOwnerId);
+  const owner = await client.users.fetch(discordOwnerId);
   await owner.send({ embeds: [errorEmbed] });
 }
 
-async function sendStuckAlertToOwner(history) {
-  if (!config.discordOwnerId) return;
+async function sendStuckAlertToOwner(history, discordOwnerId) {
+  if (!discordOwnerId) return;
   const stuckAccounts = detectStuckAccounts(history, config.stuckAlertMinDays);
   const stuckEmbed = buildStuckAccountsEmbed(stuckAccounts);
   if (!stuckEmbed) return;
-  const owner = await client.users.fetch(config.discordOwnerId);
+  const owner = await client.users.fetch(discordOwnerId);
   await owner.send({ embeds: [stuckEmbed] });
 }
 
@@ -63,9 +70,11 @@ client.once('clientReady', async () => {
     process.exit(1);
   }
 
+  markScanStarted();
   try {
-    const channel = await client.channels.fetch(config.discordChannelId);
-    const summary = await buildViewsSummary();
+    const settings = loadSettings();
+    const channel = settings.discordChannelId ? await client.channels.fetch(settings.discordChannelId) : null;
+    const summary = await buildViewsSummary(loadAccounts());
 
     const historyBefore = loadHistory();
     const growth24h = computeGrowth24h(historyBefore, summary);
@@ -74,19 +83,23 @@ client.once('clientReady', async () => {
     const cumulativeAfter = updateCumulativeViews(cumulativeBefore, growth24h, summary);
     saveCumulativeViews(cumulativeAfter);
 
-    const dailyEmbed = build24hEmbed(growth24h, summary, new Date());
-    await sendOrEditSummary(channel, 'daily', dailyEmbed);
+    if (channel) {
+      const dailyEmbed = build24hEmbed(growth24h, summary, new Date());
+      await sendOrEditSummary(channel, 'daily', dailyEmbed);
 
-    const allTimeEmbed = buildAllTimeEmbed(cumulativeAfter, summary, new Date());
-    await sendOrEditSummary(channel, 'allTime', allTimeEmbed);
+      const allTimeEmbed = buildAllTimeEmbed(cumulativeAfter, summary, new Date());
+      await sendOrEditSummary(channel, 'allTime', allTimeEmbed);
+    }
 
     const historyAfter = appendToday(historyBefore, summary);
-    await sendErrorReportToOwner(summary);
-    await sendStuckAlertToOwner(historyAfter);
-    await sendDataBackupToOwner(client);
+    await sendErrorReportToOwner(summary, settings.discordOwnerId);
+    await sendStuckAlertToOwner(historyAfter, settings.discordOwnerId);
+    await sendDataBackupToOwner(client, settings.discordOwnerId);
+    markScanFinished();
 
     console.log('Collecte manuelle terminée.');
   } catch (error) {
+    markScanFinished(error.message);
     console.error('Erreur pendant la collecte manuelle :', error);
     process.exitCode = 1;
   } finally {

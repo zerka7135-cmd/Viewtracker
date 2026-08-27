@@ -8,20 +8,29 @@ import { loadHistory, appendToday, computeGrowth24h, detectStuckAccounts } from 
 import { loadLastMessage, saveLastMessage } from './lastMessage.js';
 import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from './cumulativeViews.js';
 import { sendDataBackupToOwner } from './backup.js';
+import { loadAccounts } from './accountsStore.js';
+import { loadSettings } from './settingsStore.js';
+import { markScanStarted, markScanFinished } from './scanStatus.js';
+import { startServer } from './server.js';
 
 validateConfig();
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-async function scrapeAndBroadcast(channelId) {
+async function scrapeAndBroadcast() {
   if (!acquireLock()) {
     console.error('Une collecte est déjà en cours (scan manuel probable). Cycle cron ignoré.');
     return false;
   }
 
+  markScanStarted();
   try {
-    const channel = await client.channels.fetch(channelId);
-    const summary = await buildViewsSummary();
+    // Réglages relus à chaque collecte (pas seulement au démarrage) : un
+    // changement fait depuis le dashboard (salon, MP d'alerte, publication
+    // activée/désactivée) prend effet dès le prochain cycle, sans
+    // redémarrage — voir settingsStore.js.
+    const settings = loadSettings();
+    const summary = await buildViewsSummary(loadAccounts());
 
     // L'historique *avant* ajout du jour sert de référence pour le calcul
     // du gain 24h (comparer aujourd'hui à aujourd'hui n'aurait pas de sens).
@@ -35,17 +44,31 @@ async function scrapeAndBroadcast(channelId) {
     const cumulativeAfter = updateCumulativeViews(cumulativeBefore, growth24h, summary);
     saveCumulativeViews(cumulativeAfter);
 
-    const dailyEmbed = build24hEmbed(growth24h, summary, new Date());
-    await sendOrEditSummary(channel, 'daily', dailyEmbed);
+    // La publication Discord peut être coupée depuis le dashboard
+    // (Paramètres > Discord > "Publier sur Discord") sans arrêter la
+    // collecte elle-même — les données restent à jour pour le dashboard
+    // même si personne ne veut plus les voir dans un salon.
+    if (settings.notifDaily && settings.discordChannelId) {
+      const channel = await client.channels.fetch(settings.discordChannelId);
 
-    const allTimeEmbed = buildAllTimeEmbed(cumulativeAfter, summary, new Date());
-    await sendOrEditSummary(channel, 'allTime', allTimeEmbed);
+      const dailyEmbed = build24hEmbed(growth24h, summary, new Date());
+      await sendOrEditSummary(channel, 'daily', dailyEmbed);
+
+      const allTimeEmbed = buildAllTimeEmbed(cumulativeAfter, summary, new Date());
+      await sendOrEditSummary(channel, 'allTime', allTimeEmbed);
+    }
 
     const historyAfter = appendToday(historyBefore, summary);
-    await sendErrorReportToOwner(summary);
-    await sendStuckAlertToOwner(historyAfter);
-    await sendDataBackupToOwner(client);
+    if (settings.notifWarnings) {
+      await sendErrorReportToOwner(summary, settings.discordOwnerId);
+      await sendStuckAlertToOwner(historyAfter, settings.discordOwnerId);
+      await sendDataBackupToOwner(client, settings.discordOwnerId);
+    }
+    markScanFinished();
     return true;
+  } catch (error) {
+    markScanFinished(error.message);
+    throw error;
   } finally {
     releaseLock();
   }
@@ -78,14 +101,14 @@ async function sendOrEditSummary(channel, key, embed) {
 // Les échecs de scraping ne vont plus dans le salon public : seul le
 // propriétaire du bot les reçoit en MP, pour garder le résumé quotidien
 // propre pour tout le monde d'autre.
-async function sendErrorReportToOwner(summary) {
-  if (!config.discordOwnerId) return;
+async function sendErrorReportToOwner(summary, discordOwnerId) {
+  if (!discordOwnerId) return;
 
   const errorEmbed = buildErrorReportEmbed(summary);
   if (!errorEmbed) return;
 
   try {
-    const owner = await client.users.fetch(config.discordOwnerId);
+    const owner = await client.users.fetch(discordOwnerId);
     await owner.send({ embeds: [errorEmbed] });
   } catch (error) {
     console.error('Erreur lors de l\'envoi du rapport d\'échecs en MP :', error);
@@ -96,15 +119,15 @@ async function sendErrorReportToOwner(summary) {
 // déclenche que si un compte/plateforme échoue plusieurs collectes de
 // suite (cookie expiré, sélecteur DOM cassé...), signe d'un vrai problème
 // à corriger plutôt qu'un raté isolé.
-async function sendStuckAlertToOwner(history) {
-  if (!config.discordOwnerId) return;
+async function sendStuckAlertToOwner(history, discordOwnerId) {
+  if (!discordOwnerId) return;
 
   const stuckAccounts = detectStuckAccounts(history, config.stuckAlertMinDays);
   const stuckEmbed = buildStuckAccountsEmbed(stuckAccounts);
   if (!stuckEmbed) return;
 
   try {
-    const owner = await client.users.fetch(config.discordOwnerId);
+    const owner = await client.users.fetch(discordOwnerId);
     await owner.send({ embeds: [stuckEmbed] });
   } catch (error) {
     console.error('Erreur lors de l\'envoi de l\'alerte comptes bloqués en MP :', error);
@@ -113,6 +136,10 @@ async function sendStuckAlertToOwner(history) {
 
 client.on('error', (error) => console.error('Erreur client Discord :', error));
 process.on('unhandledRejection', (reason) => console.error('unhandledRejection :', reason));
+
+// Le dashboard reste consultable même si le client Discord est en cours de
+// (re)connexion — démarré indépendamment, pas dans clientReady.
+startServer().catch((error) => console.error('Erreur au démarrage du dashboard :', error));
 
 // --- Planification automatique ---
 client.once('clientReady', () => {
@@ -129,7 +156,7 @@ client.once('clientReady', () => {
       await new Promise((resolve) => setTimeout(resolve, jitterMs));
 
       try {
-        const sent = await scrapeAndBroadcast(config.discordChannelId);
+        const sent = await scrapeAndBroadcast();
         if (sent) console.log('Résumé automatique envoyé.');
       } catch (error) {
         console.error('Erreur lors de l\'envoi automatique du résumé :', error);

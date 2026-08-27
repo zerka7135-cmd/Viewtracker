@@ -4,3 +4,4 @@ node_modules/
 data/
 src/ig-cookies.json
 src/tiktok-cookies.json
+web/dist/
