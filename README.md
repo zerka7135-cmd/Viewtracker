@@ -1,226 +1,67 @@
-# Bot Discord — Résumé des vues (Instagram / TikTok / YouTube)
+# Bot Discord — Suivi des vues (Instagram / TikTok / YouTube)
 
-Bot Discord qui scrape les dernières publications (Reels/vidéos) d'une liste
-de comptes sur Instagram, TikTok et YouTube, additionne leurs vues, et
-affiche un classement automatiquement chaque jour dans un salon Discord.
+Bot Discord qui suit les dernières publications (Reels/vidéos/Shorts) d'une
+liste de comptes sur Instagram, TikTok et YouTube, et publie automatiquement
+chaque jour dans un salon Discord deux classements indépendants :
 
-⚠️ **Comment ça marche** : le bot ne passe par aucune API officielle pour
-Instagram/YouTube. Le scraping de ces deux plateformes est délégué à
-**`scraper-service`**, un microservice Python séparé basé sur
-[Scrapling](https://github.com/D4Vinci/Scrapling) (voir section 0 ci-dessous)
-qui charge directement les pages publiques des comptes et lit les compteurs
-de vues affichés à l'écran — Scrapling relocalise automatiquement ses
-sélecteurs quand Instagram/YouTube changent la structure de leurs pages
-("adaptive scraping"), ce qui limite (sans l'éliminer) le risque de casse
-silencieuse propre à cette approche. TikTok, lui, passe par une API tierce
-(`tiktokapi.store`, voir `src/instagram.js`), Playwright y ayant été
-abandonné après blocage systématique par captcha. Un usage intensif présente
-un risque de blocage/rate-limit du compte utilisé pour la session Instagram.
+- **🔥 Dernières 24h** — les vues gagnées depuis la veille, calculées vidéo
+  par vidéo (pas juste un delta de total brut, voir plus bas).
+- **♾️ All time** — le cumul de tous les gains journaliers depuis le début
+  du suivi.
 
-## 0. Le microservice de scraping (`scraper-service`)
+Les deux messages sont **édités en place** chaque jour (jamais de nouveau
+message envoyé), et les échecs de scraping ne polluent pas le salon public :
+ils partent en MP à un admin désigné (voir `DISCORD_OWNER_ID`).
 
-Instagram et YouTube sont scrapés par un service Python séparé
-(`scraper-service/`), appelé en HTTP par le bot Node — voir
-`src/scraperClient.js`. Le bot Node lui-même n'utilise plus Playwright que
-pour l'export manuel des cookies Instagram (`src/login.js`,
-`scripts/export-ig-cookies.js`).
+## Comment ça marche, plateforme par plateforme
 
-**En local :**
+- **Instagram** : navigateur headless (Playwright + plugin stealth) avec une
+  session connectée (cookies), qui charge l'onglet Reels du profil et lit
+  les compteurs de vues affichés à l'écran. Fragile par nature : si
+  Instagram change la structure de ses pages, ou si la session tombe sur
+  l'écran de consentement publicitaire européen ("pay or consent", voir
+  plus bas), le scraping peut échouer sans prévenir.
+- **TikTok** : passe par l'API tierce [tiktokapi.store](https://tiktokapi.store)
+  plutôt que par un navigateur. TikTok bloque désormais Playwright derrière
+  un captcha slider infranchissable (testé le 08/08/2026 avec IP
+  résidentielle, navigateur non-headless et patchs anti-détection CDP —
+  aucune piste n'a fonctionné), d'où ce choix.
+- **YouTube** : navigateur headless comme Instagram, mais sans session (les
+  Shorts d'une chaîne sont publics) — juste un cookie de consentement
+  générique injecté automatiquement.
 
-```bash
-cd scraper-service
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-scrapling install   # installe les navigateurs nécessaires à Scrapling
-uvicorn main:app --reload --port 8000
-```
+### Pourquoi le classement 24h ne compte pas juste "hier vs aujourd'hui"
 
-Le bot Node (section 5) doit alors avoir `SCRAPER_SERVICE_URL=http://localhost:8000`
-dans son `.env` (c'est la valeur par défaut si la variable est absente).
+Le bot ne suit que les `IG_POSTS_LIMIT` publications les plus récentes par
+compte et par plateforme (2 par défaut). Avec une fenêtre aussi étroite, dès
+qu'un compte publie, une ancienne vidéo (qui avait eu le temps d'accumuler
+des vues) sort du suivi et se fait remplacer par une vidéo neuve (encore à 0
+vue). Comparer les totaux bruts d'un jour à l'autre confondrait donc "vidéo
+qui sort de la fenêtre" et "vraie perte de vues".
 
-**En production (Railway ou autre)** : `scraper-service` se déploie comme un
-service à part (il a son propre `Dockerfile`), non exposé publiquement —
-seul le bot Node lui parle. Définissez `SCRAPER_SERVICE_TOKEN` (une valeur
-secrète de votre choix) côté `scraper-service` **et** côté bot Node, pour
-que le service refuse les appels non authentifiés.
+Le scraping capture donc un **identifiant par vidéo** en plus du total (href
+du reel/short, `video_id` de l'API TikTok), stocké dans l'historique. Le
+calcul du gain 24h (`src/history.js#computeGrowth24h`) compare alors les
+vidéos individuellement : une vidéo déjà vue hier ne compte que sa vraie
+progression, une vidéo neuve apporte ses vues telles quelles. Repli
+automatique sur l'ancien calcul par total brut si l'ID n'a pas pu être
+extrait (repli texte sans lien fiable, ou entrée d'historique antérieure à
+cette fonctionnalité).
 
-## 0bis. Base de données (Postgres)
+### "Ban" et ⚠️ dans les classements
 
-Le bot ne stocke plus rien dans `data/*.json` : comptes suivis, historique
-des collectes, cumul all-time et derniers messages Discord édités sont
-persistés dans une base Postgres **partagée** avec un autre projet
-(`creator_leaderboard`) — pas une base dédiée à créer de zéro. Le schéma
-d'origine (organisations, comptes suivis, snapshots...) est étendu de
-façon additive par `migrations/003_viewtracker_bot.sql` (nouvelle table
-`creators` pour regrouper les comptes multi-plateformes, colonnes de
-config bot sur `organizations`, `creator_cumulative_views`,
-`last_messages`) — voir les commentaires en tête de ce fichier de
-migration pour le détail. Ces migrations s'appliquent automatiquement au
-démarrage (`src/db.js#runMigrations`, appelé par `src/index.js`/
-`src/scan.js`/`scripts/run-once.js`) : rien à lancer manuellement.
-
-Le bot reste mono-tenant pour l'instant : une seule organisation Postgres
-("Mon Serveur") est utilisée, résolue une fois au démarrage à partir de
-`DISCORD_GUILD_ID` (voir `src/org.js`) — pas encore de session
-utilisateur pour choisir l'organisation (prévu avec le futur système de
-comptes, voir section 0ter).
-
-**Variable requise** : `DATABASE_URL` (chaîne de connexion Postgres
-standard, ex. `postgres://user@localhost:5432/creator_leaderboard` en
-local, fournie par Railway en production).
-
-**Première mise en route** : si vous partez de `data/*.json` existants
-(migration depuis une version antérieure du bot), importez-les une fois
-dans Postgres avec :
-
-```bash
-npm run migrate:import-json
-```
-
-Idempotent (upserts) — peut être relancé sans dupliquer les données.
-
-## 0ter. Le dashboard web
-
-Le bot expose aussi un dashboard web (dossier `web/`, React + Vite), servi
-par un serveur Express intégré au même process que le bot
-(`src/server.js`, démarré par `src/index.js`). Il permet de visualiser le
-classement, l'historique et la liste des comptes suivis — sur les mêmes
-données Postgres que celles utilisées pour Discord (voir section 0bis).
-Pas de bouton "Lancer un scan" : la collecte reste pilotée uniquement par
-le cron planifié (ou `npm run scan`/`npm run run-once` en CLI).
-
-**En local :**
-
-```bash
-npm run build:web        # build unique du frontend (web/dist)
-npm start                # sert le dashboard sur http://localhost:3000 (PORT)
-```
-
-Pour itérer sur l'UI avec rechargement à chaud, lancez en parallèle :
-
-```bash
-npm start                # API + bot Discord, sur PORT (3000 par défaut)
-npm run dev:web           # serveur Vite avec proxy /api → localhost:3000
-```
-
-**Variable d'env spécifique au dashboard** (voir aussi section 3) :
-- `PORT` (optionnel, défaut `3000`) : port du serveur Express.
-
-**Comptes ajoutés depuis le dashboard** : persistés en base (table
-`creators`/`tracked_accounts`, voir section 0bis) — au premier démarrage,
-`ACCOUNTS` du `.env` sert de seed initial (`src/accountsStore.js`), mais à
-partir de là c'est la base qui fait foi, pas `ACCOUNTS`. **Réglages de
-notification** (résumé quotidien / alertes de scraping) : persistés sur
-`organizations.notif_daily`/`notif_warnings`, lus par `src/scanCycle.js` à
-chaque collecte cron.
-
-## 0quater. Auth & connexion
-
-Le dashboard n'a plus de mot de passe unique partagé : chaque utilisateur
-a son propre compte (email + mot de passe), branché sur les tables
-`users`/`memberships` déjà présentes dans `creator_leaderboard`. Une
-`membership` relie un utilisateur à une organisation avec un rôle
-(`owner`/`manager`/`clipper`/`viewer`) — au login, le dashboard utilise
-directement la première organisation du membership de l'utilisateur (pas
-de sélecteur d'organisation pour l'instant, un seul cas réel — "Mon
-Serveur" — existe aujourd'hui).
-
-**Deux façons de créer un compte** :
-
-1. **Inscription publique** (bouton "Pas de compte ? En créer un" sur
-   l'écran de login, `POST /api/signup`, voir `src/auth.js#signupUser`) —
-   crée l'utilisateur **et** une organisation neuve et vide dont il est
-   `owner`. Jamais d'accès direct à "Mon Serveur" (les vraies données) par
-   ce chemin : chaque inscription obtient son propre tenant isolé.
-   Redirige ensuite vers un **onboarding obligatoire**
-   (`OnboardingScreen.jsx`) qui demande d'ajouter au moins un compte de
-   clippeur à suivre avant de débloquer le dashboard (`organizations.
-   onboarding_completed`, voir `migrations/004_onboarding.sql` — pas de
-   choix de "mode scraping/API" à cette étape, le bot reste scraping-only).
-2. **Script CLI de bootstrap**, pour t'attacher toi-même à l'organisation
-   par défaut du bot ("Mon Serveur") plutôt qu'en créer une nouvelle :
-   ```bash
-   npm run create-user -- vous@exemple.fr votre-mot-de-passe
-   # ou, pour ne pas laisser le mot de passe dans l'historique du shell :
-   CREATE_USER_PASSWORD=votre-mot-de-passe npm run create-user -- vous@exemple.fr
-   ```
-   (`scripts/create-user.js`) — crée l'utilisateur (ou met à jour son mot
-   de passe s'il existe déjà) et l'attache comme `owner` à l'organisation
-   par défaut (voir `src/org.js`) s'il n'y est pas déjà ; aucun onboarding
-   à faire dans ce cas (organisation déjà configurée).
-
-Mots de passe hachés avec `crypto.scrypt` (natif Node, pas de dépendance
-`bcrypt`/`argon2`) — voir `src/passwords.js`. Mot de passe minimum 8
-caractères à l'inscription.
-
-Les sessions sont des cookies signés (HMAC), avec un secret régénéré à
-chaque démarrage du process : se reconnecter après un redéploiement est
-normal, pas un bug.
-
-**Mot de passe oublié** (`POST /api/forgot-password` + `POST
-/api/reset-password`, voir `src/auth.js`, `src/email.js`) : envoie un
-email via [Resend](https://resend.com) avec un lien à usage unique
-(`migrations/005_password_reset.sql`, expire après 1h). Variables d'env :
-
-- `RESEND_API_KEY` (**requis pour que l'envoi fonctionne réellement** —
-  sans elle, la demande reste silencieuse côté utilisateur mais l'erreur
-  est loguée côté serveur, voir `src/email.js`).
-- `RESEND_FROM` (optionnel, défaut `onboarding@resend.dev` — adresse de
-  test Resend sans vérification de domaine ; à remplacer par une adresse
-  d'un domaine vérifié dans Resend en production).
-- `PUBLIC_URL` (optionnel, défaut `http://localhost:$PORT`) : sert à
-  construire le lien dans l'email (`{PUBLIC_URL}/?resetToken=...`) — à
-  définir sur l'URL publique réelle en production (ex. Railway).
-
-Réponse volontairement identique que l'email existe ou non côté
-`/api/forgot-password`, pour ne pas révéler quels emails ont un compte.
-
-**Déploiement (Railway)** : le dashboard tourne dans le même service que le
-bot (voir section 6) — le `Dockerfile` build `web/` avant de démarrer le
-bot (`npm run build:web`, voir Dockerfile). Rendez le port du service
-public dans Railway pour accéder au dashboard depuis un navigateur.
-
-## 0quinquies. Réglages disponibles dans le dashboard (Paramètres)
-
-- **Apparence** : thème clair/sombre — préférence stockée en local
-  (`localStorage`, voir `web/src/theme.js`), pas encore par organisation
-  côté serveur. Toutes les couleurs sont pilotées par variables CSS
-  (`web/src/theme.css`, `[data-theme="light"]`) ; la sidebar reste sombre
-  dans les deux thèmes (choix volontaire).
-- **Mot de passe** : changer le sien (mot de passe actuel requis).
-- **Organisation** : renommer l'organisation (réservé aux rôles
-  `owner`/`manager`).
-- **Publier sur Discord** (switch, renommé depuis "Résumé quotidien") :
-  active/désactive l'envoi du classement — la collecte a toujours lieu,
-  seule la publication est concernée.
-- **Diffusion Discord & collecte** — salons Discord (**plusieurs IDs
-  possibles**, un par ligne ou séparés par une virgule — le classement est
-  posté/édité indépendamment dans chacun, voir
-  `scanCycle.js#parseChannelIds`), heure d'envoi (cron), fuseau horaire,
-  nombre de posts pris en compte par plateforme : éditables et
-  **réellement pris en compte**, mais seulement pour l'organisation par
-  défaut du bot ("Mon Serveur", résolue via `DISCORD_GUILD_ID`, voir
-  `src/org.js`) — c'est la seule organisation dont le cron
-  (`src/scheduler.js`) parle réellement à Discord aujourd'hui. Changer
-  l'heure/le fuseau reprogramme le job en direct, sans redémarrer le
-  process (`rescheduleIfDefaultOrg`).
-- **Comptes suivis** : suppression et édition (renommer, changer les
-  URLs) directement depuis la vue Comptes, en plus de l'ajout déjà
-  existant.
-
-⚠️ Pas d'écran "Membres & invitations" dans le dashboard (retiré — faisait
-doublon avec "Ajouter un compte" aux yeux de l'utilisateur). Les routes
-serveur restent disponibles pour un usage API direct :
-`GET/POST /api/members`, `POST /api/members/invite`,
-`DELETE /api/members/:id`, `POST /api/invitations/accept` (voir
-`src/auth.js#inviteMember`/`listMembers`/`removeMember`/`acceptInvitation`).
+- **`Ban`** : la plateforme n'est pas configurée pour ce compte (URL vide
+  dans `ACCOUNTS`) — rien n'a été tenté, ce n'est pas un échec.
+- **⚠️** : il y a eu un vrai échec de scraping sur cette plateforme pour ce
+  compte, ce jour-là (exception, timeout, sélecteurs obsolètes...). Un `0`
+  sans erreur enregistrée (stagnation réelle — même vidéo, même total qu'hier)
+  s'affiche tel quel, sans avertissement.
 
 ## 1. Prérequis côté Discord
 
 1. Créez une application sur le
    [Discord Developer Portal](https://discord.com/developers/applications).
-2. Onglet **Bot** > créez le bot > copiez le **Token**
-   (`DISCORD_TOKEN`).
+2. Onglet **Bot** > créez le bot > copiez le **Token** (`DISCORD_TOKEN`).
 3. Toujours sur l'onglet **Bot**, notez que seule l'intent `Guilds` est
    nécessaire (déjà celle utilisée par défaut dans `src/index.js`).
 4. Onglet **OAuth2 > URL Generator** : cochez `bot`, puis les permissions
@@ -231,9 +72,13 @@ serveur restent disponibles pour un usage API direct :
 6. Activez le mode développeur Discord (Paramètres > Avancés) pour pouvoir
    faire un clic droit et copier les identifiants :
    - clic droit sur le **nom du serveur** > Copier l'identifiant du serveur
-     (`DISCORD_GUILD_ID`, facultatif mais recommandé — voir section 4)
+     (`DISCORD_GUILD_ID`, facultatif)
    - clic droit sur le **salon cible** > Copier l'identifiant du salon
      (`DISCORD_CHANNEL_ID`, utilisé pour l'envoi automatique quotidien)
+   - clic droit sur **votre propre profil** > Copier l'identifiant
+     utilisateur (`DISCORD_OWNER_ID`, pour recevoir les alertes et backups
+     en MP — le bot doit partager un serveur avec vous pour pouvoir vous
+     écrire)
 
 ## 2. Prérequis côté Instagram (session de scraping)
 
@@ -244,42 +89,54 @@ donc fournir au bot une session Instagram valide, sous forme de cookies.
    ```bash
    npx playwright install chromium
    ```
-2. Lancez le script de connexion manuelle :
+2. Lancez le script d'export :
    ```bash
-   node src/login.js
+   npm run export-ig-cookies
    ```
 3. Une fenêtre de navigateur s'ouvre sur la page de connexion Instagram.
    Connectez-vous normalement (idéalement avec un compte dédié, pas votre
-   compte personnel) dans les 60 secondes.
-4. Le script sauvegarde automatiquement les cookies de session dans
-   `src/ig-cookies.json`. Ce fichier est lu par `src/instagram.js` à chaque
-   scraping — tant qu'il est présent et que la session n'a pas expiré, vous
-   n'avez pas besoin de refaire cette étape.
-5. Si le scraping Instagram recommence à échouer après un moment (session
-   expirée), relancez simplement `node src/login.js`.
+   compte personnel).
+4. **Naviguez ensuite manuellement vers le profil d'un des comptes suivis**
+   (ex. `instagram.com/un_compte/reels/`). Instagram peut rediriger vers un
+   écran de consentement publicitaire européen ("Voulez-vous vous abonner ou
+   continuer à utiliser nos produits sans paiement avec des publicités ?") —
+   validez votre choix (l'option gratuite "Utiliser sans paiement avec des
+   publicités" convient si vous ne voulez pas payer l'abonnement). Tant que
+   ce choix n'est pas validé une fois, la session redirige vers cet écran à
+   chaque navigation, ce qui fait échouer *tous* les comptes IG d'un coup
+   (vécu le 10/08/2026 — voir la détection dédiée dans `src/instagram.js`,
+   qui lève un message d'erreur explicite si ça se reproduit).
+5. Une fois le profil/les reels affichés normalement, créez le fichier
+   signal pour que le script continue et exporte les cookies :
+   ```bash
+   touch scripts/.ig-login-done
+   ```
+6. Les cookies sont sauvegardés dans `src/ig-cookies.json`. Ce fichier est lu
+   par `src/instagram.js` à chaque scraping — tant qu'il est présent et que
+   la session n'a pas expiré, vous n'avez pas besoin de refaire cette étape.
+7. Si le scraping Instagram recommence à échouer après un moment (session
+   expirée, ou nouvel écran de consentement), relancez simplement
+   `npm run export-ig-cookies`.
 
-TikTok et YouTube n'ont besoin d'aucune session : leurs pages publiques
-suffisent (YouTube a juste besoin d'un cookie de consentement générique,
-déjà géré automatiquement dans `src/instagram.js`).
+TikTok n'a besoin d'aucune session (voir section 3 pour la clé API). YouTube
+n'a besoin d'aucune session non plus, juste d'un cookie de consentement
+générique déjà géré automatiquement.
 
 ### Fournir les cookies via une variable d'environnement (hébergement sans volume)
 
-Sur un hébergeur dont le système de fichiers n'est pas persistant (Railway
-sans volume monté, par exemple), `src/ig-cookies.json` disparaît à chaque
-redéploiement. Dans ce cas, fournissez son contenu directement via la
-variable d'environnement `IG_COOKIES_JSON` (prioritaire sur le fichier,
-voir `src/instagram.js`) :
+Sur un hébergeur dont le système de fichiers n'est pas persistant,
+`src/ig-cookies.json` disparaît à chaque redéploiement. Copiez alors tout le
+contenu de ce fichier dans la variable d'environnement `IG_COOKIES_JSON`
+(prioritaire sur le fichier, voir `src/instagram.js`).
 
-```bash
-npm run export-ig-cookies
-```
+## 3. Prérequis côté TikTok (clé API)
 
-Ce script (`scripts/export-ig-cookies.js`) ouvre un navigateur, vous laisse
-vous connecter manuellement à Instagram, puis exporte les cookies vers
-`src/ig-cookies.json`. Copiez ensuite tout le contenu de ce fichier dans la
-variable `IG_COOKIES_JSON` de votre hébergeur.
+Le scraping TikTok passe par l'API tierce
+[tiktokapi.store](https://tiktokapi.store) plutôt que par un navigateur (voir
+plus haut). Créez un compte sur ce service, récupérez une clé d'API, et
+renseignez-la dans `TIKTOK_API_KEY`.
 
-## 3. Installation
+## 4. Installation
 
 ```bash
 npm install
@@ -287,60 +144,48 @@ npx playwright install chromium
 cp .env.example .env
 ```
 
-Remplissez le fichier `.env` :
+Remplissez le fichier `.env` — voir les commentaires de `.env.example` pour
+le détail de chaque variable. Les indispensables pour démarrer :
 
-- `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID`,
-  `DISCORD_CHANNEL_ID` (voir section 1)
+- `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_CHANNEL_ID` (section 1)
 - `ACCOUNTS` : la liste des comptes à suivre, au format JSON — un objet par
-  compte avec un `name` (affiché dans le classement) et un tableau `urls`
-  (liens Instagram / TikTok / YouTube du compte). Exemple déjà présent dans
-  `.env.example` :
-  ```json
-  [{"name":"mon_compte","urls":["https://www.instagram.com/xxx/","https://www.tiktok.com/@xxx","https://www.youtube.com/@xxx"]}]
-  ```
-  Vous pouvez lister plusieurs comptes dans le tableau, et pour chaque
-  compte ne fournir que les plateformes qui vous intéressent (les urls
-  absentes comptent simplement pour 0 vue).
+  compte avec un `name` (affiché dans le classement) et un tableau `urls` à
+  3 emplacements `[Instagram, TikTok, YouTube]`. Laissez une chaîne vide
+  `""` pour une plateforme non suivie sur ce compte (affichée `Ban`).
+- `IG_COOKIES_JSON` ou le fichier `src/ig-cookies.json` (section 2)
+- `TIKTOK_API_KEY` (section 3)
 
-  `.env.example` contient déjà **20 emplacements placeholder**
-  (`nom_du_compte_1` à `nom_du_compte_20`, avec des URLs `url_ig_N`/`url_tt_N`/
-  `url_yt_N`). Remplacez-les progressivement par les vrais comptes au fur et
-  à mesure que vous les avez — tant qu'une entrée garde ses URLs
-  placeholder, elle apparaîtra avec 0 vue et un ⚠️ dans Discord (comportement
-  normal, pas un bug : voir la section sur les échecs de scraping ci-dessous).
-- `CRON_SCHEDULE` (optionnel, défaut `0 9 * * *` = tous les jours à 9h) et
-  `TIMEZONE` (optionnel, défaut `Europe/Paris`) : réglages de l'envoi
-  automatique quotidien.
-- `SCRAPER_SERVICE_URL` (optionnel, défaut `http://localhost:8000`) et
-  `SCRAPER_SERVICE_TOKEN` (optionnel en local, fortement recommandé en
-  production) : voir section 0, doivent pointer vers votre instance de
-  `scraper-service` et partager le même token que celui configuré côté
-  service.
-- `DATABASE_URL` (**obligatoire**) : voir section 0bis, connexion à la
-  base Postgres partagée.
-- `PORT` (optionnel, défaut `3000`) : voir section 0ter, port du serveur
-  Express du dashboard web. Voir aussi section 0quater (`npm run
-  create-user`) pour créer un compte de connexion.
+Le reste (`DISCORD_OWNER_ID`, `CRON_SCHEDULE`, `TIMEZONE`,
+`IG_POSTS_LIMIT`, `STUCK_ALERT_MIN_DAYS`, les chemins `*_PATH`) a des
+défauts raisonnables et peut être ajusté plus tard.
 
-## 4. Forcer une collecte immédiate
+## 5. Forcer une collecte immédiate
 
-Avant la première exécution du cron, ou pour tester sans attendre l'heure
-planifiée, vous pouvez lancer une collecte manuelle indépendamment de
-Discord :
+**Sans toucher Discord**, pour tester que le scraping fonctionne :
 
 ```bash
 npm run scan
 ```
 
-Ça scrape tous les comptes de `ACCOUNTS` et affiche le résultat dans le
-terminal.
+Scrape tous les comptes de `ACCOUNTS` et affiche le résultat dans le
+terminal (`src/scan.js`), sans rien envoyer à Discord.
 
-Pour un test rapide sans attendre les délais volontaires anti-détection
-(3-8 secondes entre chaque requête), utilisez `FAST_MODE=1 npm run scan`.
-**À ne jamais utiliser en production** : le rythme de requêtes redevient
-alors facilement détectable comme automatisé.
+Pour un test rapide sans les délais anti-détection, utilisez
+`FAST_MODE=1 npm run scan`. **À ne jamais utiliser en production.**
 
-## 5. Lancer le bot
+**En éditant les vrais messages Discord**, pour rejouer une collecte sans
+attendre le prochain cron (utile après un fix, par exemple) :
+
+```bash
+npm run run-once
+```
+
+Reprend exactement la logique du cron (`scripts/run-once.js`) : édite les
+messages `daily`/`allTime` existants comme le ferait la planification
+automatique, sans jamais en créer de nouveaux tant que
+`last-message.json` pointe vers un message éditable.
+
+## 6. Lancer le bot
 
 ```bash
 npm start
@@ -348,49 +193,47 @@ npm start
 
 Au démarrage, le bot se connecte à Discord et planifie l'envoi automatique
 du résumé dans `DISCORD_CHANNEL_ID` selon `CRON_SCHEDULE`/`TIMEZONE` (log de
-confirmation dans la console).
+confirmation dans la console). Un jitter aléatoire de 0 à 120 min est ajouté
+à chaque déclenchement, pour ne pas partir pile à l'heure tous les jours.
 
-## 6. Déploiement en continu (Railway)
+## 7. Alertes et sauvegarde (MP à `DISCORD_OWNER_ID`)
 
-Le bot inclut un `Dockerfile` (basé sur l'image officielle Playwright, encore
-nécessaire pour `src/login.js`/`scripts/export-ig-cookies.js`) et tourne
-actuellement sur [Railway](https://railway.app), qui le détecte et le build
-automatiquement. `scraper-service` (voir section 0) se déploie comme un
-**second service séparé** dans le même projet Railway, avec son propre
-`Dockerfile` (`scraper-service/Dockerfile`).
+Si `DISCORD_OWNER_ID` est renseigné, l'admin reçoit en MP, après chaque
+collecte réussie :
 
-1. **New Project → Deploy from GitHub repo**, sélectionnez le repo. Railway
-   crée un service pour le bot Node ; ajoutez ensuite un second service
-   (**New → GitHub repo**, même repo, en réglant son *root directory* sur
-   `scraper-service/`) pour `scraper-service`.
-2. **Variables du service bot** : renseignez toutes les variables de la
-   section 3 (`DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID`,
-   `DISCORD_CHANNEL_ID`, `ACCOUNTS`, `CRON_SCHEDULE`, `TIMEZONE`,
-   `SCRAPER_SERVICE_URL`, `SCRAPER_SERVICE_TOKEN`, `DATABASE_URL`), plus
-   `IG_COOKIES_JSON` (voir section 2) puisque Railway ne fournit pas de
-   volume par défaut pour `src/ig-cookies.json`. Une fois déployé, créez
-   au moins un compte de connexion avec `npm run create-user` (voir
-   section 0quater) — depuis votre poste, avec `DATABASE_URL` pointé sur
-   la même base qu'en production.
-   `SCRAPER_SERVICE_URL` doit pointer vers l'URL interne Railway du
-   service `scraper-service` (`http://<nom-du-service>.railway.internal:8000`,
-   réseau privé — pas besoin d'exposer ce service publiquement).
-   `DATABASE_URL` doit pointer vers la base Postgres `creator_leaderboard`
-   (déjà hébergée quelque part si elle sert aussi à un autre projet — pas
-   un addon Postgres Railway séparé, sauf si vous migrez cette base sur
-   Railway). Contrairement à `scraper-service`, **le service bot doit lui
-   être exposé publiquement** (Railway → Settings → Networking → Generate
-   Domain) pour accéder au dashboard web (voir section 0ter) depuis un
-   navigateur.
-3. **Variables du service `scraper-service`** : `SCRAPER_SERVICE_TOKEN`
-   (même valeur que côté bot).
+- **⚠️ Échecs de scraping détectés** — le détail des comptes/plateformes en
+  échec ce jour-là (message d'erreur inclus), seulement s'il y en a.
+- **🔴 Comptes bloqués depuis plusieurs jours** — alerte distincte, qui ne se
+  déclenche que si un même compte/plateforme échoue `STUCK_ALERT_MIN_DAYS`
+  collectes consécutives (signe d'un vrai problème à corriger — cookie
+  expiré, sélecteur cassé — plutôt qu'un raté ponctuel).
+- **💾 Sauvegarde des données** — `history.json`, `cumulative-views.json` et
+  `last-message.json` en pièces jointes. Le volume d'hébergement n'est pas
+  sauvegardé automatiquement par la plateforme (vécu le 09/08/2026 avec la
+  perte du cumul all-time suite à un chemin non persistant) ; ce backup
+  quotidien donne un filet de secours téléchargeable en cas de volume
+  corrompu ou effacé.
+
+## 8. Déploiement en continu (Railway)
+
+Le bot inclut un `Dockerfile` (basé sur l'image officielle Playwright) et
+tourne actuellement sur [Railway](https://railway.app), qui le détecte et le
+build automatiquement.
+
+1. **New Project → Deploy from GitHub repo**, sélectionnez le repo.
+2. **Montez un volume** (ex. sur `/data`) — indispensable pour ne pas perdre
+   l'historique, le cumul all-time et le suivi des messages Discord à chaque
+   redéploiement.
+3. **Variables** : renseignez toutes les variables de la section 4, plus :
+   - `IG_COOKIES_JSON` (Railway ne fournit pas de fichier persistant par
+     défaut pour `src/ig-cookies.json`)
+   - `HISTORY_PATH`, `CUMULATIVE_VIEWS_PATH`, `LAST_MESSAGE_PATH` pointant
+     vers le volume monté (ex. `/data/history.json`,
+     `/data/cumulative-views.json`, `/data/last-message.json`) — **sans ces
+     3 variables, ces fichiers vivent dans le système de fichiers éphémère
+     du conteneur et sont perdus à chaque redéploiement**, même si un volume
+     est monté par ailleurs.
 4. Railway redéploie automatiquement à chaque push sur la branche connectée.
-   ⚠️ Ce déclenchement automatique s'est montré peu fiable en pratique (le
-   webhook ne se déclenche pas toujours) — en cas de doute après un push,
-   forcez un déploiement manuel :
-   ```bash
-   railway redeploy --from-source
-   ```
 
 Sur un autre hébergeur (VPS, Render, Raspberry Pi...), tournez plutôt avec
 un gestionnaire de process comme `pm2` :
@@ -401,66 +244,33 @@ pm2 start src/index.js --name ig-discord-bot
 pm2 save
 ```
 
-⚠️ Le fichier `src/ig-cookies.json` (ou la variable `IG_COOKIES_JSON`) doit
-être disponible sur la machine d'hébergement. Sur un système de fichiers non
-persistant, pensez à régénérer les cookies après chaque redéploiement si la
-session a expiré.
-
 ### Limite mémoire
 
-Le service bot Node ne pilote plus de navigateur pour le scraping en direct
-(seulement pour l'export ponctuel des cookies IG), sa consommation mémoire
-est donc redevenue légère. Le navigateur reste utilisé côté
-`scraper-service` (Scrapling) — un plan d'hébergement modeste (ex. 1 Go sur
-le plan gratuit Railway) peut ne pas suffire à ce service en cas de scan
-avec beaucoup de comptes ; ajustez la RAM allouée à `scraper-service`
-spécifiquement si des crashs apparaissent en plein scan.
+Le scraping bloque volontairement le chargement des images/vidéos/polices
+(`src/instagram.js`, fonction `blockHeavyResources`) pour limiter l'usage
+mémoire de Chromium — un scan complet peut sinon dépasser la limite RAM
+d'un plan d'hébergement modeste et faire crasher le container en plein scan.
 
 ## Notes
 
-- `src/embed.js` centralise la construction du message (`buildLeaderboardEmbed`),
-  utilisée pour l'envoi automatique quotidien.
-- Le nombre de posts pris en compte par compte est actuellement fixé à 5
-  (variable `IG_POSTS_LIMIT`, transmise à `scraper-service` par requête —
-  voir `src/config.js` et `src/scraperClient.js`). Sur Instagram, les reels
-  **épinglés** sont ignorés dans ce calcul (ils ne reflètent pas l'activité
-  récente) — détectés via le badge `svg[aria-label="Pinned post icon"]` sur
-  chaque vignette, logique portée dans
-  `scraper-service/scraping/instagram.py`.
+- `src/embed.js` centralise la construction des messages Discord
+  (`build24hEmbed`, `buildAllTimeEmbed`, `buildErrorReportEmbed`,
+  `buildStuckAccountsEmbed`).
+- Le nombre de posts pris en compte par compte est réglable via
+  `IG_POSTS_LIMIT` (2 par défaut). Sur Instagram, les reels **épinglés**
+  sont ignorés (ils ne reflètent pas l'activité récente) — détectés via le
+  badge `svg[aria-label="Pinned post icon"]` sur chaque vignette. Sur
+  TikTok, les vidéos épinglées (`is_top === 1` dans la réponse API) sont
+  ignorées de la même façon.
 - Utilisez de préférence un compte Instagram dédié au scraping plutôt que
   votre compte personnel, pour limiter les conséquences en cas de
   restriction temporaire par Instagram.
 - Les pages publiques d'Instagram/YouTube changent régulièrement de
-  structure ; Scrapling relocalise automatiquement ses sélecteurs dans la
-  plupart des cas ("adaptive scraping", voir section 0), mais si le
-  scraping d'une plateforme se met à retourner 0 vue systématiquement, la
-  logique de secours (fallbacks) est probablement devenue obsolète et doit
-  être mise à jour dans `scraper-service/scraping/instagram.py` ou
-  `youtube.py`. TikTok passe par `tiktokapi.store` (`TIKTOK_API_KEY`), sans
-  scraping de page.
-- **Distinction blocage/session vs. sélecteurs cassés** : `scraper-service`
-  détecte les pages de login/challenge Instagram et les murs de consentement/
-  chaînes introuvables YouTube (`detect_blocked_page` dans
-  `scraping/common.py`) et remonte un message d'erreur explicite dans ce
-  cas, distinct du "aucune vue détectée" générique — si les logs Discord
-  (MP au propriétaire, voir "Alertes de scraping") mentionnent une session
-  invalide, régénérez les cookies (`node src/login.js`) plutôt que de
-  chercher un sélecteur cassé.
-- **Timeout dur côté service** : chaque fetch Scrapling est borné à 40s
-  (`run_with_hard_timeout` dans `scraping/common.py`), indépendamment du
-  timeout de 45s côté client Node (`src/scraperClient.js`) — évite qu'un
-  fetch bloqué continue de tourner côté `scraper-service` après que Node a
-  déjà abandonné la requête.
-- **Détection précoce de dégradation** : quand le sélecteur principal ne
-  trouve rien mais qu'un fallback compense (résultat correct mais signe
-  avant-coureur), un warning est loggé côté bot Node
-  (`[scraper-service] ...`, voir `src/scraperClient.js`) — à surveiller
-  avant que ça finisse par tomber à 0 pour de bon.
-- **Tests** : `scraper-service/tests/test_common.py` couvre le parsing
-  (`parse_count`, `extract_id_from_href`, `run_with_hard_timeout`), au
-  coeur de tout calcul de vues. Lancer avec :
-  ```bash
-  cd scraper-service
-  pip install -r requirements-dev.txt
-  pytest
-  ```
+  structure ; si le scraping d'une plateforme se met à retourner 0 vue
+  systématiquement (avec des erreurs en MP), ses sélecteurs sont
+  probablement devenus obsolètes et doivent être mis à jour dans
+  `src/instagram.js`.
+- `scripts/export-tiktok-cookies.js` (et `npm run export-tiktok-cookies`)
+  ne sont plus utilisés depuis le passage de TikTok sur l'API
+  `tiktokapi.store` (voir section "Comment ça marche") — conservés dans le
+  repo mais aucun cookie TikTok n'est lu par `src/instagram.js`.

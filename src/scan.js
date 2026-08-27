@@ -1,18 +1,12 @@
 import { buildViewsSummary } from './instagram.js';
 import { acquireLock, releaseLock } from './cache.js';
 import { config } from './config.js';
-import { runMigrations } from './db.js';
-import { getDefaultOrgId } from './org.js';
-import { loadAccounts } from './accountsStore.js';
 import { loadHistory, appendToday, computeGrowth24h, detectStuckAccounts } from './history.js';
 import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from './cumulativeViews.js';
 
 // Lance une collecte complète immédiatement et affiche le résultat dans le
 // terminal, sans passer par Discord. Utile pour tester le scraping.
 (async () => {
-  await runMigrations();
-  const orgId = await getDefaultOrgId();
-
   if (!acquireLock()) {
     console.error('Une collecte est déjà en cours (cron ou autre scan manuel). Abandon.');
     process.exit(1);
@@ -20,14 +14,14 @@ import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from 
 
   try {
     console.log('Lancement de la collecte manuelle...');
-    const summary = await buildViewsSummary(await loadAccounts(orgId));
+    const summary = await buildViewsSummary();
 
-    const historyBefore = await loadHistory(orgId);
+    const historyBefore = loadHistory();
     const growth24h = computeGrowth24h(historyBefore, summary);
 
-    const cumulativeBefore = await loadCumulativeViews(orgId);
+    const cumulativeBefore = loadCumulativeViews();
     const cumulativeAfter = updateCumulativeViews(cumulativeBefore, growth24h, summary);
-    await saveCumulativeViews(orgId, cumulativeAfter);
+    saveCumulativeViews(cumulativeAfter);
 
     const fmt = (v) => v === null ? 'Ban' : v;
 
@@ -62,7 +56,7 @@ import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from 
       console.log(`- ${account} : ${v.total} vues (IG: ${fmtComputed(account, 'ig', v.ig)} | TT: ${fmtComputed(account, 'tt', v.tt)} | YT: ${fmtComputed(account, 'yt', v.yt)})`);
     }
 
-    const historyAfter = await appendToday(orgId, summary);
+    const historyAfter = appendToday(historyBefore, summary);
     const stuckAccounts = detectStuckAccounts(historyAfter, config.stuckAlertMinDays);
     if (stuckAccounts.length > 0) {
       console.log('\n🔴 Comptes bloqués depuis plusieurs collectes consécutives :');
