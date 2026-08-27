@@ -45,6 +45,13 @@ export const getAccountHistory = (name, days, platform) => request(`/accounts/${
 export const getSettings = () => request('/settings');
 export const updateSettings = (patch) => request('/settings', { method: 'PATCH', body: JSON.stringify(patch) });
 
+// Token/Client ID/Guild ID du bot Discord (voir botConfig.js) — distincts
+// des réglages ci-dessus : ils identifient le bot lui-même et prennent le
+// dessus sur les variables d'environnement (Railway ou .env), effet après
+// redémarrage du bot (npm start). Le token n'est jamais renvoyé en clair.
+export const getBotConfig = () => request('/bot-config');
+export const updateBotConfig = (patch) => request('/bot-config', { method: 'PATCH', body: JSON.stringify(patch) });
+
 // Pas de déclenchement de scan depuis le dashboard (voir server.js) —
 // uniquement le statut, en lecture seule, pour refléter les collectes du
 // cron/des scripts CLI (npm run scan / run-once).

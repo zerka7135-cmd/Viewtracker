@@ -215,9 +215,13 @@ planifié (ou `npm run scan`/`npm run run-once` en CLI).
 dashboard est protégé en amont par le réseau (ex. domaine Railway privé,
 ou VPN) plutôt que par un login applicatif. Ne l'exposez pas publiquement
 sans mettre un accès devant (reverse proxy avec auth, IP allowlist...).
-Version avec comptes utilisateurs/organisations et suivi de clics : voir la
-branche `backup/dashboard-rewrite-27-08`, qui nécessite en plus une base
-Postgres externe (non utilisée par la version actuelle).
+**Ce point est particulièrement important depuis que Paramètres > Discord
+permet d'éditer le Token/Client ID/Guild ID du bot** (voir plus bas) :
+sans protection réseau, quiconque atteint le dashboard peut remplacer ces
+identifiants et prendre le contrôle complet du bot. Version avec comptes
+utilisateurs/organisations et suivi de clics : voir la branche
+`backup/dashboard-rewrite-27-08`, qui nécessite en plus une base Postgres
+externe (non utilisée par la version actuelle).
 
 **En local :**
 
@@ -236,12 +240,25 @@ npm run dev:web           # serveur Vite avec proxy /api → localhost:3000
 **Variable d'env** : `PORT` (optionnel, défaut `3000`).
 
 **Réglages modifiables depuis Paramètres** : publication Discord activée/
-désactivée, alertes de scraping, salon et destinataire des MP — persistés
-dans `data/settings.json`, effectifs immédiatement (relus à chaque
-collecte). Heure de collecte (cron), fuseau horaire et nombre de posts par
-plateforme sont aussi éditables mais ne prennent effet qu'au prochain
-redémarrage du bot (`cron.schedule()` et `config.postsLimit` sont figés au
-démarrage) — indiqué comme tel dans l'UI.
+désactivée, alertes de scraping, salon et destinataire des MP, seuil avant
+l'alerte "compte bloqué" — persistés dans `data/settings.json`, effectifs
+immédiatement (relus à chaque collecte, voir `index.js#scrapeAndBroadcast`).
+Heure de collecte (cron), fuseau horaire et nombre de posts par plateforme
+sont aussi éditables mais ne prennent effet qu'au prochain redémarrage du
+bot (`cron.schedule()` n'est enregistré qu'une fois au démarrage) — indiqué
+comme tel dans l'UI ; `postsLimit`, lui, est effectif dès la collecte
+suivante malgré son emplacement dans le même onglet.
+
+**Identifiants du bot** (`data/bot-config.json`, voir `src/botConfig.js`) :
+Token/Client ID/Guild ID éditables depuis Paramètres > Discord, effectifs
+au prochain redémarrage. Un override enregistré ici **prend le dessus**
+sur `DISCORD_TOKEN`/`DISCORD_CLIENT_ID`/`DISCORD_GUILD_ID` (`.env` ou
+variable Railway) plutôt que l'inverse — nécessaire pour que ça fonctionne
+sur Railway, où ces variables sont injectées directement dans
+`process.env` (dotenv ne les écraserait jamais depuis un `.env` local).
+Le token n'est jamais renvoyé en clair par l'API, seulement un aperçu
+masqué ; volontairement exclu de la sauvegarde quotidienne en MP (voir
+section 7). Voir l'avertissement plus haut sur l'absence d'authentification.
 
 ## 7. Alertes et sauvegarde (MP à `DISCORD_OWNER_ID`)
 

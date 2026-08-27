@@ -1,9 +1,9 @@
 import path from 'path';
 import express from 'express';
-import { config } from './config.js';
 import { getAccountsWithStats, getKpis, getHistorySeries, getHistorySeriesHourly, getAccountHistorySeries } from './dashboardData.js';
 import { addAccount, updateAccount, deleteAccount } from './accountsStore.js';
 import { loadSettings, updateSettings } from './settingsStore.js';
+import { getBotConfigStatus, updateBotConfig } from './botConfig.js';
 import { getScanStatus } from './scanStatus.js';
 
 const WEB_DIST = path.resolve('./web/dist');
@@ -85,6 +85,18 @@ export async function startServer() {
 
   app.patch('/api/settings', (req, res) => {
     res.json(updateSettings(req.body || {}));
+  });
+
+  // Le token n'est jamais renvoyé en clair (voir botConfig.js) — seulement
+  // un aperçu masqué. ⚠️ Pas d'authentification sur ces routes : quiconque
+  // atteint le dashboard peut remplacer les identifiants du bot (voir
+  // README, section Dashboard web).
+  app.get('/api/bot-config', (req, res) => {
+    res.json(getBotConfigStatus());
+  });
+
+  app.patch('/api/bot-config', (req, res) => {
+    res.json(updateBotConfig(req.body || {}));
   });
 
   app.get('/api/scan/status', (req, res) => {

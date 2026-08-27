@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { getBotConfig, updateBotConfig } from '../api.js';
 import SegmentedControl from './SegmentedControl.jsx';
 
 const THEME_OPTIONS = [['dark', 'Sombre'], ['light', 'Clair']];
@@ -6,9 +7,7 @@ const THEME_OPTIONS = [['dark', 'Sombre'], ['light', 'Clair']];
 // Version sans auth/multi-organisation (voir backup/dashboard-rewrite-27-08
 // pour la version complète) : pas d'onglets "Compte" (mot de passe) ni
 // "Organisation" (renommage/suppression), qui n'ont pas de sens ici — un
-// seul bot, personne à identifier. Client ID/Guild ID/Token restent
-// réglables uniquement via les variables d'environnement (voir README),
-// trop sensibles pour une édition sans auth.
+// seul bot, personne à identifier.
 const TABS = [
   ['general', 'Général'],
   ['discord', 'Discord'],
@@ -54,9 +53,18 @@ function Row({ label, description, children }) {
   );
 }
 
+function SubsectionLabel({ children }) {
+  return (
+    <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)', margin: '18px 0 2px' }}>
+      {children}
+    </div>
+  );
+}
+
 function DiscordSection({ settings, onUpdateSettings, onToast }) {
   const [discordChannelId, setDiscordChannelId] = useState(settings.discordChannelId || '');
   const [discordOwnerId, setDiscordOwnerId] = useState(settings.discordOwnerId || '');
+  const [stuckAlertMinDays, setStuckAlertMinDays] = useState(settings.stuckAlertMinDays || 3);
   const [saving, setSaving] = useState(false);
 
   const submit = async (e) => {
@@ -65,7 +73,8 @@ function DiscordSection({ settings, onUpdateSettings, onToast }) {
     try {
       await onUpdateSettings({
         discordChannelId: discordChannelId.trim() || null,
-        discordOwnerId: discordOwnerId.trim() || null
+        discordOwnerId: discordOwnerId.trim() || null,
+        stuckAlertMinDays: Number(stuckAlertMinDays)
       });
       onToast('Identifiants Discord mis à jour');
     } catch (err) {
@@ -83,12 +92,119 @@ function DiscordSection({ settings, onUpdateSettings, onToast }) {
       <Row label="ID Discord (alertes)" description="Reçoit en MP les échecs de scraping, les comptes bloqués et la sauvegarde quotidienne. Prend effet immédiatement.">
         <input className="input mono" value={discordOwnerId} onChange={(e) => setDiscordOwnerId(e.target.value)} placeholder="393160289496858624" style={{ width: '100%', maxWidth: 220 }} />
       </Row>
+      <Row label="Seuil avant alerte « compte bloqué »" description="Nombre de collectes consécutives en échec sur un compte/plateforme avant le MP dédié (cookie expiré, sélecteur cassé...). Prend effet immédiatement.">
+        <input className="input" type="number" min="1" max="30" value={stuckAlertMinDays} onChange={(e) => setStuckAlertMinDays(e.target.value)} style={{ width: '100%', maxWidth: 100 }} />
+      </Row>
       <Row label="">
         <button type="submit" className="btn btn-ghost" disabled={saving} style={{ borderRadius: 8 }}>
           {saving ? 'Enregistrement…' : 'Enregistrer les identifiants'}
         </button>
       </Row>
     </form>
+  );
+}
+
+// Client ID/Guild ID/Token du bot lui-même — distincts des réglages
+// ci-dessus (salon/destinataire/alertes, propres à l'usage du bot) : ce
+// sont les identifiants de connexion à Discord. Un override enregistré ici
+// prend le dessus sur la variable d'environnement (voir botConfig.js),
+// donc fonctionne aussi sur un hébergeur comme Railway où ces variables
+// ne viennent pas d'un .env. Effet après redémarrage du bot (npm start).
+//
+// ⚠️ Pas d'authentification sur ce dashboard — quiconque y accède peut
+// remplacer ces identifiants et prendre le contrôle du bot. Le token
+// n'est jamais renvoyé en clair par l'API, seulement un aperçu masqué.
+function BotIdentitySection({ onToast }) {
+  const [status, setStatus] = useState(null);
+  const [clientId, setClientId] = useState('');
+  const [guildId, setGuildId] = useState('');
+  const [token, setToken] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [savingToken, setSavingToken] = useState(false);
+
+  useEffect(() => {
+    getBotConfig().then((res) => {
+      setStatus(res);
+      setClientId(res.discordClientId || '');
+      setGuildId(res.discordGuildId || '');
+    }).catch(() => {});
+  }, []);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const res = await updateBotConfig({ discordClientId: clientId.trim(), discordGuildId: guildId.trim() });
+      setStatus(res);
+      onToast('Client ID / Guild ID mis à jour — effectif au prochain redémarrage du bot');
+    } catch (err) {
+      onToast(`Erreur : ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const submitToken = async (e) => {
+    e.preventDefault();
+    if (!token.trim()) return;
+    setSavingToken(true);
+    try {
+      const res = await updateBotConfig({ discordToken: token.trim() });
+      setStatus(res);
+      setToken('');
+      onToast('Token enregistré — redémarre le bot pour l\'appliquer');
+    } catch (err) {
+      onToast(`Erreur : ${err.message}`);
+    } finally {
+      setSavingToken(false);
+    }
+  };
+
+  if (!status) return null;
+
+  return (
+    <div className="card" style={{ padding: '18px 22px', border: '1px solid rgba(255,159,10,0.3)' }}>
+      <div className="card-title" style={{ marginBottom: 4 }}>Identifiants du bot</div>
+      <div style={{ fontSize: 11.5, color: 'var(--orange)', marginBottom: 6, lineHeight: 1.5 }}>
+        ⚠ Ce dashboard n'a pas d'authentification — quiconque y accède peut changer ces valeurs et prendre le contrôle du bot. Protégez l'accès réseau.
+      </div>
+
+      <form onSubmit={submit} className="settings-table">
+        <Row label="Client ID" description="Identifiant public de l'application Discord. Effet après redémarrage.">
+          <input className="input mono" value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="1532477198693568783" style={{ width: '100%', maxWidth: 220 }} />
+        </Row>
+        <Row label="Guild ID" description="Identifie le serveur Discord associé. Effet après redémarrage.">
+          <input className="input mono" value={guildId} onChange={(e) => setGuildId(e.target.value)} placeholder="1532474290908430346" style={{ width: '100%', maxWidth: 220 }} />
+        </Row>
+        <Row label="">
+          <button type="submit" className="btn btn-ghost" disabled={saving} style={{ borderRadius: 8 }}>
+            {saving ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </Row>
+      </form>
+
+      <SubsectionLabel>Token du bot</SubsectionLabel>
+      <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 6, lineHeight: 1.5 }}>
+        Secret, jamais réaffiché en clair — reste à part. Effet après redémarrage.
+      </div>
+      <form onSubmit={submitToken} className="settings-table">
+        <Row label="Token" description="Laisser vide pour ne pas le changer.">
+          <input
+            className="input mono"
+            type="password"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder={status.hasToken ? `Configuré (${status.tokenPreview})` : 'Aucun token configuré'}
+            style={{ width: '100%', maxWidth: 220 }}
+          />
+        </Row>
+        <Row label="">
+          <button type="submit" className="btn btn-ghost" disabled={savingToken || !token.trim()} style={{ borderRadius: 8 }}>
+            {savingToken ? 'Enregistrement…' : 'Enregistrer le token'}
+          </button>
+        </Row>
+      </form>
+    </div>
   );
 }
 
@@ -133,31 +249,35 @@ export default function SettingsView({ settings, onToggle, onUpdateSettings, the
       )}
 
       {activeTab === 'discord' && (
-        <div className="card" style={{ padding: '18px 22px' }}>
-          <div className="card-title" style={{ marginBottom: 4 }}>Discord</div>
+        <>
+          <div className="card" style={{ padding: '18px 22px' }}>
+            <div className="card-title" style={{ marginBottom: 4 }}>Discord</div>
 
-          <div className="settings-table">
-            <Row label="Publier sur Discord" description="Active/désactive l'envoi du classement sur Discord — la collecte a toujours lieu, seule la publication est concernée.">
-              <div className={`switch ${settings.notifDaily ? 'on' : ''}`} onClick={() => onToggle('notifDaily', !settings.notifDaily)}>
-                <div className="switch-knob" />
-              </div>
-            </Row>
+            <div className="settings-table">
+              <Row label="Publier sur Discord" description="Active/désactive l'envoi du classement sur Discord — la collecte a toujours lieu, seule la publication est concernée.">
+                <div className={`switch ${settings.notifDaily ? 'on' : ''}`} onClick={() => onToggle('notifDaily', !settings.notifDaily)}>
+                  <div className="switch-knob" />
+                </div>
+              </Row>
+            </div>
+
+            {settings.notifDaily && (
+              <>
+                <div className="settings-table">
+                  <Row label="Alertes de scraping" description="MP au propriétaire en cas d'échec.">
+                    <div className={`switch ${settings.notifWarnings ? 'on' : ''}`} onClick={() => onToggle('notifWarnings', !settings.notifWarnings)}>
+                      <div className="switch-knob" />
+                    </div>
+                  </Row>
+                </div>
+
+                <DiscordSection settings={settings} onUpdateSettings={onUpdateSettings} onToast={onToast} />
+              </>
+            )}
           </div>
 
-          {settings.notifDaily && (
-            <>
-              <div className="settings-table">
-                <Row label="Alertes de scraping" description="MP au propriétaire en cas d'échec.">
-                  <div className={`switch ${settings.notifWarnings ? 'on' : ''}`} onClick={() => onToggle('notifWarnings', !settings.notifWarnings)}>
-                    <div className="switch-knob" />
-                  </div>
-                </Row>
-              </div>
-
-              <DiscordSection settings={settings} onUpdateSettings={onUpdateSettings} onToast={onToast} />
-            </>
-          )}
-        </div>
+          <BotIdentitySection onToast={onToast} />
+        </>
       )}
 
       {activeTab === 'collecte' && (

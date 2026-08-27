@@ -61,7 +61,7 @@ async function scrapeAndBroadcast() {
     const historyAfter = appendToday(historyBefore, summary);
     if (settings.notifWarnings) {
       await sendErrorReportToOwner(summary, settings.discordOwnerId);
-      await sendStuckAlertToOwner(historyAfter, settings.discordOwnerId);
+      await sendStuckAlertToOwner(historyAfter, settings.discordOwnerId, settings.stuckAlertMinDays);
       await sendDataBackupToOwner(client, settings.discordOwnerId);
     }
     markScanFinished();
@@ -119,10 +119,10 @@ async function sendErrorReportToOwner(summary, discordOwnerId) {
 // déclenche que si un compte/plateforme échoue plusieurs collectes de
 // suite (cookie expiré, sélecteur DOM cassé...), signe d'un vrai problème
 // à corriger plutôt qu'un raté isolé.
-async function sendStuckAlertToOwner(history, discordOwnerId) {
+async function sendStuckAlertToOwner(history, discordOwnerId, stuckAlertMinDays) {
   if (!discordOwnerId) return;
 
-  const stuckAccounts = detectStuckAccounts(history, config.stuckAlertMinDays);
+  const stuckAccounts = detectStuckAccounts(history, stuckAlertMinDays);
   const stuckEmbed = buildStuckAccountsEmbed(stuckAccounts);
   if (!stuckEmbed) return;
 
