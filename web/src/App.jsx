@@ -7,17 +7,16 @@ import DashboardView from './components/DashboardView.jsx';
 import SettingsView from './components/SettingsView.jsx';
 import AccountDrawer from './components/AccountDrawer.jsx';
 import LoadingScreen from './components/LoadingScreen.jsx';
+import LoginScreen from './components/LoginScreen.jsx';
 import Toast from './components/Toast.jsx';
 import { getStoredTheme, applyTheme } from './theme.js';
 
 const SCAN_POLL_MS = 4000;
 const MIN_LOADING_MS = 1500; // durée minimale du loader initial (voir LoadingScreen.jsx)
 
-// Version sans auth/multi-organisation de l'App d'origine (voir
-// backup/dashboard-rewrite-27-08) : un seul bot, un seul jeu de données
-// (data/*.json), personne à identifier. Pas de /api/me, pas d'écran de
-// connexion — le dashboard s'affiche directement, protégé en amont par
-// Railway/le réseau plutôt que par un login applicatif (voir README).
+// Mot de passe unique (voir auth.js), pas de multi-utilisateur/organisation
+// (voir backup/dashboard-rewrite-27-08 pour cette version-là, qui a besoin
+// de Postgres) : un seul bot, un seul propriétaire à authentifier.
 export default function App() {
   const [theme, setTheme] = useState(getStoredTheme);
   useEffect(() => { applyTheme(theme); }, [theme]);
@@ -28,6 +27,22 @@ export default function App() {
   useEffect(() => {
     try { localStorage.setItem('vt-sidebar-collapsed', sidebarCollapsed ? '1' : '0'); } catch { /* non bloquant */ }
   }, [sidebarCollapsed]);
+
+  // Vérifié une fois au montage : passwordSet distingue le tout premier
+  // accès (aucun mot de passe encore créé, voir auth.js#isPasswordSet) de
+  // la reconnexion normale — même écran (LoginScreen), juste le mode qui
+  // change (voir LoginScreen.jsx).
+  const [authChecked, setAuthChecked] = useState(false);
+  const [passwordSet, setPasswordSet] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
+
+  useEffect(() => {
+    api.me().then((res) => {
+      setPasswordSet(res.passwordSet);
+      setAuthenticated(res.authenticated);
+      setAuthChecked(true);
+    });
+  }, []);
 
   const [loaded, setLoaded] = useState(false);
   const [view, setView] = useState('dashboard');
@@ -47,15 +62,28 @@ export default function App() {
     toastTimer.current = setTimeout(() => setToastMessage(''), 2600);
   };
 
+  // Session expirée/coupée pendant l'usage (onglet resté ouvert 30 jours,
+  // cookie effacé...) : renvoie à l'écran de connexion plutôt que de
+  // laisser les appels API échouer silencieusement en boucle.
+  const handleApiError = (err) => {
+    if (err?.status === 401) {
+      setAuthenticated(false);
+      setLoaded(false);
+      return true;
+    }
+    return false;
+  };
+
   const loadDashboard = () => {
     api.getDashboard().then((data) => {
       setKpis(data.kpis);
       setAccounts(data.accounts);
       setScan(data.scan);
-    });
+    }).catch(handleApiError);
   };
 
   useEffect(() => {
+    if (!authenticated) return;
     const start = Date.now();
     Promise.all([api.getDashboard(), api.getSettings()]).then(([dash, s]) => {
       // Délai minimum avant de masquer le loader (voir LoadingScreen.jsx) :
@@ -70,8 +98,8 @@ export default function App() {
         setSettings(s);
         setLoaded(true);
       }, remaining);
-    });
-  }, []);
+    }).catch(handleApiError);
+  }, [authenticated]);
 
   // Pas de déclenchement de scan depuis le dashboard : la collecte reste
   // pilotée uniquement par le cron planifié (voir src/index.js) ou les
@@ -87,7 +115,7 @@ export default function App() {
           loadDashboard();
         }
         wasScanning.current = status.scanning;
-      });
+      }).catch(handleApiError);
     }, SCAN_POLL_MS);
     return () => clearInterval(pollTimer.current);
   }, [loaded]);
@@ -99,11 +127,19 @@ export default function App() {
       setSettings(updated);
       return updated;
     } catch (e) {
-      showToast(`Erreur : ${e.message}`);
+      if (!handleApiError(e)) showToast(`Erreur : ${e.message}`);
       throw e;
     }
   };
 
+  const handleLogout = async () => {
+    await api.logout().catch(() => {});
+    setAuthenticated(false);
+    setLoaded(false);
+  };
+
+  if (!authChecked) return <LoadingScreen />;
+  if (!authenticated) return <LoginScreen setupMode={!passwordSet} onSuccess={() => setAuthenticated(true)} />;
   if (!loaded) return <LoadingScreen />;
 
   const drawerAccount = accounts.find((a) => a.name === drawerAccountName) || null;
@@ -115,6 +151,7 @@ export default function App() {
         onNavigate={setView}
         collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed((c) => !c)}
+        onLogout={handleLogout}
       />
       <div className="main">
         <TopBar

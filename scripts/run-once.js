@@ -52,9 +52,9 @@ async function sendErrorReportToOwner(summary, discordOwnerId) {
   await owner.send({ embeds: [errorEmbed] });
 }
 
-async function sendStuckAlertToOwner(history, discordOwnerId) {
+async function sendStuckAlertToOwner(history, discordOwnerId, stuckAlertMinDays) {
   if (!discordOwnerId) return;
-  const stuckAccounts = detectStuckAccounts(history, config.stuckAlertMinDays);
+  const stuckAccounts = detectStuckAccounts(history, stuckAlertMinDays);
   const stuckEmbed = buildStuckAccountsEmbed(stuckAccounts);
   if (!stuckEmbed) return;
   const owner = await client.users.fetch(discordOwnerId);
@@ -74,7 +74,7 @@ client.once('clientReady', async () => {
   try {
     const settings = loadSettings();
     const channel = settings.discordChannelId ? await client.channels.fetch(settings.discordChannelId) : null;
-    const summary = await buildViewsSummary(loadAccounts());
+    const summary = await buildViewsSummary(loadAccounts(), settings.postsLimit);
 
     const historyBefore = loadHistory();
     const growth24h = computeGrowth24h(historyBefore, summary);
@@ -93,7 +93,7 @@ client.once('clientReady', async () => {
 
     const historyAfter = appendToday(historyBefore, summary);
     await sendErrorReportToOwner(summary, settings.discordOwnerId);
-    await sendStuckAlertToOwner(historyAfter, settings.discordOwnerId);
+    await sendStuckAlertToOwner(historyAfter, settings.discordOwnerId, settings.stuckAlertMinDays);
     await sendDataBackupToOwner(client, settings.discordOwnerId);
     markScanFinished();
 

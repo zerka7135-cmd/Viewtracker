@@ -13,6 +13,9 @@ import { SETTINGS_PATH } from './settingsStore.js';
 // copie quotidienne des fichiers de données en MP à l'admin donne un filet
 // de secours simple : en cas de pépin, il suffit de retélécharger la pièce
 // jointe la plus récente et de la reposer sur le volume via `railway ssh`.
+// data/bot-config.json (voir botConfig.js) est délibérément absent de cette
+// liste : il peut contenir le token Discord en clair, qui ne doit pas
+// transiter par une pièce jointe Discord même en MP à l'admin.
 const BACKUP_FILES = [
   { path: HISTORY_PATH, name: 'history.json' },
   { path: CUMULATIVE_PATH, name: 'cumulative-views.json' },
