@@ -489,6 +489,25 @@ button, select, input {
   min-width: 0;
 }
 
+/* --- Dashboard, mode "Tous" (voir DashboardView.jsx) --- */
+
+.dashboard-all-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.dashboard-all-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+.dashboard-section-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -773,6 +792,24 @@ button, select, input {
 @media (max-width: 1000px) {
   .kpi-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 1100px) {
+  /* En dessous de 1100px, deux dashboards complets côte à côte (mode
+     "Tous") deviennent trop étroits pour rester lisibles (graphiques
+     écrasés, tableaux illisibles) — on repasse en 1 colonne, Vues puis
+     Clics empilés comme les autres modes. */
+  .dashboard-all-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 640px) {
+  /* La bascule Vues/Clics/Tous + l'indicateur de scan (voir TopBar via
+     App.jsx) passent sous le titre plutôt que de se comprimer à côté —
+     ModeToggle (3 options) perd sinon en lisibilité sur un petit écran. */
+  .topbar-actions {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 @media (max-width: 760px) {

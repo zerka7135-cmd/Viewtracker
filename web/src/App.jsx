@@ -173,7 +173,7 @@ export default function App() {
         <TopBar
           view={view}
           actions={view === 'dashboard' ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div className="topbar-actions">
               <ScanStatusIndicator scan={scan} />
               <ModeToggle mode={dashboardMode} onChange={setDashboardMode} />
             </div>

@@ -411,22 +411,26 @@ export default function DashboardView({ kpis, accounts, mode, onOpenDrawer, onTo
         </div>
   );
 
-  // "Tous" : Vues et Clics affichés en 2 colonnes côte à côte plutôt
-  // qu'empilés, chaque colonne gardant sa propre carte KPI + graphique +
-  // tableau (le nested content-grid des Vues se resserre à l'intérieur de
-  // sa moitié — le tableau garde son scroll horizontal, voir .table-scroll).
+  // "Tous" : Vues et Clics affichés en 2 colonnes côte à côte, chacune sous
+  // son propre titre de section (sinon les deux blocs de KPI s'enchaînaient
+  // sans rien pour dire lequel est lequel) — chaque colonne garde sa propre
+  // carte KPI + graphique + tableau (le tableau garde son scroll horizontal,
+  // voir .table-scroll). La grille passe en `.dashboard-all-grid` (plutôt
+  // qu'un style inline) pour pouvoir s'empiler en 1 colonne sur mobile/
+  // tablette, voir la media query dans theme.css — deux dashboards complets
+  // côte à côte y seraient illisibles.
   if (mode === 'all') {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
-            {viewsKpiGrid}
-            {viewsContent}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
-            {clicksKpiGrid}
-            {clicksContent}
-          </div>
+      <div className="dashboard-all-grid">
+        <div className="dashboard-all-col">
+          <div className="dashboard-section-title">Vues</div>
+          {viewsKpiGrid}
+          {viewsContent}
+        </div>
+        <div className="dashboard-all-col">
+          <div className="dashboard-section-title">Clics</div>
+          {clicksKpiGrid}
+          {clicksContent}
         </div>
       </div>
     );
