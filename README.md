@@ -196,6 +196,53 @@ du résumé dans `DISCORD_CHANNEL_ID` selon `CRON_SCHEDULE`/`TIMEZONE` (log de
 confirmation dans la console). Un jitter aléatoire de 0 à 120 min est ajouté
 à chaque déclenchement, pour ne pas partir pile à l'heure tous les jours.
 
+Un dashboard web (`web/`, React) démarre aussi en parallèle, indépendamment
+de la connexion Discord — voir section 6bis.
+
+## 6bis. Dashboard web
+
+Le bot expose un dashboard web (dossier `web/`, React + Vite), servi par un
+serveur Express intégré au même process (`src/server.js`, démarré par
+`src/index.js`). Il montre exactement les mêmes chiffres que Discord — gain
+24h et cumul all-time (voir `src/dashboardData.js`) — et permet d'ajouter/
+modifier/supprimer des comptes suivis sans toucher `ACCOUNTS`/`.env`
+(persistés dans `data/accounts.json`, qui prend le relais de `ACCOUNTS`
+dès sa création — `ACCOUNTS` ne sert plus que de valeur de départ). Pas de
+bouton "Lancer un scan" : la collecte reste pilotée uniquement par le cron
+planifié (ou `npm run scan`/`npm run run-once` en CLI).
+
+**Pas d'authentification** — un seul bot, un seul jeu de données : le
+dashboard est protégé en amont par le réseau (ex. domaine Railway privé,
+ou VPN) plutôt que par un login applicatif. Ne l'exposez pas publiquement
+sans mettre un accès devant (reverse proxy avec auth, IP allowlist...).
+Version avec comptes utilisateurs/organisations et suivi de clics : voir la
+branche `backup/dashboard-rewrite-27-08`, qui nécessite en plus une base
+Postgres externe (non utilisée par la version actuelle).
+
+**En local :**
+
+```bash
+npm run build:web        # build unique du frontend (web/dist)
+npm start                # sert le dashboard sur http://localhost:3000 (PORT)
+```
+
+Pour itérer sur l'UI avec rechargement à chaud, lancez en parallèle :
+
+```bash
+npm start                # API + bot Discord, sur PORT (3000 par défaut)
+npm run dev:web           # serveur Vite avec proxy /api → localhost:3000
+```
+
+**Variable d'env** : `PORT` (optionnel, défaut `3000`).
+
+**Réglages modifiables depuis Paramètres** : publication Discord activée/
+désactivée, alertes de scraping, salon et destinataire des MP — persistés
+dans `data/settings.json`, effectifs immédiatement (relus à chaque
+collecte). Heure de collecte (cron), fuseau horaire et nombre de posts par
+plateforme sont aussi éditables mais ne prennent effet qu'au prochain
+redémarrage du bot (`cron.schedule()` et `config.postsLimit` sont figés au
+démarrage) — indiqué comme tel dans l'UI.
+
 ## 7. Alertes et sauvegarde (MP à `DISCORD_OWNER_ID`)
 
 Si `DISCORD_OWNER_ID` est renseigné, l'admin reçoit en MP, après chaque

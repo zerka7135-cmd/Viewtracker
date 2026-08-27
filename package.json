@@ -9,12 +9,15 @@
     "scan": "node src/scan.js",
     "run-once": "node scripts/run-once.js",
     "export-ig-cookies": "node scripts/export-ig-cookies.js",
-    "export-tiktok-cookies": "node scripts/export-tiktok-cookies.js"
+    "export-tiktok-cookies": "node scripts/export-tiktok-cookies.js",
+    "build:web": "npm install --prefix web && npm run build --prefix web",
+    "dev:web": "npm run dev --prefix web"
   },
   "dependencies": {
     "axios": "^1.7.9",
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.7",
+    "express": "^4.22.2",
     "node-cron": "^3.0.3",
     "playwright": "^1.62.1",
     "playwright-extra": "^4.3.6",
