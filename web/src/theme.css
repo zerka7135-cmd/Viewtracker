@@ -1306,6 +1306,19 @@ select:focus-visible,
   .nav-item {
     padding: 8px;
   }
+  /* .sidebar-logout span (specificité 0,1,1) l'emportait sur la règle
+     .nav-item-label ci-dessus (0,1,0) même dans ce bloc mobile : le
+     libellé "Se déconnecter" restait affiché (et débordait, tronqué) au
+     lieu d'être masqué comme les libellés de nav — même spécificité que
+     .sidebar-logout span pour vraiment le recouvrir ici. */
+  .sidebar-logout span {
+    max-width: 0;
+    opacity: 0;
+    margin-left: 0;
+  }
+  .sidebar-logout {
+    padding: 8px;
+  }
   .sidebar-collapse-btn {
     display: none;
   }
