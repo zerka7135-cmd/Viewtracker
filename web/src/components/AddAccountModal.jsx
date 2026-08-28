@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { addAccount as addAccountApi, updateAccount as updateAccountApi } from '../api.js';
 import { useEscapeKey } from '../useEscapeKey.js';
+import { useSwipeToClose } from '../useSwipeToClose.js';
 import CloseButton from './CloseButton.jsx';
+import SheetHandle from './SheetHandle.jsx';
 
 // Sert à la fois pour ajouter un nouveau compte et pour éditer un compte
 // existant (voir DashboardView.jsx) — passer `account` (avec ses `urls`,
@@ -9,6 +11,7 @@ import CloseButton from './CloseButton.jsx';
 export default function AddAccountModal({ account, onClose, onAdded, onToast }) {
   const isEdit = !!account;
   useEscapeKey(onClose);
+  const { sheetRef, handleProps } = useSwipeToClose(onClose);
   const [name, setName] = useState(account?.name || '');
   const [igUrl, setIgUrl] = useState(account?.urls?.[0] || '');
   const [ttUrl, setTtUrl] = useState(account?.urls?.[1] || '');
@@ -38,7 +41,8 @@ export default function AddAccountModal({ account, onClose, onAdded, onToast }) 
     <>
       <div className="backdrop" onClick={onClose} />
       <div className="modal">
-        <form className="card modal-card" onSubmit={submit}>
+        <form className="card modal-card" onSubmit={submit} ref={sheetRef}>
+          <SheetHandle {...handleProps} />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={{ fontSize: 16, fontWeight: 700 }}>{isEdit ? 'Modifier le compte' : 'Ajouter un compte'}</div>

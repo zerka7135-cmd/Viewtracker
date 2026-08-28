@@ -4,6 +4,8 @@ import { fmt, fmtShort } from '../format.js';
 import MultiLineChart from './MultiLineChart.jsx';
 import CloseButton from './CloseButton.jsx';
 import { useEscapeKey } from '../useEscapeKey.js';
+import { useSwipeToClose } from '../useSwipeToClose.js';
+import SheetHandle from './SheetHandle.jsx';
 import { IconSearch, IconDownload } from './icons.jsx';
 import { downloadPdf } from '../pdf.js';
 
@@ -30,6 +32,7 @@ export default function AccountComparisonModal({ accounts, onClose, onToast }) {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   useEscapeKey(onClose);
+  const { sheetRef, handleProps } = useSwipeToClose(onClose);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -103,7 +106,8 @@ export default function AccountComparisonModal({ accounts, onClose, onToast }) {
     <>
       <div className="backdrop" onClick={onClose} />
       <div className="modal">
-        <div className="card modal-card" style={{ width: 640, maxWidth: '100%' }}>
+        <div className="card modal-card" style={{ width: 640, maxWidth: '100%' }} ref={sheetRef}>
+          <SheetHandle {...handleProps} />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={{ fontSize: 16, fontWeight: 700 }}>Comparer des comptes</div>

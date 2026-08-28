@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useEscapeKey } from '../useEscapeKey.js';
+import { useSwipeToClose } from '../useSwipeToClose.js';
 import CloseButton from './CloseButton.jsx';
+import SheetHandle from './SheetHandle.jsx';
 
 // Modale de confirmation générique (suppression d'un compte suivi, pour
 // l'instant) — remplace window.confirm(), qui n'est pas stylisé et
@@ -12,6 +14,7 @@ import CloseButton from './CloseButton.jsx';
 export default function ConfirmModal({ title, message, confirmLabel = 'Confirmer', onConfirm, onCancel }) {
   const [pending, setPending] = useState(false);
   useEscapeKey(onCancel);
+  const { sheetRef, handleProps } = useSwipeToClose(onCancel);
 
   const handleConfirm = async () => {
     setPending(true);
@@ -28,7 +31,8 @@ export default function ConfirmModal({ title, message, confirmLabel = 'Confirmer
     <>
       <div className="backdrop" onClick={onCancel} />
       <div className="modal">
-        <div className="card modal-card" style={{ border: '1px solid rgba(255,69,58,0.35)' }}>
+        <div className="card modal-card" style={{ border: '1px solid rgba(255,69,58,0.35)' }} ref={sheetRef}>
+          <SheetHandle {...handleProps} />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--red)' }}>{title}</div>
             <CloseButton onClick={onCancel} />

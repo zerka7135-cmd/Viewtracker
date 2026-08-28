@@ -7,7 +7,9 @@ import AddAccountModal from './AddAccountModal.jsx';
 import ConfirmModal from './ConfirmModal.jsx';
 import { IconEdit, IconTrash, IconDownload } from './icons.jsx';
 import { useEscapeKey } from '../useEscapeKey.js';
+import { useSwipeToClose } from '../useSwipeToClose.js';
 import CloseButton from './CloseButton.jsx';
+import SheetHandle from './SheetHandle.jsx';
 import { downloadPdf } from '../pdf.js';
 
 const PLATFORMS = [
@@ -136,6 +138,10 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
   }, [account]);
 
   useEscapeKey(onClose, Boolean(account) && !editing && !deleting);
+  // Balayage vers le bas depuis la poignée pour fermer, sur mobile
+  // uniquement (voir useSwipeToClose.js) — même geste que la croix/le tap
+  // sur le fond, juste plus rapide au pouce sur une feuille plein écran.
+  const { sheetRef, handleProps } = useSwipeToClose(onClose);
 
   if (!displayedAccount) return null;
   const shown = displayedAccount;
@@ -155,7 +161,8 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
   return (
     <>
       <div className={`backdrop ${closing ? 'is-exiting' : ''}`} onClick={onClose} />
-      <div className={`drawer ${closing ? 'is-exiting' : ''}`}>
+      <div className={`drawer ${closing ? 'is-exiting' : ''}`} ref={sheetRef}>
+        <SheetHandle {...handleProps} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
             <div style={{ fontSize: 19, fontWeight: 700 }}>{shown.name}</div>

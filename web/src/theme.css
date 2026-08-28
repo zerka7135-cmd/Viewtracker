@@ -479,12 +479,21 @@ select:focus-visible,
 .btn-accent:hover {
   opacity: 0.88;
 }
+/* Bouton secondaire : contour + libellé en accent plutôt qu'en gris neutre
+   — le distingue clairement d'un simple bouton désactivé/inerte tout en
+   restant minimaliste (pas de fond plein, juste un trait fin). Le fond ne
+   se remplit très légèrement qu'au survol, jamais au repos. */
 .btn-ghost {
   background: transparent;
-  color: var(--text-muted);
-  border: 1px solid var(--border-strong);
+  color: var(--accent);
+  border: 1px solid color-mix(in oklab, var(--accent) 55%, transparent);
   font-size: 13px;
   padding: 9px 16px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn-ghost:hover {
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  border-color: var(--accent);
 }
 .btn-link {
   background: transparent;
@@ -1398,6 +1407,11 @@ select:focus-visible,
 .mobile-tabbar {
   display: none;
 }
+/* Poignée de balayage des feuilles (voir SheetHandle.jsx) — n'existe
+   visuellement que sur les feuilles plein écran mobiles (voir plus bas). */
+.sheet-handle {
+  display: none;
+}
 @media (max-width: 700px) {
   .sidebar {
     display: none;
@@ -1500,9 +1514,8 @@ select:focus-visible,
      glisse depuis le bas et occupe (quasi) tout l'écran, ancrée à portée
      du pouce (voir sheetSlideIn/sheetIn ci-dessous, qui remplacent
      slideIn/modalIn uniquement sous ce seuil). Poignée de balayage
-     purement visuelle (::before) : pas de geste de fermeture au doigt
-     pour l'instant, juste l'affordance — reste fermable via le bouton
-     croix ou le tap sur le fond. */
+     réellement glissable pour fermer (voir SheetHandle.jsx/
+     useSwipeToClose.js), en plus du bouton croix et du tap sur le fond. */
   .drawer {
     top: auto;
     left: 0;
@@ -1531,15 +1544,23 @@ select:focus-visible,
     overflow-y: auto;
     animation: sheetIn 0.28s cubic-bezier(0.32, 0.72, 0, 1);
   }
-  .drawer::before,
-  .modal-card::before {
-    content: '';
+  .sheet-handle {
     display: block;
     width: 36px;
     height: 4px;
     border-radius: 3px;
     background: var(--border-strong);
-    margin: 0 auto 6px;
+    margin: 0 auto;
+    flex-shrink: 0;
+    cursor: grab;
+    /* Empêche le navigateur d'interpréter le geste comme un scroll de page
+       avant que useSwipeToClose.js n'ait la main — sans ça, un glissement
+       lent démarre parfois comme un scroll natif au lieu du drag. */
+    touch-action: none;
+  }
+  .sheet-handle:active {
+    cursor: grabbing;
+    background: var(--text-muted);
   }
 
   /* Zones tactiles agrandies : 26px (desktop) est sous le plancher de
@@ -1576,6 +1597,23 @@ select:focus-visible,
     right: 16px;
     top: max(12px, env(safe-area-inset-top));
     text-align: center;
+  }
+
+  /* Retour tactile au tap — sans `:hover` fiable au doigt, un `:active`
+     bref (échelle + fond) confirme que l'appui a été pris en compte,
+     avant même que l'action (navigation, ouverture d'une feuille…) ne se
+     termine. Écarté sous prefers-reduced-motion (voir plus bas). */
+  .btn-accent:active, .btn-ghost:active, .icon-btn:active,
+  .mobile-tabbar-item:active, .table-row:active, .kpi-card[role="button"]:active {
+    transform: scale(0.96);
+  }
+  .table-row:active {
+    background: var(--card-alt);
+  }
+}
+@media (max-width: 700px) and (prefers-reduced-motion: no-preference) {
+  .btn-accent, .btn-ghost, .icon-btn, .mobile-tabbar-item, .table-row, .kpi-card[role="button"] {
+    transition: transform 0.1s ease, background 0.15s, color 0.15s;
   }
 }
 @keyframes sheetIn {
