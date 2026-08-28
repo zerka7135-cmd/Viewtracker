@@ -306,6 +306,7 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
         <AccountComparisonModal
           accounts={accounts}
           onClose={() => setShowCompareModal(false)}
+          onToast={onToast}
         />
       )}
       {editingAccount && (
