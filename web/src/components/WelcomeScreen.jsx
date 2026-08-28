@@ -17,8 +17,8 @@ export default function WelcomeScreen({ exiting, onContinue }) {
         </div>
         <div className="welcome-title">ViewTracker</div>
         <div className="welcome-sub">
-          Le classement Instagram, TikTok et YouTube de tes comptes suivis,
-          en direct — vues, tendances et alertes, au même endroit que le bot Discord.
+          Le classement Instagram, TikTok et YouTube de tes comptes suivis
+          — vues, tendances et alertes, au même endroit que le bot Discord.
         </div>
         <button type="button" className="btn btn-accent welcome-cta" onClick={onContinue}>
           Commencer
