@@ -16,18 +16,17 @@ export function platformLabel(value) {
 }
 
 /**
- * "2026-08-09" → "9 août", ou "2026-08-09T14:00" → "14h00" (filtre 24h,
- * voir getHistorySeriesHourly côté serveur) — utilisé dans le tooltip des
- * graphiques, voir AreaChart.jsx.
+ * "2026-08-09" → "9 août" — utilisé dans le tooltip des graphiques, voir
+ * AreaChart.jsx/MultiLineChart.jsx. Chaque entrée de l'historique est une
+ * collecte quotidienne (voir history.js) : pas de granularité horaire à
+ * gérer ici (l'ancien filtre "24h" fabriquait des points horaires factices,
+ * retiré — voir dashboardData.js).
  */
 export function fmtDate(dateStr) {
   if (!dateStr) return '';
-  const isHourly = dateStr.includes('T');
-  const d = new Date(isHourly ? dateStr : `${dateStr}T00:00:00`);
+  const d = new Date(`${dateStr}T00:00:00`);
   if (Number.isNaN(d.getTime())) return dateStr;
-  return isHourly
-    ? d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-    : d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 }
 
 /**

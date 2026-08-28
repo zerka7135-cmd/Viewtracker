@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useEscapeKey } from '../useEscapeKey.js';
+import CloseButton from './CloseButton.jsx';
 
 // Modale de confirmation générique (suppression d'un compte suivi, pour
 // l'instant) — remplace window.confirm(), qui n'est pas stylisé et
@@ -30,7 +31,7 @@ export default function ConfirmModal({ title, message, confirmLabel = 'Confirmer
         <div className="card modal-card" style={{ border: '1px solid rgba(255,69,58,0.35)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--red)' }}>{title}</div>
-            <button type="button" onClick={onCancel} aria-label="Fermer" style={{ cursor: 'pointer', background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
+            <CloseButton onClick={onCancel} />
           </div>
 
           <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>{message}</div>

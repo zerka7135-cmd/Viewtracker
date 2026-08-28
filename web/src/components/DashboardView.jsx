@@ -96,7 +96,7 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
         <div className="card kpi-card enter-stagger" style={{ '--enter-delay': '0ms' }}>
           <div className="kpi-label">Vues totales (cumul)</div>
           <div className="kpi-value"><CountUp value={kpis.totalAllTime} /></div>
-          <div className="kpi-sub">sur {kpis.accountsCount} comptes suivis</div>
+          <div className="kpi-sub">sur {kpis.accountsCount} compte{kpis.accountsCount > 1 ? 's' : ''} suivi{kpis.accountsCount > 1 ? 's' : ''}</div>
         </div>
         <div className="card kpi-card enter-stagger" style={{ '--enter-delay': '50ms' }}>
           <div className="kpi-label">Vues gagnées (24h)</div>
@@ -305,7 +305,7 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
       {deletingAccount && (
         <ConfirmModal
           title="Supprimer le compte"
-          message={<>Supprimer <strong>{deletingAccount.name}</strong> ? Son historique de vues sera perdu.</>}
+          message={<>Supprimer <strong>{deletingAccount.name}</strong> ? <span style={{ color: 'var(--red)', fontWeight: 600 }}>Son historique de vues sera perdu, définitivement.</span></>}
           confirmLabel="Supprimer"
           onConfirm={confirmDelete}
           onCancel={() => setDeletingAccount(null)}

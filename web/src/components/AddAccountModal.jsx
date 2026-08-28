@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { addAccount as addAccountApi, updateAccount as updateAccountApi } from '../api.js';
 import { useEscapeKey } from '../useEscapeKey.js';
+import CloseButton from './CloseButton.jsx';
 
 // Sert à la fois pour ajouter un nouveau compte et pour éditer un compte
 // existant (voir DashboardView.jsx) — passer `account` (avec ses `urls`,
@@ -45,7 +46,7 @@ export default function AddAccountModal({ account, onClose, onAdded, onToast }) 
                 Renseigne au moins une plateforme — les autres restent optionnelles.
               </div>
             </div>
-            <button type="button" onClick={onClose} aria-label="Fermer" style={{ cursor: 'pointer', background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
+            <CloseButton onClick={onClose} />
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
