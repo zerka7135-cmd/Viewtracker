@@ -150,44 +150,6 @@ export function getHistorySeries(days = 14, platform = 'all') {
 }
 
 /**
- * Série horaire (24 points, une par heure) pour le filtre "24h". La
- * collecte ne tourne qu'une fois par jour (cron), donc la plupart des
- * heures resteront à 0 avec un seul pic à l'heure du scan — c'est la
- * donnée réelle (on n'a qu'un snapshot par jour, pas d'historique
- * infra-journalier contrairement à la version Postgres), pas un défaut de
- * cette fonction.
- * @param {'all'|'ig'|'tt'|'yt'} platform
- * @returns {Array<{date: string, value: number}>} `date` = ISO horaire (ex. "2026-08-09T14:00")
- */
-export function getHistorySeriesHourly(platform = 'all') {
-  const history = loadHistory();
-  const latestEntry = history[history.length - 1] || null;
-  const previousEntry = history[history.length - 2] || null;
-
-  // Sans granularité horaire réelle, on ne peut pas savoir *quand* dans la
-  // journée le gain a eu lieu — on l'attribue à l'heure de la dernière
-  // collecte connue plutôt que de l'étaler arbitrairement sur 24 points.
-  let valueAtScanHour = 0;
-  if (latestEntry) {
-    const growth = previousEntry ? computeGrowth24h([previousEntry], latestEntry.accounts) : new Map();
-    valueAtScanHour = [...growth.values()].reduce((sum, g) => {
-      if (platform === 'all') return sum + g.total;
-      return sum + (g[platform] || 0);
-    }, 0);
-  }
-
-  const scanHour = latestEntry ? new Date().getHours() : null;
-  const series = [];
-  for (let i = 23; i >= 0; i--) {
-    const d = new Date();
-    d.setMinutes(0, 0, 0);
-    d.setHours(d.getHours() - i);
-    series.push({ date: `${d.toISOString().slice(0, 13)}:00`, value: d.getHours() === scanHour ? valueAtScanHour : 0 });
-  }
-  return series;
-}
-
-/**
  * Même série que getHistorySeries ci-dessus, mais pour un seul compte
  * suivi plutôt qu'agrégée — alimente le graphique d'évolution du tiroir de
  * détail (AccountDrawer.jsx). Une date où le compte n'a pas encore de

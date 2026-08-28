@@ -1,6 +1,6 @@
 import path from 'path';
 import express from 'express';
-import { getAccountsWithStats, getKpis, getHistorySeries, getHistorySeriesHourly, getAccountHistorySeries } from './dashboardData.js';
+import { getAccountsWithStats, getKpis, getHistorySeries, getAccountHistorySeries } from './dashboardData.js';
 import { addAccount, updateAccount, deleteAccount } from './accountsStore.js';
 import { loadSettings, updateSettings } from './settingsStore.js';
 import { getBotConfigStatus, updateBotConfig } from './botConfig.js';
@@ -219,13 +219,15 @@ export async function startServer(client) {
     }
   });
 
-  // `range` : ?hours=24 (granularité horaire) ou ?days=N (granularité
-  // quotidienne) — voir dashboardData.js#getHistorySeries/getHistorySeriesHourly.
+  // `days` : nombre de collectes les plus récentes à renvoyer (une entrée
+  // = une collecte quotidienne, voir history.js) — pas de granularité
+  // horaire : le cron ne tourne qu'une fois par jour, une fausse
+  // résolution "24h" (23 points à 0 + un pic à l'heure du scan) induirait
+  // en erreur plutôt que d'informer. Le filtre "24h" du dashboard demande
+  // simplement days=2 (les deux dernières collectes, avant/après).
   app.get('/api/history', (req, res) => {
     const platform = req.query.platform || 'all';
-    const series = req.query.hours
-      ? getHistorySeriesHourly(platform)
-      : getHistorySeries(Number(req.query.days) || 14, platform);
+    const series = getHistorySeries(Number(req.query.days) || 14, platform);
     res.json({ series });
   });
 

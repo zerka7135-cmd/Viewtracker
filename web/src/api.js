@@ -48,11 +48,10 @@ export const addAccount = (name, urls) => request('/accounts', { method: 'POST',
 export const updateAccount = (currentName, name, urls) => request(`/accounts/${encodeURIComponent(currentName)}`, { method: 'PATCH', body: JSON.stringify({ name, urls }) });
 export const deleteAccount = (name) => request(`/accounts/${encodeURIComponent(name)}`, { method: 'DELETE' });
 
-// `range` : { days: N } ou { hours: 24 } (filtre "24h", voir DashboardView.jsx).
-export const getHistory = (range, platform) => {
-  const q = range.hours ? `hours=${range.hours}` : `days=${range.days}`;
-  return request(`/history?${q}&platform=${platform}`);
-};
+// `range.days` : nombre de collectes les plus récentes — le filtre "24h"
+// demande simplement days=2 (les deux dernières collectes), pas de
+// granularité horaire fabriquée (voir DashboardView.jsx#CHART_RANGES).
+export const getHistory = (range, platform) => request(`/history?days=${range.days}&platform=${platform}`);
 export const getAccountHistory = (name, days, platform) => request(`/accounts/${encodeURIComponent(name)}/history?days=${days}&platform=${platform}`);
 
 export const getSettings = () => request('/settings');
