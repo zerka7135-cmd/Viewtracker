@@ -422,19 +422,19 @@ export default function SettingsView({ settings, onToggle, onUpdateSettings, onT
             <Row label="Publier sur Discord" description="Active/désactive l'envoi du classement sur Discord — la collecte a toujours lieu, seule la publication est concernée.">
               <Switch checked={settings.notifDaily} onChange={(v) => onToggle('notifDaily', v)} />
             </Row>
+            <Row label="Alertes de scraping" description="MP au propriétaire en cas d'échec. Indépendant de la publication du classement ci-dessus.">
+              <Switch checked={settings.notifWarnings} onChange={(v) => onToggle('notifWarnings', v)} />
+            </Row>
           </div>
 
-          {settings.notifDaily && (
-            <>
-              <div className="settings-table">
-                <Row label="Alertes de scraping" description="MP au propriétaire en cas d'échec.">
-                  <Switch checked={settings.notifWarnings} onChange={(v) => onToggle('notifWarnings', v)} />
-                </Row>
-              </div>
-
-              <DiscordSection settings={settings} onUpdateSettings={onUpdateSettings} onToast={onToast} />
-            </>
-          )}
+          {/* Salon/ID owner/seuil d'alerte : champs de config indépendants
+              des deux interrupteurs ci-dessus (ex. DISCORD_OWNER_ID sert
+              aussi aux alertes "compte bloqué" et à la sauvegarde
+              quotidienne, voir .env.example — les masquer quand "Publier
+              sur Discord" est désactivé empêchait de les renseigner à
+              l'avance). Toujours visibles, comme les autres champs
+              modifiables du .env ci-dessous. */}
+          <DiscordSection settings={settings} onUpdateSettings={onUpdateSettings} onToast={onToast} />
 
           <BotIdentitySection onToast={onToast} />
         </div>
