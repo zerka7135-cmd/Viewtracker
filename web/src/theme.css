@@ -516,6 +516,22 @@ select:focus-visible,
   box-shadow: var(--card-shadow);
 }
 
+/* --- Skeleton (voir DashboardSkeleton.jsx) --- */
+.skeleton-bone {
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--card-alt) 25%, var(--border-strong) 50%, var(--card-alt) 75%);
+  background-size: 200% 100%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton-bone {
+    animation: skeletonShimmer 1.6s ease-in-out infinite;
+  }
+}
+@keyframes skeletonShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -785,6 +801,18 @@ select:focus-visible,
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
   z-index: 40;
+  animation: backdropIn 0.2s ease;
+}
+.backdrop.is-exiting {
+  animation: backdropOut 0.2s ease forwards;
+}
+@keyframes backdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes backdropOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 .drawer {
   position: fixed;
@@ -803,9 +831,21 @@ select:focus-visible,
   overflow-y: auto;
   animation: slideIn 0.25s ease;
 }
+/* Sortie symétrique de l'entrée (voir App.jsx/AccountDrawer.jsx : le
+   composant reste monté ~0.2s après la demande de fermeture pour laisser
+   cette animation se jouer, plutôt que de disparaître d'un coup — seule la
+   modale/tiroir concerné en manquait, les autres overlays (voir modalIn)
+   n'ont pas ce même besoin car ils ne glissent pas). */
+.drawer.is-exiting {
+  animation: slideOut 0.2s ease forwards;
+}
 @keyframes slideIn {
   from { transform: translateX(16px); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideOut {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(16px); opacity: 0; }
 }
 
 .modal {

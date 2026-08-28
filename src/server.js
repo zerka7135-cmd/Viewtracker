@@ -11,6 +11,7 @@ import {
   setSessionCookie, clearSessionCookie, isAuthenticated,
   recordLoginFailure, recordLoginSuccess, loginDelayMs, shouldAlertOwner
 } from './auth.js';
+import { apiRateLimit } from './rateLimit.js';
 
 const WEB_DIST = path.resolve('./web/dist');
 
@@ -127,6 +128,11 @@ export async function startServer(client) {
     if (isAuthenticated(req)) return next();
     res.status(401).json({ error: 'Non authentifié' });
   });
+
+  // Rate-limit générique par IP (voir rateLimit.js) — jusqu'ici seul le
+  // login en avait un ; les routes authentifiées ci-dessous n'avaient
+  // aucune limite (un compte compromis pouvait les spammer sans retenue).
+  app.use('/api', apiRateLimit);
 
   app.patch('/api/account/password', async (req, res, next) => {
     try {
