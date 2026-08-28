@@ -3,7 +3,7 @@
 // 'settings' uniquement (voir Sidebar.jsx#NAV_ITEMS).
 const VIEW_META = {
   dashboard: ['Dashboard', 'Classement, tendance et répartition des vues — Instagram, TikTok, YouTube'],
-  settings: ['Paramètres', 'Apparence, Discord, collecte et comptes du dashboard']
+  settings: ['Paramètres', 'Discord, collecte et comptes du dashboard']
 };
 
 // Pas de déclenchement de scan depuis le dashboard : la collecte reste

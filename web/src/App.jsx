@@ -11,7 +11,6 @@ import DashboardSkeleton from './components/DashboardSkeleton.jsx';
 import WelcomeScreen from './components/WelcomeScreen.jsx';
 import LoginScreen from './components/LoginScreen.jsx';
 import Toast from './components/Toast.jsx';
-import { getStoredTheme, applyTheme } from './theme.js';
 
 const SCAN_POLL_MS = 4000;
 const MIN_LOADING_MS = 1500; // durée minimale du loader initial (voir LoadingScreen.jsx)
@@ -21,9 +20,6 @@ const MIN_LOADING_MS = 1500; // durée minimale du loader initial (voir LoadingS
 // Postgres) : un seul bot, mais plusieurs personnes peuvent avoir leur
 // propre compte pour s'y connecter.
 export default function App() {
-  const [theme, setTheme] = useState(getStoredTheme);
-  useEffect(() => { applyTheme(theme); }, [theme]);
-
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try { return localStorage.getItem('vt-sidebar-collapsed') === '1'; } catch { return false; }
   });
@@ -209,8 +205,6 @@ export default function App() {
             onToggle={(key, value) => handleUpdateSettings({ [key]: value })}
             onUpdateSettings={handleUpdateSettings}
             onToast={showToast}
-            theme={theme}
-            onThemeChange={setTheme}
             currentEmail={currentEmail}
           />
         )}

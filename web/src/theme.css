@@ -1,6 +1,5 @@
-/* Sombre par défaut. Basculé en clair via [data-theme="light"] sur <html>
-   (voir web/src/theme.js, réglage dans Paramètres > Apparence — préférence
-   stockée en local, pas encore par organisation). */
+/* Toujours sombre — pas de thème clair (retiré, voir Paramètres > un seul
+   thème possible désormais, plus de bascule à proposer). */
 :root {
   --accent: #0a84ff;
   --bg: #1c1c1e;
@@ -23,24 +22,6 @@
   --scrollbar-thumb: rgba(255, 255, 255, 0.18);
   --table-row-border: rgba(255, 255, 255, 0.06);
   --toast-bg: #3a3a3c;
-  --toast-text: #ffffff;
-}
-
-:root[data-theme='light'] {
-  --bg: #f2f2f5;
-  --card: #ffffff;
-  --card-alt: #e9e9ee;
-  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 1px 8px rgba(0, 0, 0, 0.04);
-  --border: rgba(0, 0, 0, 0.08);
-  --border-strong: rgba(0, 0, 0, 0.16);
-  --switch-off: #d8d8dc;
-  --text: #1c1c1e;
-  --text-muted: #6e6e73;
-  --text-faint: #48484a;
-  --sidebar-bg: rgba(255, 255, 255, 0.9);
-  --scrollbar-thumb: rgba(0, 0, 0, 0.18);
-  --table-row-border: rgba(0, 0, 0, 0.06);
-  --toast-bg: #2c2c2e;
   --toast-text: #ffffff;
 }
 

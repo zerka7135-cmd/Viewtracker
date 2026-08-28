@@ -1,18 +1,16 @@
 import { useEffect, useState } from 'react';
 import { getBotConfig, updateBotConfig, changePassword, getUsers, addUser as addUserApi, removeUser as removeUserApi } from '../api.js';
-import SegmentedControl from './SegmentedControl.jsx';
 import { IconTrash } from './icons.jsx';
-
-const THEME_OPTIONS = [['dark', 'Sombre'], ['light', 'Clair']];
 
 // Version sans multi-organisation (voir backup/dashboard-rewrite-27-08
 // pour cette version-là, qui a besoin de Postgres) : pas d'onglet
 // "Organisation" (renommage/suppression), qui n'a pas de sens ici — un
 // seul bot. "Compte" existe en revanche : mot de passe + gestion des
 // comptes autorisés à se connecter (voir auth.js), plusieurs personnes
-// peuvent avoir leur propre e-mail/mot de passe.
+// peuvent avoir leur propre e-mail/mot de passe. Pas d'onglet "Général" :
+// il ne portait que le choix de thème clair/sombre, retiré (l'app ne
+// propose plus que le thème sombre, voir theme.css/theme.js).
 const TABS = [
-  ['general', 'Général'],
   ['discord', 'Discord'],
   ['collecte', 'Collecte'],
   ['compte', 'Compte']
@@ -379,8 +377,8 @@ function UsersSection({ currentEmail, onToast }) {
   );
 }
 
-export default function SettingsView({ settings, onToggle, onUpdateSettings, theme, onThemeChange, onToast, currentEmail }) {
-  const [activeTab, setActiveTab] = useState('general');
+export default function SettingsView({ settings, onToggle, onUpdateSettings, onToast, currentEmail }) {
+  const [activeTab, setActiveTab] = useState('discord');
 
   const [cronSchedule, setCronSchedule] = useState(settings.cronSchedule || '');
   const [timezone, setTimezone] = useState(settings.timezone || '');
@@ -415,15 +413,6 @@ export default function SettingsView({ settings, onToggle, onUpdateSettings, the
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 720 }}>
       <SettingsTabs active={activeTab} onChange={setActiveTab} />
-
-      <div className="card" style={{ padding: '18px 22px' }} hidden={activeTab !== 'general'}>
-        <div className="card-title" style={{ marginBottom: 4 }}>Apparence</div>
-        <div className="settings-table">
-          <Row label="Thème" description="Préférence enregistrée sur cet appareil.">
-            <SegmentedControl options={THEME_OPTIONS} value={theme} onChange={onThemeChange} style={{ width: 152 }} />
-          </Row>
-        </div>
-      </div>
 
       <div style={{ display: activeTab !== 'discord' ? 'none' : 'flex', flexDirection: 'column', gap: 20 }}>
         <div className="card" style={{ padding: '18px 22px' }}>
