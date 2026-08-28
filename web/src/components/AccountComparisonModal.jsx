@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getAccountHistory } from '../api.js';
-import { fmtShort } from '../format.js';
+import { fmt, fmtShort } from '../format.js';
 import MultiLineChart from './MultiLineChart.jsx';
 import CloseButton from './CloseButton.jsx';
 import { useEscapeKey } from '../useEscapeKey.js';
-import { IconSearch } from './icons.jsx';
+import { IconSearch, IconFile } from './icons.jsx';
+import { downloadPdf } from '../pdf.js';
 
 const MAX_COMPARE = 4;
 const RANGES = [7, 14, 30];
@@ -21,12 +22,13 @@ const COMPARE_COLORS = ['#3987e5', '#d95926', '#199e70', '#c98500'];
  * ce composant) — pour comparer la progression de plusieurs comptes plutôt
  * que de naviguer leurs tiroirs de détail un par un.
  */
-export default function AccountComparisonModal({ accounts, onClose }) {
+export default function AccountComparisonModal({ accounts, onClose, onToast }) {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState([]);
   const [days, setDays] = useState(14);
   const [seriesByName, setSeriesByName] = useState({});
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   useEscapeKey(onClose);
 
   const filtered = useMemo(() => {
@@ -72,6 +74,30 @@ export default function AccountComparisonModal({ accounts, onClose }) {
   }, [selected, seriesByName]);
   const colors = Object.fromEntries(chartSeries.map(([key, , color]) => [key, color]));
   const seriesForChart = chartSeries.map(([key, label]) => [key, label]);
+
+  // Tableau date x comptes (une colonne par compte sélectionné) — le
+  // rapport le plus utile ici est la comparaison ligne à ligne, pas une
+  // série par compte à part (qui obligerait à recouper les dates à la main
+  // pour comparer deux comptes sur un même jour).
+  const exportPdf = async () => {
+    setExporting(true);
+    try {
+      const summary = selected.map((name, i) => [name, fmt(chartData[chartData.length - 1]?.[name] ?? 0)]);
+      const rows = chartData.map((row) => [row.date, ...selected.map((name) => row[name])]);
+      await downloadPdf(
+        `viewtracker-comparaison-${new Date().toISOString().slice(0, 10)}`,
+        'Comparaison de comptes',
+        `${selected.join(', ')} — ${days} derniers jours`,
+        summary,
+        ['Date', ...selected],
+        rows
+      );
+    } catch (err) {
+      onToast(`Erreur export PDF : ${err.message}`);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <>
@@ -123,7 +149,7 @@ export default function AccountComparisonModal({ accounts, onClose }) {
 
           {selected.length > 0 && (
             <>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6 }}>
                 {RANGES.map((d) => (
                   <button
                     key={d}
@@ -140,6 +166,16 @@ export default function AccountComparisonModal({ accounts, onClose }) {
                     {d}j
                   </button>
                 ))}
+                <button
+                  type="button"
+                  className="icon-btn"
+                  title="Exporter la comparaison en PDF"
+                  aria-label="Exporter la comparaison en PDF"
+                  onClick={exportPdf}
+                  disabled={exporting || chartData.length === 0}
+                >
+                  {exporting ? <span className="login-spinner" /> : <IconFile size={14} />}
+                </button>
               </div>
 
               <div style={{ background: 'var(--card-alt)', border: '1px solid var(--border)', borderRadius: 12, padding: 14 }}>

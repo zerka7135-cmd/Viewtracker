@@ -5,10 +5,9 @@ import Sparkline from './Sparkline.jsx';
 import AreaChart from './AreaChart.jsx';
 import AddAccountModal from './AddAccountModal.jsx';
 import ConfirmModal from './ConfirmModal.jsx';
-import { IconEdit, IconTrash, IconDownload, IconFile } from './icons.jsx';
+import { IconEdit, IconTrash, IconFile } from './icons.jsx';
 import { useEscapeKey } from '../useEscapeKey.js';
 import CloseButton from './CloseButton.jsx';
-import { downloadCsv } from '../csv.js';
 import { downloadPdf } from '../pdf.js';
 
 const PLATFORMS = [
@@ -23,11 +22,13 @@ const RANGES = [7, 14, 30];
 // filtré sur ce seul compte plutôt qu'agrégé sur toute l'organisation.
 // Chargé à part (pas dans getAccountsWithStats) car il dépend de la
 // période/plateforme choisies par l'utilisateur dans le tiroir.
-function AccountHistoryChart({ accountName, onToast }) {
+function AccountHistoryChart({ account, onToast }) {
+  const accountName = account.name;
   const [days, setDays] = useState(14);
   const [platform, setPlatform] = useState('all');
   const [series, setSeries] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,11 +43,25 @@ function AccountHistoryChart({ accountName, onToast }) {
   const hasData = chartData.some((d) => d.value > 0);
   const color = platform === 'all' ? 'var(--accent)' : PLATFORMS.find((p) => p.key === platform).color;
 
-  const exportFilename = `viewtracker-${accountName}-${platform}-${days}j`;
-  const exportRows = chartData.map((d) => [d.date, d.value]);
-  const exportCsv = () => downloadCsv(exportFilename, ['Date', 'Vues'], exportRows);
-  const exportPdf = () => downloadPdf(exportFilename, `Évolution — ${accountName}`, ['Date', 'Vues'], exportRows)
-    .catch((err) => onToast(`Erreur export PDF : ${err.message}`));
+  const exportPdf = async () => {
+    setExporting(true);
+    try {
+      const filename = `viewtracker-${accountName}-${platform}-${days}j`;
+      const rows = chartData.map((d) => [d.date, d.value]);
+      const rangeLabel = platform === 'all' ? 'Toutes plateformes' : PLATFORMS.find((p) => p.key === platform).name;
+      const summary = [
+        ['Total cumulé', fmt(account.allTime.total)],
+        ['Instagram', account.ig === null ? 'Ban' : fmt(account.allTime.ig)],
+        ['TikTok', account.tt === null ? 'Ban' : fmt(account.allTime.tt)],
+        ['YouTube', account.yt === null ? 'Ban' : fmt(account.allTime.yt)]
+      ];
+      await downloadPdf(filename, accountName, `${rangeLabel} — ${days} derniers jours`, summary, ['Date', 'Vues'], rows);
+    } catch (err) {
+      onToast(`Erreur export PDF : ${err.message}`);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div>
@@ -75,11 +90,8 @@ function AccountHistoryChart({ accountName, onToast }) {
             <option value="tt">TikTok</option>
             <option value="yt">YouTube</option>
           </select>
-          <button type="button" className="icon-btn" title="Exporter en CSV" aria-label="Exporter l'évolution en CSV" onClick={exportCsv} disabled={!hasData}>
-            <IconDownload size={14} />
-          </button>
-          <button type="button" className="icon-btn" title="Exporter en PDF" aria-label="Exporter l'évolution en PDF" onClick={exportPdf} disabled={!hasData}>
-            <IconFile size={14} />
+          <button type="button" className="icon-btn" title="Exporter en PDF" aria-label="Exporter l'évolution en PDF" onClick={exportPdf} disabled={!hasData || exporting}>
+            {exporting ? <span className="login-spinner" /> : <IconFile size={14} />}
           </button>
         </div>
       </div>
@@ -188,7 +200,7 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
         {/* Remonté à chaque ouverture d'un compte différent (key=account.name)
             pour repartir sur la période/plateforme par défaut plutôt que de
             garder l'état du compte précédemment consulté. */}
-        <AccountHistoryChart key={shown.name} accountName={shown.name} onToast={onToast} />
+        <AccountHistoryChart key={shown.name} account={shown} onToast={onToast} />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {PLATFORMS.map((p) => (
