@@ -1,5 +1,5 @@
-// Petit wrapper fetch vers l'API Express (src/server.js). Mot de passe
-// unique (voir auth.js) — cookie de session inclus (credentials:'include'),
+// Petit wrapper fetch vers l'API Express (src/server.js). Comptes par
+// e-mail (voir auth.js) — cookie de session inclus (credentials:'include'),
 // nécessaire même en dev où Vite tourne sur un port différent d'Express.
 
 class ApiError extends Error {
@@ -32,10 +32,16 @@ async function request(path, opts = {}) {
 export { ApiError };
 
 export const me = () => request('/me');
-export const setupPassword = (password) => request('/setup-password', { method: 'POST', body: JSON.stringify({ password }) });
-export const login = (password) => request('/login', { method: 'POST', body: JSON.stringify({ password }) });
+export const setupPassword = (email, password) => request('/setup-password', { method: 'POST', body: JSON.stringify({ email, password }) });
+export const login = (email, password) => request('/login', { method: 'POST', body: JSON.stringify({ email, password }) });
 export const logout = () => request('/logout', { method: 'POST' });
 export const changePassword = (currentPassword, newPassword) => request('/account/password', { method: 'PATCH', body: JSON.stringify({ currentPassword, newPassword }) });
+
+// Comptes autorisés à se connecter (voir auth.js) — n'importe quel compte
+// déjà connecté peut en ajouter/retirer d'autres, pas de rôle admin distinct.
+export const getUsers = () => request('/users');
+export const addUser = (email, password) => request('/users', { method: 'POST', body: JSON.stringify({ email, password }) });
+export const removeUser = (email) => request(`/users/${encodeURIComponent(email)}`, { method: 'DELETE' });
 
 export const getDashboard = () => request('/dashboard');
 export const addAccount = (name, urls) => request('/accounts', { method: 'POST', body: JSON.stringify({ name, urls }) });

@@ -15,9 +15,10 @@ import { getStoredTheme, applyTheme } from './theme.js';
 const SCAN_POLL_MS = 4000;
 const MIN_LOADING_MS = 1500; // durée minimale du loader initial (voir LoadingScreen.jsx)
 
-// Mot de passe unique (voir auth.js), pas de multi-utilisateur/organisation
-// (voir backup/dashboard-rewrite-27-08 pour cette version-là, qui a besoin
-// de Postgres) : un seul bot, un seul propriétaire à authentifier.
+// Comptes par e-mail (voir auth.js), pas d'organisation/rôles (voir
+// backup/dashboard-rewrite-27-08 pour cette version-là, qui a besoin de
+// Postgres) : un seul bot, mais plusieurs personnes peuvent avoir leur
+// propre compte pour s'y connecter.
 export default function App() {
   const [theme, setTheme] = useState(getStoredTheme);
   useEffect(() => { applyTheme(theme); }, [theme]);
@@ -36,6 +37,7 @@ export default function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [passwordSet, setPasswordSet] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
+  const [currentEmail, setCurrentEmail] = useState(null);
 
   // Écran de bienvenue affiché une fois par onglet (pas à chaque
   // rechargement/reconnexion dans la même session navigateur) avant
@@ -57,6 +59,7 @@ export default function App() {
     api.me().then((res) => {
       setPasswordSet(res.passwordSet);
       setAuthenticated(res.authenticated);
+      setCurrentEmail(res.email);
       setAuthChecked(true);
     });
   }, []);
@@ -152,12 +155,18 @@ export default function App() {
   const handleLogout = async () => {
     await api.logout().catch(() => {});
     setAuthenticated(false);
+    setCurrentEmail(null);
     setLoaded(false);
+  };
+
+  const handleLoginSuccess = () => {
+    setAuthenticated(true);
+    api.me().then((res) => setCurrentEmail(res.email)).catch(() => {});
   };
 
   if (!authChecked) return <LoadingScreen />;
   if (!authenticated && showWelcome) return <WelcomeScreen exiting={welcomeExiting} onContinue={dismissWelcome} />;
-  if (!authenticated) return <LoginScreen setupMode={!passwordSet} onSuccess={() => setAuthenticated(true)} />;
+  if (!authenticated) return <LoginScreen setupMode={!passwordSet} onSuccess={handleLoginSuccess} />;
   if (!loaded) return <LoadingScreen />;
 
   const drawerAccount = accounts.find((a) => a.name === drawerAccountName) || null;
@@ -198,6 +207,7 @@ export default function App() {
             onToast={showToast}
             theme={theme}
             onThemeChange={setTheme}
+            currentEmail={currentEmail}
           />
         )}
       </div>

@@ -2,15 +2,25 @@ import { useState } from 'react';
 import { login, setupPassword } from '../api.js';
 import { IconLogo, IconEye, IconEyeOff } from './icons.jsx';
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const LAST_EMAIL_KEY = 'vt-last-email';
+
 // Écran de connexion à deux panneaux (identité ViewTracker : bleu
 // --accent, IconLogo, formes discrètes) — même composition qu'une
 // maquette de référence (bandeau de bienvenue à gauche, formulaire à
 // droite), adaptée à notre palette plutôt que reprise telle quelle.
-// `setupMode` : premier accès, aucun mot de passe encore configuré (voir
+// `setupMode` : premier accès, aucun compte encore créé (voir
 // auth.js#isPasswordSet) — même écran, juste le texte/l'appel API qui
 // changent (setupPassword plutôt que login), pas de champ "mot de passe
 // actuel" puisqu'il n'y en a pas encore.
 export default function LoginScreen({ setupMode, onSuccess }) {
+  // Dernier e-mail utilisé sur cet appareil, pré-rempli mais éditable —
+  // pas une vraie session, juste un confort pour ne pas le retaper à
+  // chaque connexion (plusieurs comptes peuvent se connecter au même
+  // dashboard, voir auth.js).
+  const [email, setEmail] = useState(() => {
+    try { return localStorage.getItem(LAST_EMAIL_KEY) || ''; } catch { return ''; }
+  });
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
@@ -18,6 +28,8 @@ export default function LoginScreen({ setupMode, onSuccess }) {
   const [reveal, setReveal] = useState(false);
   const [capsLock, setCapsLock] = useState(false);
 
+  const emailValid = EMAIL_RE.test(email.trim());
+  const emailTouched = email.length > 0;
   const confirmMismatch = setupMode && confirm.length > 0 && password !== confirm;
 
   const trackCapsLock = (e) => {
@@ -27,14 +39,20 @@ export default function LoginScreen({ setupMode, onSuccess }) {
   const submit = async (e) => {
     e.preventDefault();
     setError('');
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!EMAIL_RE.test(trimmedEmail)) {
+      setError('Adresse e-mail invalide');
+      return;
+    }
     if (setupMode && password !== confirm) {
       setError('Les deux mots de passe ne correspondent pas');
       return;
     }
     setSubmitting(true);
     try {
-      if (setupMode) await setupPassword(password);
-      else await login(password);
+      if (setupMode) await setupPassword(trimmedEmail, password);
+      else await login(trimmedEmail, password);
+      try { localStorage.setItem(LAST_EMAIL_KEY, trimmedEmail); } catch { /* non bloquant */ }
       onSuccess();
     } catch (err) {
       setError(err.message);
@@ -54,17 +72,33 @@ export default function LoginScreen({ setupMode, onSuccess }) {
           </div>
           <div className="login-panel-brand-sub">
             {setupMode
-              ? 'Choisis un mot de passe pour protéger l\'accès au dashboard — il pilote maintenant IG/TikTok/YouTube et les identifiants du bot.'
+              ? 'Crée le premier compte pour protéger l\'accès au dashboard — il pilote maintenant IG/TikTok/YouTube et les identifiants du bot.'
               : 'Connecte-toi pour accéder au classement, aux comptes suivis et aux réglages du bot.'}
           </div>
         </div>
 
         <form className="login-panel-form" onSubmit={submit} autoComplete="on">
           <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
-            {setupMode ? 'Créer un mot de passe' : 'Connexion'}
+            {setupMode ? 'Créer un compte' : 'Connexion'}
           </div>
           <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 18 }}>
-            {setupMode ? 'À retenir, il n\'y a pas d\'autre compte ni de récupération.' : 'Mot de passe du dashboard.'}
+            {setupMode ? 'À retenir, il n\'y a pas de récupération par e-mail.' : 'E-mail et mot de passe du dashboard.'}
+          </div>
+
+          <label className="login-field-label" htmlFor="login-email">E-mail</label>
+          <input
+            id="login-email"
+            className="input"
+            type="email"
+            autoFocus
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="toi@exemple.com"
+            style={{ marginBottom: 4, borderColor: emailTouched && !emailValid ? 'var(--red)' : undefined }}
+          />
+          <div style={{ minHeight: 4, marginBottom: emailTouched && !emailValid ? 8 : 14 }}>
+            {emailTouched && !emailValid && <div className="login-strength-hint">✕ Adresse e-mail invalide</div>}
           </div>
 
           <label className="login-field-label" htmlFor="login-password">Mot de passe</label>
@@ -73,7 +107,6 @@ export default function LoginScreen({ setupMode, onSuccess }) {
               id="login-password"
               className="input"
               type={reveal ? 'text' : 'password'}
-              autoFocus
               autoComplete={setupMode ? 'new-password' : 'current-password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -128,7 +161,7 @@ export default function LoginScreen({ setupMode, onSuccess }) {
           <button
             type="submit"
             className="btn btn-accent"
-            disabled={submitting || !password || (setupMode && (password.length < 8 || confirmMismatch))}
+            disabled={submitting || !emailValid || !password || (setupMode && (password.length < 8 || confirmMismatch))}
             style={{ width: '100%', justifyContent: 'center', padding: '11px 0', gap: 8 }}
           >
             {submitting && <span className="login-spinner" aria-hidden="true" />}

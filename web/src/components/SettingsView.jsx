@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
-import { getBotConfig, updateBotConfig, changePassword } from '../api.js';
+import { getBotConfig, updateBotConfig, changePassword, getUsers, addUser as addUserApi, removeUser as removeUserApi } from '../api.js';
 import SegmentedControl from './SegmentedControl.jsx';
+import { IconTrash } from './icons.jsx';
 
 const THEME_OPTIONS = [['dark', 'Sombre'], ['light', 'Clair']];
 
 // Version sans multi-organisation (voir backup/dashboard-rewrite-27-08
 // pour cette version-là, qui a besoin de Postgres) : pas d'onglet
 // "Organisation" (renommage/suppression), qui n'a pas de sens ici — un
-// seul bot. "Compte" existe en revanche : un seul mot de passe partagé
-// (voir auth.js), mais reste modifiable.
+// seul bot. "Compte" existe en revanche : mot de passe + gestion des
+// comptes autorisés à se connecter (voir auth.js), plusieurs personnes
+// peuvent avoir leur propre e-mail/mot de passe.
 const TABS = [
   ['general', 'Général'],
   ['discord', 'Discord'],
@@ -241,7 +243,7 @@ function ChangePasswordSection({ onToast }) {
     <div className="card" style={{ padding: '18px 22px' }}>
       <div className="card-title" style={{ marginBottom: 4 }}>Mot de passe</div>
       <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 6, lineHeight: 1.5 }}>
-        Un seul mot de passe protège tout le dashboard — le changer déconnecte tous les appareils déjà connectés au prochain rechargement.
+        Concerne uniquement ton compte — le changer déconnecte tes propres appareils déjà connectés, pas ceux des autres comptes.
       </div>
       <form onSubmit={submit} className="settings-table">
         <Row label="Mot de passe actuel">
@@ -263,7 +265,103 @@ function ChangePasswordSection({ onToast }) {
   );
 }
 
-export default function SettingsView({ settings, onToggle, onUpdateSettings, theme, onThemeChange, onToast }) {
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Comptes autorisés à se connecter au dashboard (voir auth.js) — pas de
+// rôle admin distinct, n'importe quel compte déjà connecté peut en
+// ajouter/retirer d'autres.
+function UsersSection({ currentEmail, onToast }) {
+  const [emails, setEmails] = useState(null);
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [removingEmail, setRemovingEmail] = useState(null);
+
+  const refresh = () => getUsers().then((res) => setEmails(res.emails)).catch(() => {});
+  useEffect(() => { refresh(); }, []);
+
+  const submitAdd = async (e) => {
+    e.preventDefault();
+    if (!EMAIL_RE.test(newEmail.trim())) {
+      onToast('Erreur : adresse e-mail invalide');
+      return;
+    }
+    setAdding(true);
+    try {
+      await addUserApi(newEmail.trim().toLowerCase(), newPassword);
+      onToast(`Compte "${newEmail.trim()}" ajouté`);
+      setNewEmail('');
+      setNewPassword('');
+      refresh();
+    } catch (err) {
+      onToast(`Erreur : ${err.message}`);
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const remove = async (email) => {
+    setRemovingEmail(email);
+    try {
+      await removeUserApi(email);
+      onToast(`Compte "${email}" supprimé`);
+      refresh();
+    } catch (err) {
+      onToast(`Erreur : ${err.message}`);
+    } finally {
+      setRemovingEmail(null);
+    }
+  };
+
+  if (!emails) return null;
+
+  return (
+    <div className="card" style={{ padding: '18px 22px' }}>
+      <div className="card-title" style={{ marginBottom: 4 }}>Comptes autorisés</div>
+      <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
+        Toute personne avec un compte a le même accès complet (comptes suivis, réglages, identifiants du bot) — pas de rôle limité pour l'instant.
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 16 }}>
+        {emails.map((email) => (
+          <div key={email} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderRadius: 8, background: 'var(--card-alt)' }}>
+            <div style={{ fontSize: 13, fontWeight: 500 }}>
+              {email}
+              {email === currentEmail && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}> — toi</span>}
+            </div>
+            <button
+              type="button"
+              className="icon-btn icon-btn-danger"
+              title="Supprimer ce compte"
+              aria-label={`Supprimer le compte ${email}`}
+              disabled={emails.length <= 1 || removingEmail === email}
+              onClick={() => remove(email)}
+            >
+              <IconTrash size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <SubsectionLabel>Ajouter un compte</SubsectionLabel>
+      <form onSubmit={submitAdd} className="settings-table">
+        <Row label="E-mail">
+          <input className="input" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="collegue@exemple.com" style={{ width: '100%', maxWidth: 220 }} />
+        </Row>
+        <Row label="Mot de passe" description="Au moins 8 caractères — à communiquer à la personne concernée.">
+          <input className="input" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={{ width: '100%', maxWidth: 220 }} />
+        </Row>
+        <Row label="">
+          <button type="submit" className="btn btn-ghost" disabled={adding || !newEmail.trim() || newPassword.length < 8} style={{ borderRadius: 8 }}>
+            {adding ? 'Ajout…' : 'Ajouter'}
+          </button>
+        </Row>
+      </form>
+    </div>
+  );
+}
+
+export default function SettingsView({ settings, onToggle, onUpdateSettings, theme, onThemeChange, onToast, currentEmail }) {
   const [activeTab, setActiveTab] = useState('general');
 
   const [cronSchedule, setCronSchedule] = useState(settings.cronSchedule || '');
@@ -357,7 +455,12 @@ export default function SettingsView({ settings, onToggle, onUpdateSettings, the
         </div>
       )}
 
-      {activeTab === 'compte' && <ChangePasswordSection onToast={onToast} />}
+      {activeTab === 'compte' && (
+        <>
+          <UsersSection currentEmail={currentEmail} onToast={onToast} />
+          <ChangePasswordSection onToast={onToast} />
+        </>
+      )}
     </div>
   );
 }
