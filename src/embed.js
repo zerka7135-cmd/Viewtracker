@@ -170,3 +170,24 @@ export function buildStuckAccountsEmbed(stuckAccounts) {
     .setColor(0xE74C3C)
     .setTimestamp();
 }
+
+/**
+ * MP à l'owner quand un compte franchit le seuil de vues cumulées (all-time)
+ * qu'il a configuré (voir accountsStore.js#alertThreshold, réglable depuis
+ * le dashboard). Ne se déclenche qu'une fois par seuil, voir
+ * index.js#sendThresholdAlertsToOwner.
+ * @param {Array<{account: string, threshold: number, total: number}>} triggered
+ */
+export function buildThresholdAlertEmbed(triggered) {
+  if (!triggered || triggered.length === 0) return null;
+
+  const description = triggered
+    .map(t => `**${t.account}** a dépassé son seuil de **${t.threshold.toLocaleString('fr-FR')}** vues — total actuel : ${t.total.toLocaleString('fr-FR')}`)
+    .join('\n');
+
+  return new EmbedBuilder()
+    .setTitle('🎯 Seuil de vues atteint')
+    .setDescription(description)
+    .setColor(0x30D158)
+    .setTimestamp();
+}
