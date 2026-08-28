@@ -149,40 +149,28 @@ select:focus-visible,
   opacity: 0;
   margin-left: 0;
 }
-/* Pastille flottante plutôt qu'un bouton dans la ligne du logo (voir
-   Sidebar.jsx) : position fixe par rapport au coin haut-droit de la
-   sidebar, identique ouvert ou replié. Posée au-dessus du logo (dans la
-   zone de padding-top de .sidebar, 22px) plutôt qu'à côté : en mode
-   replié, la colonne ne fait que 56px de large une fois son padding
-   retiré — juste assez pour l'icône du logo (30px) seule, pas de place
-   pour un bouton à côté sans les faire se chevaucher. Idéalement à cheval
-   sur la bordure droite de la sidebar (comme Notion/Linear), mais
-   .sidebar a overflow-y:auto — qui, en CSS, force aussi overflow-x à se
-   comporter en `auto` (jamais `visible`) dès qu'un seul axe n'est pas
-   `visible` — donc tout ce qui déborderait la boîte serait rogné : le
-   bouton reste à l'intérieur plutôt que de chevaucher le bord. */
 .sidebar-collapse-btn {
-  position: absolute;
-  top: 4px;
-  right: 10px;
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
+  margin-left: auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
   border: 1px solid var(--border-strong);
-  background: var(--card);
+  background: transparent;
   color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: 12px;
   flex-shrink: 0;
-  z-index: 1;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .sidebar-collapse-btn:hover {
   background: var(--card-alt);
   color: var(--text);
+}
+.sidebar.collapsed .sidebar-collapse-btn {
+  margin-left: 6px;
 }
 
 .nav {
