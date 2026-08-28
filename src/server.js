@@ -7,6 +7,7 @@ import { getBotConfigStatus, updateBotConfig } from './botConfig.js';
 import { getScanStatus } from './scanStatus.js';
 import {
   isPasswordSet, setInitialPassword, checkPassword, changePassword,
+  addUser, removeUser, listEmails, getSessionEmail,
   setSessionCookie, clearSessionCookie, isAuthenticated,
   recordLoginFailure, recordLoginSuccess, loginDelayMs, shouldAlertOwner
 } from './auth.js';
@@ -34,10 +35,11 @@ const CSP = [
 ].join('; ');
 
 // Serveur HTTP du dashboard (API + assets statiques du build React, voir
-// web/) — mot de passe unique (voir auth.js), pas de multi-utilisateur/
-// organisation (voir backup/dashboard-rewrite-27-08 pour cette version-là,
-// qui a besoin de Postgres). Un seul bot, un seul jeu de données
-// (data/*.json), un seul propriétaire à authentifier.
+// web/) — comptes multiples par e-mail (voir auth.js), mais toujours pas
+// d'organisation/rôles (voir backup/dashboard-rewrite-27-08 pour cette
+// version-là, qui a besoin de Postgres) : un seul bot, un seul jeu de
+// données (data/*.json), plusieurs personnes peuvent s'y connecter avec
+// leurs propres identifiants mais ont toutes le même accès complet.
 //
 // Aucune route ne déclenche de scan : la collecte reste uniquement pilotée
 // par le cron planifié ou les scripts CLI (npm run scan / run-once) — voir
@@ -74,19 +76,20 @@ export async function startServer(client) {
   // --- Auth (routes publiques, avant le middleware requireAuth ci-dessous) ---
 
   app.get('/api/me', (req, res) => {
-    res.json({ passwordSet: isPasswordSet(), authenticated: isAuthenticated(req) });
+    res.json({ passwordSet: isPasswordSet(), authenticated: isAuthenticated(req), email: getSessionEmail(req) });
   });
 
-  // Uniquement tant qu'aucun mot de passe n'existe — passé ce point,
-  // setInitialPassword() refuse (voir auth.js), il faut passer par
-  // PATCH /api/account/password (authentifié) pour le changer.
+  // Uniquement tant qu'aucun compte n'existe — passé ce point,
+  // setInitialPassword() refuse (voir auth.js), il faut être déjà connecté
+  // et passer par POST /api/users pour ajouter un compte supplémentaire.
   app.post('/api/setup-password', async (req, res, next) => {
     try {
-      await setInitialPassword(req.body?.password || '');
-      setSessionCookie(req, res);
+      const email = req.body?.email || '';
+      await setInitialPassword(email, req.body?.password || '');
+      setSessionCookie(req, res, email.trim().toLowerCase());
       res.status(201).json({ ok: true });
     } catch (error) {
-      if (error.message.includes('caractères') || error.message.includes('déjà configuré')) {
+      if (error.message.includes('caractères') || error.message.includes('déjà configuré') || error.message.includes('invalide')) {
         return res.status(400).json({ error: error.message });
       }
       next(error);
@@ -96,17 +99,18 @@ export async function startServer(client) {
   app.post('/api/login', async (req, res, next) => {
     try {
       const ip = req.ip;
+      const email = (req.body?.email || '').trim().toLowerCase();
       const delay = loginDelayMs(ip);
       if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
 
-      const valid = await checkPassword(req.body?.password || '');
+      const valid = await checkPassword(email, req.body?.password || '');
       if (!valid) {
         recordLoginFailure(ip);
-        if (shouldAlertOwner(ip)) sendLoginAlert(client, ip).catch(() => {});
-        return res.status(401).json({ error: 'Mot de passe incorrect' });
+        if (shouldAlertOwner(ip)) sendLoginAlert(client, ip, email).catch(() => {});
+        return res.status(401).json({ error: 'E-mail ou mot de passe incorrect' });
       }
       recordLoginSuccess(ip);
-      setSessionCookie(req, res);
+      setSessionCookie(req, res, email);
       res.json({ ok: true });
     } catch (error) {
       next(error);
@@ -126,10 +130,42 @@ export async function startServer(client) {
 
   app.patch('/api/account/password', async (req, res, next) => {
     try {
-      await changePassword(req.body?.currentPassword || '', req.body?.newPassword || '');
+      const email = getSessionEmail(req);
+      await changePassword(email, req.body?.currentPassword || '', req.body?.newPassword || '');
       res.json({ ok: true });
     } catch (error) {
       if (error.message.includes('incorrect') || error.message.includes('caractères')) {
+        return res.status(400).json({ error: error.message });
+      }
+      next(error);
+    }
+  });
+
+  // Comptes autorisés à se connecter au dashboard (voir auth.js) — pas de
+  // rôles, n'importe quel compte déjà connecté peut en ajouter/retirer
+  // d'autres.
+  app.get('/api/users', (req, res) => {
+    res.json({ emails: listEmails(), currentEmail: getSessionEmail(req) });
+  });
+
+  app.post('/api/users', async (req, res, next) => {
+    try {
+      await addUser(req.body?.email || '', req.body?.password || '');
+      res.status(201).json({ emails: listEmails() });
+    } catch (error) {
+      if (error.message.includes('caractères') || error.message.includes('déjà utilisée') || error.message.includes('invalide')) {
+        return res.status(400).json({ error: error.message });
+      }
+      next(error);
+    }
+  });
+
+  app.delete('/api/users/:email', (req, res, next) => {
+    try {
+      removeUser(req.params.email);
+      res.json({ emails: listEmails() });
+    } catch (error) {
+      if (error.message.includes('dernier compte') || error.message.includes('introuvable')) {
         return res.status(400).json({ error: error.message });
       }
       next(error);
@@ -245,13 +281,13 @@ function normalizeUrls(urls) {
 // tentative de bruteforce en cours, sans bloquer personne. N'échoue jamais
 // bruyamment : un souci d'envoi ne doit pas casser la réponse HTTP du login
 // (voir l'appel .catch(() => {}) ci-dessus).
-async function sendLoginAlert(client, ip) {
+async function sendLoginAlert(client, ip, attemptedEmail) {
   if (!client) return;
   const { discordOwnerId } = loadSettings();
   if (!discordOwnerId) return;
   try {
     const owner = await client.users.fetch(discordOwnerId);
-    await owner.send(`🔐 Plusieurs tentatives de connexion échouées au dashboard depuis l'IP \`${ip}\`. Si ce n'est pas toi, le mot de passe tient toujours (juste ralenti), mais surveille.`);
+    await owner.send(`🔐 Plusieurs tentatives de connexion échouées au dashboard depuis l'IP \`${ip}\` (dernier e-mail essayé : \`${attemptedEmail || 'inconnu'}\`). Si ce n'est pas toi, le mot de passe tient toujours (juste ralenti), mais surveille.`);
   } catch (error) {
     console.error('Erreur lors de l\'envoi de l\'alerte de connexion :', error);
   }

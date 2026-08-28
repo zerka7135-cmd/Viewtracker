@@ -211,25 +211,27 @@ dès sa création — `ACCOUNTS` ne sert plus que de valeur de départ). Pas de
 bouton "Lancer un scan" : la collecte reste pilotée uniquement par le cron
 planifié (ou `npm run scan`/`npm run run-once` en CLI).
 
-**Authentification par mot de passe unique** (voir `src/auth.js`) — un seul
-bot, un seul propriétaire, pas de compte par personne. Le mot de passe est
-créé au tout premier accès (écran "Créer un mot de passe" si
-`data/auth.json` n'existe pas encore), puis un cookie de session signé
-(HMAC, secret régénéré à chaque redémarrage) protège les routes `/api/*`
-pendant 30 jours. Changer le mot de passe (Paramètres > Compte) invalide
-immédiatement toutes les sessions ouvertes, y compris sur d'autres
-appareils. Un ralentissement croissant (jusqu'à 30s) s'applique après 3
-échecs de connexion consécutifs.
+**Authentification par comptes e-mail + mot de passe** (voir `src/auth.js`)
+— un seul bot, mais plusieurs personnes peuvent avoir leur propre compte
+pour s'y connecter (pas de rôles différenciés : tout compte authentifié a
+le même accès complet). Le premier compte est créé au tout premier accès
+(écran "Créer un compte" si `data/auth.json` n'existe pas encore) ; les
+suivants s'ajoutent depuis Paramètres > Compte par quelqu'un déjà connecté
+— pas d'auto-inscription publique, et aucun e-mail n'est jamais envoyé
+(l'adresse sert uniquement d'identifiant de connexion). Un cookie de
+session signé (HMAC, secret régénéré à chaque redémarrage) protège les
+routes `/api/*` pendant 30 jours. Changer son mot de passe (Paramètres >
+Compte) invalide immédiatement ses propres sessions ouvertes ailleurs,
+sans toucher aux autres comptes. Un ralentissement croissant (jusqu'à 30s)
+s'applique par IP après 3 échecs de connexion consécutifs, et un MP
+Discord alerte l'owner au-delà de 5 échecs.
 
-**Ça reste un mot de passe partagé, pas un vrai contrôle d'accès par
-personne** — protégez quand même l'accès réseau en plus (ex. domaine
-Railway privé, VPN) si plusieurs personnes différentes ne devraient pas
-toutes avoir la main sur le bot. **Ce point est particulièrement important
-depuis que Paramètres > Discord permet d'éditer le Token/Client ID/Guild
-ID du bot** (voir plus bas) : quiconque connaît le mot de passe peut
-remplacer ces identifiants et prendre le contrôle complet du bot — traitez
-ce mot de passe avec le même sérieux que le token lui-même. Version avec
-comptes utilisateurs/organisations et rôles : voir la branche
+**N'importe quel compte a le même accès complet, pas de rôle limité** —
+**particulièrement important depuis que Paramètres > Discord permet
+d'éditer le Token/Client ID/Guild ID du bot** (voir plus bas) : n'ajoutez
+un compte qu'à quelqu'un en qui vous avez une confiance totale, quiconque
+se connecte peut remplacer ces identifiants et prendre le contrôle complet
+du bot. Version avec organisations et rôles différenciés : voir la branche
 `backup/dashboard-rewrite-27-08`, qui nécessite en plus une base Postgres
 externe (non utilisée par la version actuelle).
 
