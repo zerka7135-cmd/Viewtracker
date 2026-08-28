@@ -5,10 +5,9 @@ import Sparkline from './Sparkline.jsx';
 import AreaChart from './AreaChart.jsx';
 import AddAccountModal from './AddAccountModal.jsx';
 import ConfirmModal from './ConfirmModal.jsx';
-import { IconEdit, IconTrash, IconDownload, IconFile } from './icons.jsx';
+import { IconEdit, IconTrash, IconFile } from './icons.jsx';
 import { useEscapeKey } from '../useEscapeKey.js';
 import CloseButton from './CloseButton.jsx';
-import { downloadCsv } from '../csv.js';
 import { downloadPdf } from '../pdf.js';
 
 const PLATFORMS = [
@@ -42,11 +41,12 @@ function AccountHistoryChart({ accountName, onToast }) {
   const hasData = chartData.some((d) => d.value > 0);
   const color = platform === 'all' ? 'var(--accent)' : PLATFORMS.find((p) => p.key === platform).color;
 
-  const exportFilename = `viewtracker-${accountName}-${platform}-${days}j`;
-  const exportRows = chartData.map((d) => [d.date, d.value]);
-  const exportCsv = () => downloadCsv(exportFilename, ['Date', 'Vues'], exportRows);
-  const exportPdf = () => downloadPdf(exportFilename, `Évolution — ${accountName}`, ['Date', 'Vues'], exportRows)
-    .catch((err) => onToast(`Erreur export PDF : ${err.message}`));
+  const exportPdf = () => {
+    const filename = `viewtracker-${accountName}-${platform}-${days}j`;
+    const rows = chartData.map((d) => [d.date, d.value]);
+    downloadPdf(filename, `Évolution — ${accountName}`, ['Date', 'Vues'], rows)
+      .catch((err) => onToast(`Erreur export PDF : ${err.message}`));
+  };
 
   return (
     <div>
@@ -75,9 +75,6 @@ function AccountHistoryChart({ accountName, onToast }) {
             <option value="tt">TikTok</option>
             <option value="yt">YouTube</option>
           </select>
-          <button type="button" className="icon-btn" title="Exporter en CSV" aria-label="Exporter l'évolution en CSV" onClick={exportCsv} disabled={!hasData}>
-            <IconDownload size={14} />
-          </button>
           <button type="button" className="icon-btn" title="Exporter en PDF" aria-label="Exporter l'évolution en PDF" onClick={exportPdf} disabled={!hasData}>
             <IconFile size={14} />
           </button>

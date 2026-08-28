@@ -1,8 +1,8 @@
-// Export PDF côté client — mêmes données que csv.js, mise en page tabulaire
-// simple (titre, date, tableau) plutôt qu'une reproduction visuelle du
-// dashboard (graphiques compris) : jspdf-autotable suffit largement pour un
-// export "classement à imprimer/partager", pas besoin de recréer les
-// composants SVG des graphiques en PDF pour cet usage.
+// Export PDF côté client — seul format d'export du dashboard (le CSV a été
+// retiré). Mise en page tabulaire simple (titre, date, tableau) plutôt
+// qu'une reproduction visuelle du dashboard (graphiques compris) :
+// jspdf-autotable suffit largement pour un export "à imprimer/partager",
+// pas besoin de recréer les composants SVG des graphiques en PDF.
 //
 // Import dynamique : jsPDF embarque html2canvas + dompurify même si on ne
 // s'en sert pas (juste du texte/tableau), ce qui alourdissait le bundle
