@@ -64,6 +64,25 @@ button, select, input {
   font-family: inherit;
 }
 
+/* Anneau de focus clavier — visible uniquement en navigation clavier
+   (:focus-visible, pas au clic souris) : générique, s'applique à tout
+   élément interactif natif ou porteur de tabindex/role="button" (voir
+   .nav-item ci-dessous), pour ne pas avoir à le répéter partout.
+   `input:focus-visible`/`select:focus-visible` (sélecteur élément +
+   pseudo-classe) a une spécificité plus élevée que `.input`/`.select`
+   (classe seule) et l'emporte donc sur leur `outline: none`, même définis
+   plus haut dans le fichier. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -701,6 +720,24 @@ button, select, input {
 }
 .table-row:hover {
   background: var(--card-alt);
+}
+.table-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 48px 20px;
+}
+.table-empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.table-empty-sub {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  max-width: 320px;
 }
 .ellipsis {
   overflow: hidden;

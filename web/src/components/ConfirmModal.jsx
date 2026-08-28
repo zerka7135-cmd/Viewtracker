@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useEscapeKey } from '../useEscapeKey.js';
 
 // Modale de confirmation générique (suppression d'un compte suivi, pour
 // l'instant) — remplace window.confirm(), qui n'est pas stylisé et
@@ -9,6 +10,7 @@ import { useState } from 'react';
 // membres/mots de passe) — un bouton "Annuler"/"Supprimer" clair suffit.
 export default function ConfirmModal({ title, message, confirmLabel = 'Confirmer', onConfirm, onCancel }) {
   const [pending, setPending] = useState(false);
+  useEscapeKey(onCancel);
 
   const handleConfirm = async () => {
     setPending(true);
@@ -28,7 +30,7 @@ export default function ConfirmModal({ title, message, confirmLabel = 'Confirmer
         <div className="card modal-card" style={{ border: '1px solid rgba(255,69,58,0.35)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--red)' }}>{title}</div>
-            <div onClick={onCancel} style={{ cursor: 'pointer', color: 'var(--text-muted)', fontSize: 20, lineHeight: 1, padding: 4 }}>×</div>
+            <button type="button" onClick={onCancel} aria-label="Fermer" style={{ cursor: 'pointer', background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
           </div>
 
           <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>{message}</div>
