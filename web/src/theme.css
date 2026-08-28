@@ -187,7 +187,7 @@ select:focus-visible,
   font-weight: 500;
   cursor: pointer;
   color: var(--text-muted);
-  transition: background 0.15s, color 0.15s, padding 0.22s cubic-bezier(0.4, 0, 0.2, 1), justify-content 0.22s;
+  transition: background 0.15s, color 0.15s, padding 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .nav-item-icon {
   width: 20px;
@@ -224,6 +224,16 @@ select:focus-visible,
 .sidebar.collapsed .nav-item {
   justify-content: center;
   padding: 8px;
+  /* `justify-content` n'est pas interpolable, donc pas transitionable par
+     défaut : sans `allow-discrete` (transition-behavior), le navigateur
+     l'applique instantanément dès le changement de classe, pendant que le
+     libellé est encore visible/en train de rétrécir — l'icône "saute" au
+     centre avant que le texte ait fini de disparaître. `allow-discrete`
+     bascule la valeur seulement en toute fin de transition (une fois le
+     libellé disparu), imperceptible plutôt que saccadé. Au dépli (règle de
+     base .nav-item, sans allow-discrete), le retour à flex-start reste
+     instantané dès le début — passe inaperçu sur une ligne encore étroite. */
+  transition: background 0.15s, color 0.15s, padding 0.22s cubic-bezier(0.4, 0, 0.2, 1), justify-content 0.05s allow-discrete 0.2s;
 }
 .nav-item.active {
   color: #fff;
@@ -333,6 +343,9 @@ select:focus-visible,
 }
 .sidebar.collapsed .sidebar-logout {
   justify-content: center;
+  /* Même bascule différée que .nav-item ci-dessus, pour la même raison
+     (justify-content non interpolable sans allow-discrete). */
+  transition: background 0.15s, color 0.15s, justify-content 0.05s allow-discrete 0.2s;
 }
 .sidebar-status {
   display: flex;
