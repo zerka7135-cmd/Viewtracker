@@ -2,13 +2,13 @@ import { Client, GatewayIntentBits } from 'discord.js';
 import cron from 'node-cron';
 import { config, validateConfig } from './config.js';
 import { buildViewsSummary } from './instagram.js';
-import { build24hEmbed, buildAllTimeEmbed, buildErrorReportEmbed, buildStuckAccountsEmbed } from './embed.js';
+import { build24hEmbed, buildAllTimeEmbed, buildErrorReportEmbed, buildStuckAccountsEmbed, buildThresholdAlertEmbed } from './embed.js';
 import { acquireLock, releaseLock } from './cache.js';
 import { loadHistory, appendToday, computeGrowth24h, detectStuckAccounts } from './history.js';
 import { loadLastMessage, saveLastMessage } from './lastMessage.js';
 import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from './cumulativeViews.js';
 import { sendDataBackupToOwner } from './backup.js';
-import { loadAccounts } from './accountsStore.js';
+import { loadAccounts, markThresholdAlerted } from './accountsStore.js';
 import { loadSettings } from './settingsStore.js';
 import { markScanStarted, markScanFinished } from './scanStatus.js';
 import { startServer } from './server.js';
@@ -30,7 +30,8 @@ async function scrapeAndBroadcast() {
     // activée/désactivée) prend effet dès le prochain cycle, sans
     // redémarrage — voir settingsStore.js.
     const settings = loadSettings();
-    const summary = await buildViewsSummary(loadAccounts(), settings.postsLimit);
+    const accounts = loadAccounts();
+    const summary = await buildViewsSummary(accounts, settings.postsLimit);
 
     // L'historique *avant* ajout du jour sert de référence pour le calcul
     // du gain 24h (comparer aujourd'hui à aujourd'hui n'aurait pas de sens).
@@ -43,6 +44,13 @@ async function scrapeAndBroadcast() {
     const cumulativeBefore = loadCumulativeViews();
     const cumulativeAfter = updateCumulativeViews(cumulativeBefore, growth24h, summary);
     saveCumulativeViews(cumulativeAfter);
+
+    // Alertes de seuil (voir accountsStore.js#alertThreshold, réglable par
+    // compte depuis le dashboard) — indépendant de settings.notifWarnings
+    // (qui ne concerne que les échecs de scraping) : un seuil de vues
+    // atteint est une bonne nouvelle, pas une alerte d'échec, envoyée que
+    // ce toggle soit actif ou non.
+    await sendThresholdAlertsToOwner(accounts, cumulativeAfter, settings.discordOwnerId);
 
     // La publication Discord peut être coupée depuis le dashboard
     // (Paramètres > Discord > "Publier sur Discord") sans arrêter la
@@ -132,6 +140,36 @@ async function sendStuckAlertToOwner(history, discordOwnerId, stuckAlertMinDays)
   } catch (error) {
     console.error('Erreur lors de l\'envoi de l\'alerte comptes bloqués en MP :', error);
   }
+}
+
+// Un seul MP groupant tous les comptes qui viennent de franchir leur seuil
+// ce cycle-ci (pas un MP par compte) — marque chaque seuil comme notifié
+// (voir accountsStore.js#markThresholdAlerted) uniquement après l'envoi
+// réussi, pour ne pas perdre une alerte si le MP échoue (retentera au
+// prochain cycle).
+async function sendThresholdAlertsToOwner(accounts, cumulativeAfter, discordOwnerId) {
+  // Sans destinataire configuré, on ne marque rien comme notifié : sinon
+  // configurer discordOwnerId plus tard perdrait silencieusement les
+  // franchissements de seuil déjà passés inaperçus.
+  if (!discordOwnerId) return;
+
+  const triggered = accounts
+    .filter(a => typeof a.alertThreshold === 'number' && a.alertThreshold > 0 && a.alertedThreshold !== a.alertThreshold)
+    .map(a => ({ account: a.name, threshold: a.alertThreshold, total: cumulativeAfter[a.name]?.total ?? 0 }))
+    .filter(t => t.total >= t.threshold);
+
+  if (triggered.length === 0) return;
+
+  const embed = buildThresholdAlertEmbed(triggered);
+  try {
+    const owner = await client.users.fetch(discordOwnerId);
+    await owner.send({ embeds: [embed] });
+  } catch (error) {
+    console.error('Erreur lors de l\'envoi de l\'alerte de seuil en MP :', error);
+    return; // Échec d'envoi : on retentera au prochain cycle, rien à marquer.
+  }
+
+  for (const t of triggered) markThresholdAlerted(t.account, t.threshold);
 }
 
 client.on('error', (error) => console.error('Erreur client Discord :', error));

@@ -136,6 +136,11 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
               {fmt(shown.allTime.total)} vues cumulées
             </div>
+            {shown.alertThreshold && (
+              <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 2 }}>
+                🎯 Alerte à {fmt(shown.alertThreshold)} vues
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <button type="button" className="icon-btn" title="Modifier" aria-label="Modifier le compte" onClick={() => setEditing(true)}>

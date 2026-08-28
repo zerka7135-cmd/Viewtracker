@@ -10,10 +10,10 @@ import { config } from './config.js';
 export const ACCOUNTS_PATH = process.env.ACCOUNTS_STORE_PATH || path.resolve('./data/accounts.json');
 
 function seedFromEnv() {
-  return config.accounts.map(a => ({ name: a.name, urls: [...a.urls] }));
+  return config.accounts.map(a => ({ name: a.name, urls: [...a.urls], alertThreshold: null, alertedThreshold: null }));
 }
 
-/** @returns {Array<{name: string, urls: string[]}>} */
+/** @returns {Array<{name: string, urls: string[], alertThreshold: number|null, alertedThreshold: number|null}>} */
 export function loadAccounts() {
   try {
     if (!fs.existsSync(ACCOUNTS_PATH)) {
@@ -22,7 +22,10 @@ export function loadAccounts() {
       return seeded;
     }
     const parsed = JSON.parse(fs.readFileSync(ACCOUNTS_PATH, 'utf8'));
-    return Array.isArray(parsed) ? parsed : seedFromEnv();
+    if (!Array.isArray(parsed)) return seedFromEnv();
+    // Comptes enregistrés avant l'ajout des seuils d'alerte (voir plus bas) :
+    // pas de migration de fichier nécessaire, juste un repli à null au vol.
+    return parsed.map(a => ({ alertThreshold: null, alertedThreshold: null, ...a }));
   } catch (e) {
     console.error('Erreur de lecture des comptes, on repart de ACCOUNTS (.env) :', e.message);
     return seedFromEnv();
@@ -34,18 +37,23 @@ function saveAccounts(accounts) {
   fs.writeFileSync(ACCOUNTS_PATH, JSON.stringify(accounts, null, 2));
 }
 
-/** @param {string[]} urls [igUrl, ttUrl, ytUrl] — chaîne vide = plateforme non suivie. */
-export function addAccount(name, urls) {
+/**
+ * @param {string[]} urls [igUrl, ttUrl, ytUrl] — chaîne vide = plateforme non suivie.
+ * @param {number|null} alertThreshold Seuil de vues cumulées (all-time) à partir
+ * duquel une alerte Discord part une fois (voir index.js#sendThresholdAlertsToOwner) —
+ * null désactive l'alerte pour ce compte.
+ */
+export function addAccount(name, urls, alertThreshold = null) {
   const accounts = loadAccounts();
   if (accounts.some(a => a.name === name)) {
     throw new Error(`Le compte "${name}" existe déjà`);
   }
-  accounts.push({ name, urls });
+  accounts.push({ name, urls, alertThreshold, alertedThreshold: null });
   saveAccounts(accounts);
   return accounts;
 }
 
-export function updateAccount(currentName, name, urls) {
+export function updateAccount(currentName, name, urls, alertThreshold = null) {
   const accounts = loadAccounts();
   const index = accounts.findIndex(a => a.name === currentName);
   if (index === -1) {
@@ -54,7 +62,26 @@ export function updateAccount(currentName, name, urls) {
   if (name !== currentName && accounts.some(a => a.name === name)) {
     throw new Error(`Le compte "${name}" existe déjà`);
   }
-  accounts[index] = { name, urls };
+  const existing = accounts[index];
+  // Changer le seuil (y compris le désactiver) remet l'alerte à zéro : sans
+  // ça, relever un seuil déjà atteint ne redéclencherait jamais rien tant
+  // que alertedThreshold garde l'ancienne valeur.
+  const alertedThreshold = existing.alertThreshold === alertThreshold ? existing.alertedThreshold : null;
+  accounts[index] = { name, urls, alertThreshold, alertedThreshold };
+  saveAccounts(accounts);
+  return accounts;
+}
+
+/**
+ * Marque le seuil courant comme déjà notifié — appelé juste après l'envoi
+ * de l'alerte (voir index.js), pour ne jamais la renvoyer tant que le seuil
+ * lui-même ne change pas.
+ */
+export function markThresholdAlerted(name, threshold) {
+  const accounts = loadAccounts();
+  const index = accounts.findIndex(a => a.name === name);
+  if (index === -1) return accounts;
+  accounts[index] = { ...accounts[index], alertedThreshold: threshold };
   saveAccounts(accounts);
   return accounts;
 }
