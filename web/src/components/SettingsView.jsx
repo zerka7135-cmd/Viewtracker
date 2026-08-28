@@ -184,8 +184,8 @@ function BotIdentitySection({ onToast }) {
   if (!status) return null;
 
   return (
-    <div className="card" style={{ padding: '18px 22px', border: '1px solid rgba(255,159,10,0.3)' }}>
-      <div className="card-title" style={{ marginBottom: 4 }}>Identifiants du bot</div>
+    <div style={{ padding: '14px 16px', marginTop: 4, border: '1px solid rgba(255,159,10,0.3)', borderRadius: 10 }}>
+      <SubsectionLabel>Identifiants du bot</SubsectionLabel>
       <div style={{ fontSize: 11.5, color: 'var(--orange)', marginBottom: 6, lineHeight: 1.5 }}>
         ⚠ Quiconque connaît le mot de passe du dashboard peut changer ces valeurs et prendre le contrôle du bot — gardez-le aussi confidentiel que le token lui-même.
       </div>
@@ -435,9 +435,9 @@ export default function SettingsView({ settings, onToggle, onUpdateSettings, onT
               <DiscordSection settings={settings} onUpdateSettings={onUpdateSettings} onToast={onToast} />
             </>
           )}
-        </div>
 
-        <BotIdentitySection onToast={onToast} />
+          <BotIdentitySection onToast={onToast} />
+        </div>
       </div>
 
       <div className="card" style={{ padding: '18px 22px' }} hidden={activeTab !== 'collecte'}>
