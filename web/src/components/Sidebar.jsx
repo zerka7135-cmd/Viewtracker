@@ -4,7 +4,9 @@ import { IconDashboard, IconSettings, IconChevronLeft, IconChevronRight, IconLog
 // tendance + répartition par plateforme + gestion des comptes suivis —
 // voir DashboardView.jsx) : plus d'entrées dédiées, un seul tableau qui
 // fait les deux plutôt que deux pages qui affichaient presque la même chose.
-const NAV_ITEMS = [
+// Exporté : réutilisé tel quel par MobileTabBar.jsx, une seule liste de
+// destinations pour les deux navigations (desktop et mobile).
+export const NAV_ITEMS = [
   ['dashboard', 'Dashboard', IconDashboard],
   ['settings', 'Paramètres', IconSettings]
 ];

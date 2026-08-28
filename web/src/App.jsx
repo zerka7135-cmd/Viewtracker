@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as api from './api.js';
 import Sidebar from './components/Sidebar.jsx';
+import MobileTabBar from './components/MobileTabBar.jsx';
 import TopBar from './components/TopBar.jsx';
 import ScanStatusIndicator from './components/ScanStatusIndicator.jsx';
 import DashboardView from './components/DashboardView.jsx';
@@ -176,14 +177,16 @@ export default function App() {
         onToggleCollapsed={() => setSidebarCollapsed((c) => !c)}
         onLogout={handleLogout}
       />
+      {/* Barre d'onglets du bas — même destinations que Sidebar, visible
+          uniquement sous 700px (voir .mobile-tabbar dans theme.css), les
+          deux navs restant montées en permanence plutôt que démontées/
+          remontées au resize. */}
+      <MobileTabBar view={view} onNavigate={setView} />
       <div className="main">
         <TopBar
           view={view}
-          actions={view === 'dashboard' ? (
-            <div className="topbar-actions">
-              <ScanStatusIndicator scan={scan} />
-            </div>
-          ) : null}
+          actions={view === 'dashboard' ? <ScanStatusIndicator scan={scan} /> : null}
+          onLogout={handleLogout}
         />
 
         {view === 'dashboard' && (

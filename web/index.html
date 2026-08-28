@@ -2,7 +2,11 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover : laisse le CSS lire env(safe-area-inset-*) sur
+         iPhone à encoche/île dynamique — nécessaire pour que la barre de
+         navigation du bas et les feuilles plein écran (voir theme.css) ne
+         passent pas sous la zone gestuelle du bas d'écran. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>ViewTracker</title>
     <!-- Favicon : le robot d'IconLogo (icons.jsx) sur fond --accent (#0a84ff),
          couleurs figées en dur (pas de var() possible hors du DOM de la

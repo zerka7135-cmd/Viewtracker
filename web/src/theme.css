@@ -411,7 +411,16 @@ select:focus-visible,
   flex: 1;
   min-width: 0;
   max-width: 100%;
-  overflow-x: hidden;
+  /* `clip`, pas `hidden` : les deux masquent le débordement horizontal
+     (tableaux/graphiques trop larges), mais `hidden` fait de .main un
+     "scroll container" au sens CSS (même sans jamais réellement défiler,
+     voir plus bas) — ce qui casse le `position: sticky` du TopBar sur
+     mobile (voir .topbar dans la media query mobile) : sa position de
+     référence devient .main plutôt que la fenêtre, et comme .main lui-même
+     ne défile jamais (sa hauteur suit son contenu, c'est la fenêtre qui
+     défile), le sticky n'a jamais rien contre quoi s'accrocher. `clip` isole
+     le même débordement sans établir ce contexte de défilement. */
+  overflow-x: clip;
   padding: 30px 40px 48px;
   display: flex;
   flex-direction: column;
@@ -444,6 +453,12 @@ select:focus-visible,
   font-size: 12px;
   color: var(--text-muted);
   font-family: ui-monospace, 'SF Mono', monospace;
+}
+/* Doublon volontaire de la déconnexion de la Sidebar — celle-ci est
+   masquée sous 700px au profit de MobileTabBar (voir plus bas), qui n'a
+   pas de place pour un 3e bouton. Masqué par défaut, réaffiché en mobile. */
+.topbar-logout {
+  display: none;
 }
 
 .btn {
@@ -1372,60 +1387,202 @@ select:focus-visible,
     border-top: 1px solid var(--border);
   }
 }
+/* --- Navigation mobile (barre d'onglets du bas, voir MobileTabBar.jsx) ---
+
+   Sous 700px, la Sidebar (desktop) est entièrement masquée au profit d'une
+   vraie barre d'onglets fixée en bas de l'écran — plus proche des
+   conventions natives iOS/Android (zone de confort du pouce) que l'ancienne
+   sidebar repliée à l'horizontale en haut d'écran. Les deux navs restent
+   montées en permanence (voir App.jsx), seule cette media query décide
+   laquelle s'affiche. */
+.mobile-tabbar {
+  display: none;
+}
 @media (max-width: 700px) {
+  .sidebar {
+    display: none;
+  }
+  .mobile-tabbar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 39;
+    background: var(--sidebar-bg);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    /* env(safe-area-inset-bottom) : laisse la barre respirer au-dessus de
+       la zone gestuelle du bas d'écran (iPhone à encoche/île dynamique),
+       voir viewport-fit=cover dans index.html. */
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  }
+  .mobile-tabbar-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    /* 48px de haut mini (hors padding du conteneur) : zone tactile
+       confortable au pouce, au-delà du plancher de 44px recommandé
+       (Apple HIG / Material) — pas juste l'icône de 22px. */
+    min-height: 48px;
+    padding: 4px 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 10.5px;
+    font-weight: 600;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+  }
+  .mobile-tabbar-item.active {
+    color: var(--accent);
+    background: color-mix(in oklab, var(--accent) 12%, transparent);
+  }
+
   .kpi-grid {
     grid-template-columns: 1fr;
-  }
-  .main {
-    padding: 18px 16px 32px;
-    gap: 16px;
   }
   .app {
     flex-direction: column;
   }
-  .sidebar, .sidebar.collapsed {
-    width: 100%;
-    height: auto;
-    flex-direction: row;
+  .main {
+    padding: 14px 16px calc(88px + env(safe-area-inset-bottom));
+    gap: 16px;
+  }
+
+  /* En-tête collant : la Sidebar ne joue plus ce rôle sur mobile (elle
+     est masquée), donc c'est le TopBar qui porte la persistance visuelle
+     pendant le défilement (même traitement que la Sidebar desktop :
+     sticky + fond flouté, jamais fixed pour rester dans le flux du
+     scroll parent plutôt que de devoir compenser sa hauteur ailleurs). */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    margin: -14px -16px 0;
+    padding: 14px 16px 12px;
+    background: color-mix(in oklab, var(--bg) 88%, transparent);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
     align-items: center;
-    padding: 10px 14px;
-    gap: 14px;
   }
-  .sidebar-server {
+  .topbar-title {
+    font-size: 20px;
+  }
+  .topbar-subtitle {
+    /* Sous-titre détaillé peu utile une fois collé en permanence en haut
+       de l'écran (répété à chaque scroll vers le haut) — l'espace gagné
+       profite au contenu, le titre seul suffit à s'orienter sur 2 pages. */
     display: none;
   }
-  .sidebar-brand-name {
-    max-width: 140px;
+  .topbar-logout {
+    display: flex;
   }
-  /* Nav en icônes seules sur mobile (comme la sidebar repliée) : tient
-     sur une seule ligne quelle que soit la largeur d'écran, sans scroll
-     horizontal ni retour à la ligne qui coupait "Paramètres" auparavant. */
-  .nav {
-    flex-direction: row;
-    gap: 4px;
+  /* .topbar-actions passe en pleine largeur sous 640px (voir plus haut) —
+     avec justify-content:space-between, un seul enfant (le bouton de
+     déconnexion seul, sur Paramètres où il n'y a pas d'indicateur de scan
+     à côté) se retrouvait plaqué à gauche au lieu de rester à droite. La
+     marge auto le pousse à droite sans changer le comportement à 2
+     enfants (indicateur de scan à gauche, déconnexion à droite sur
+     Dashboard, déjà correct). */
+  .topbar-actions > *:only-child {
+    margin-left: auto;
   }
-  .nav-item-label {
-    max-width: 0;
-    opacity: 0;
-    margin-left: 0;
+
+  /* --- Feuilles plein écran (tiroir + modales) ---
+
+     Sur desktop, .drawer glisse depuis la droite et .modal-card flotte au
+     centre — au doigt, les deux sont moins naturels qu'une feuille qui
+     glisse depuis le bas et occupe (quasi) tout l'écran, ancrée à portée
+     du pouce (voir sheetSlideIn/sheetIn ci-dessous, qui remplacent
+     slideIn/modalIn uniquement sous ce seuil). Poignée de balayage
+     purement visuelle (::before) : pas de geste de fermeture au doigt
+     pour l'instant, juste l'affordance — reste fermable via le bouton
+     croix ou le tap sur le fond. */
+  .drawer {
+    top: auto;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-height: 92vh;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    border-radius: 20px 20px 0 0;
+    padding: 14px 18px calc(20px + env(safe-area-inset-bottom));
+    animation: sheetIn 0.28s cubic-bezier(0.32, 0.72, 0, 1);
   }
-  .nav-item {
-    padding: 8px;
+  .drawer.is-exiting {
+    animation: sheetOut 0.22s ease forwards;
   }
-  /* .sidebar-logout span (specificité 0,1,1) l'emportait sur la règle
-     .nav-item-label ci-dessus (0,1,0) même dans ce bloc mobile : le
-     libellé "Se déconnecter" restait affiché (et débordait, tronqué) au
-     lieu d'être masqué comme les libellés de nav — même spécificité que
-     .sidebar-logout span pour vraiment le recouvrir ici. */
-  .sidebar-logout span {
-    max-width: 0;
-    opacity: 0;
-    margin-left: 0;
+  .modal {
+    align-items: flex-end;
+    padding: 0;
   }
-  .sidebar-logout {
-    padding: 8px;
+  .modal-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 92vh;
+    border-radius: 20px 20px 0 0 !important;
+    padding: 14px 18px calc(20px + env(safe-area-inset-bottom)) !important;
+    overflow-y: auto;
+    animation: sheetIn 0.28s cubic-bezier(0.32, 0.72, 0, 1);
   }
-  .sidebar-collapse-btn {
-    display: none;
+  .drawer::before,
+  .modal-card::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: 3px;
+    background: var(--border-strong);
+    margin: 0 auto 6px;
   }
+
+  /* Zones tactiles agrandies : 26px (desktop) est sous le plancher de
+     44px recommandé pour une cible tactile fiable au doigt. */
+  .icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+  .btn-accent, .btn-ghost {
+    padding: 11px 18px;
+  }
+  .switch {
+    width: 44px;
+    height: 26px;
+    border-radius: 13px;
+  }
+  .switch-knob {
+    width: 22px;
+    height: 22px;
+  }
+  .switch.on .switch-knob {
+    transform: translateX(18px);
+  }
+  .input, .select {
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+
+  /* Toast recentré en haut plutôt qu'ancré à droite (pensé pour une
+     souris) — pleine largeur avec marges, plus lisible et jamais coupé
+     par le bord d'écran. */
+  .toast {
+    left: 16px;
+    right: 16px;
+    top: max(12px, env(safe-area-inset-top));
+    text-align: center;
+  }
+}
+@keyframes sheetIn {
+  from { transform: translateY(100%); opacity: 0.4; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes sheetOut {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(100%); opacity: 0; }
 }
