@@ -146,6 +146,15 @@ export function IconPlus(props) {
   );
 }
 
+export function IconDownload(props) {
+  return (
+    <Svg {...props}>
+      <path d="M12 3.5v12M7 11l5 5 5-5" />
+      <path d="M4.5 19.5h15" />
+    </Svg>
+  );
+}
+
 export function IconSearch(props) {
   return (
     <Svg {...props}>

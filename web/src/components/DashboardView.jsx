@@ -8,7 +8,8 @@ import MultiLineChart from './MultiLineChart.jsx';
 import CountUp from './CountUp.jsx';
 import AddAccountModal from './AddAccountModal.jsx';
 import ConfirmModal from './ConfirmModal.jsx';
-import { IconSearch, IconEdit, IconTrash, IconPlus } from './icons.jsx';
+import { IconSearch, IconEdit, IconTrash, IconPlus, IconDownload } from './icons.jsx';
+import { downloadCsv } from '../csv.js';
 
 const PLATFORM_COLOR = { ig: '#e0409e', tt: '#1a93c0', yt: '#ff453a' };
 const PLATFORM_NAME = { ig: 'Instagram', tt: 'TikTok', yt: 'YouTube' };
@@ -50,6 +51,15 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
   const [editingAccount, setEditingAccount] = useState(null);
   const [deletingAccount, setDeletingAccount] = useState(null);
   const f = useAccountFilters(accounts);
+
+  // Exporte le classement actuellement affiché — recherche/filtres/tri
+  // compris, pas la liste brute complète : ce qui est exporté correspond à
+  // ce que l'utilisateur voit à l'écran au moment du clic.
+  const exportCsv = () => {
+    const rows = f.filtered.map((a) => [a.name, a.ig ?? '', a.tt ?? '', a.yt ?? '', a.total, a.growth24h]);
+    downloadCsv(`viewtracker-comptes-${new Date().toISOString().slice(0, 10)}`,
+      ['Compte', 'Instagram', 'TikTok', 'YouTube', 'Total', 'Croissance 24h'], rows);
+  };
 
   const confirmDelete = async () => {
     try {
@@ -177,6 +187,9 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div className="mono" style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{f.filtered.length} compte(s)</div>
+                <button type="button" className="btn btn-ghost" onClick={exportCsv} disabled={f.filtered.length === 0} title="Exporter le classement affiché en CSV">
+                  <IconDownload size={14} /> CSV
+                </button>
                 <button type="button" className="btn btn-accent" onClick={() => setShowAddModal(true)}>
                   <IconPlus size={14} /> Ajouter
                 </button>
