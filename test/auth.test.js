@@ -75,6 +75,29 @@ test('changePassword : refusé si le mot de passe actuel est incorrect, accepté
   assert.equal(await auth.checkPassword('vincent@exemple.com', 'motdepasse1'), false);
 });
 
+test('checkPassword : temps de réponse comparable pour un e-mail inconnu et un e-mail existant (pas d\'énumération de comptes par timing)', async () => {
+  // Avant correctif : un e-mail inconnu retournait instantanément (aucun
+  // scrypt lancé) pendant qu'un e-mail existant avec un mauvais mot de
+  // passe prenait ~45ms (mesuré) — un attaquant pouvait deviner quels
+  // e-mails ont un compte rien qu'en chronométrant /api/login. Tolérance
+  // large (ratio, pas un seuil en ms absolu) pour rester fiable sur une
+  // machine CI plus lente/rapide : on vérifie l'ordre de grandeur, pas une
+  // valeur précise.
+  const N = 8;
+  let tKnown = 0, tUnknown = 0;
+  for (let i = 0; i < N; i++) {
+    let t0 = Date.now();
+    await auth.checkPassword('vincent@exemple.com', 'mauvais-mdp');
+    tKnown += Date.now() - t0;
+
+    t0 = Date.now();
+    await auth.checkPassword(`inconnu-${i}@exemple.com`, 'mauvais-mdp');
+    tUnknown += Date.now() - t0;
+  }
+  // tUnknown doit être au moins 30% de tKnown — avant correctif, c'était ~0%.
+  assert.ok(tUnknown >= tKnown * 0.3, `tUnknown=${tUnknown}ms trop rapide par rapport à tKnown=${tKnown}ms`);
+});
+
 test('session cookie : setSessionCookie -> getSessionEmail retrouve le bon compte', () => {
   const { req, res, getCookieHeader } = fakeReqRes();
   auth.setSessionCookie(req, res, 'vincent@exemple.com');

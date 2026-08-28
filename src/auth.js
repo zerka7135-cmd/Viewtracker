@@ -43,6 +43,15 @@ async function hashPassword(plain) {
   return `scrypt$${salt}$${derived.toString('hex')}`;
 }
 
+// Hash factice à salt fixe, utilisé uniquement pour que checkPassword()
+// prenne le même temps qu'un e-mail existe ou non (voir plus bas) — sans
+// ça, un e-mail inconnu retournait instantanément (aucun scrypt lancé)
+// alors qu'un mauvais mot de passe sur un compte réel prenait ~45ms
+// (mesuré) : un attaquant peut énumérer les comptes existants rien qu'en
+// chronométrant les réponses de /api/login. Le salt est fixe (pas besoin
+// d'être secret ni aléatoire, ce hash ne protège aucune vraie donnée).
+const DUMMY_HASH = 'scrypt$0000000000000000000000000000000$' + '0'.repeat(128);
+
 async function verifyPassword(plain, stored) {
   if (!stored || !stored.startsWith('scrypt$')) return false;
   const [, salt, hashHex] = stored.split('$');
@@ -121,8 +130,12 @@ export function removeUser(email) {
 
 export async function checkPassword(email, plain) {
   const user = findUser(readAuth(), email);
-  if (!user) return false;
-  return verifyPassword(plain, user.passwordHash);
+  // Toujours passer par verifyPassword (donc par scrypt), même si le
+  // compte n'existe pas — avec le vrai hash s'il existe, avec DUMMY_HASH
+  // sinon (voir plus haut) : le temps de réponse ne doit jamais laisser
+  // deviner si un e-mail donné a un compte ou non.
+  const ok = await verifyPassword(plain, user?.passwordHash || DUMMY_HASH);
+  return user ? ok : false;
 }
 
 /** @throws si l'ancien mot de passe ne correspond pas, ou le nouveau trop court. */
