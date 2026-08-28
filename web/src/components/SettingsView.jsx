@@ -57,6 +57,24 @@ function Row({ label, description, children }) {
   );
 }
 
+// Interrupteur accessible — remplace un <div onClick> qui n'était ni
+// focusable au clavier ni activable par Entrée/Espace (voir aussi le
+// même correctif appliqué à Sidebar.jsx#nav-item). role="switch" +
+// aria-checked porte l'état pour les lecteurs d'écran.
+function Switch({ checked, onChange }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      className={`switch ${checked ? 'on' : ''}`}
+      onClick={() => onChange(!checked)}
+    >
+      <div className="switch-knob" />
+    </button>
+  );
+}
+
 function SubsectionLabel({ children }) {
   return (
     <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)', margin: '18px 0 2px' }}>
@@ -386,81 +404,77 @@ export default function SettingsView({ settings, onToggle, onUpdateSettings, the
     }
   };
 
+  // Chaque panneau reste monté en permanence (juste masqué via `hidden`
+  // plutôt que démonté/remonté par un `&&` conditionnel) : avec un rendu
+  // conditionnel classique, changer d'onglet avant d'enregistrer perdait
+  // silencieusement toute saisie en cours dans les champs non contrôlés
+  // par `settings` (ex. taper un nouveau salon Discord, aller voir l'onglet
+  // Collecte, revenir sur Discord — le champ était réinitialisé sans
+  // aucun avertissement). `hidden` retire le panneau du rendu visuel et de
+  // la navigation clavier (comme display:none) sans perdre son état React.
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 720 }}>
       <SettingsTabs active={activeTab} onChange={setActiveTab} />
 
-      {activeTab === 'general' && (
+      <div className="card" style={{ padding: '18px 22px' }} hidden={activeTab !== 'general'}>
+        <div className="card-title" style={{ marginBottom: 4 }}>Apparence</div>
+        <div className="settings-table">
+          <Row label="Thème" description="Préférence enregistrée sur cet appareil.">
+            <SegmentedControl options={THEME_OPTIONS} value={theme} onChange={onThemeChange} style={{ width: 152 }} />
+          </Row>
+        </div>
+      </div>
+
+      <div style={{ display: activeTab !== 'discord' ? 'none' : 'flex', flexDirection: 'column', gap: 20 }}>
         <div className="card" style={{ padding: '18px 22px' }}>
-          <div className="card-title" style={{ marginBottom: 4 }}>Apparence</div>
+          <div className="card-title" style={{ marginBottom: 4 }}>Discord</div>
+
           <div className="settings-table">
-            <Row label="Thème" description="Préférence enregistrée sur cet appareil.">
-              <SegmentedControl options={THEME_OPTIONS} value={theme} onChange={onThemeChange} style={{ width: 152 }} />
+            <Row label="Publier sur Discord" description="Active/désactive l'envoi du classement sur Discord — la collecte a toujours lieu, seule la publication est concernée.">
+              <Switch checked={settings.notifDaily} onChange={(v) => onToggle('notifDaily', v)} />
             </Row>
           </div>
+
+          {settings.notifDaily && (
+            <>
+              <div className="settings-table">
+                <Row label="Alertes de scraping" description="MP au propriétaire en cas d'échec.">
+                  <Switch checked={settings.notifWarnings} onChange={(v) => onToggle('notifWarnings', v)} />
+                </Row>
+              </div>
+
+              <DiscordSection settings={settings} onUpdateSettings={onUpdateSettings} onToast={onToast} />
+            </>
+          )}
         </div>
-      )}
 
-      {activeTab === 'discord' && (
-        <>
-          <div className="card" style={{ padding: '18px 22px' }}>
-            <div className="card-title" style={{ marginBottom: 4 }}>Discord</div>
+        <BotIdentitySection onToast={onToast} />
+      </div>
 
-            <div className="settings-table">
-              <Row label="Publier sur Discord" description="Active/désactive l'envoi du classement sur Discord — la collecte a toujours lieu, seule la publication est concernée.">
-                <div className={`switch ${settings.notifDaily ? 'on' : ''}`} onClick={() => onToggle('notifDaily', !settings.notifDaily)}>
-                  <div className="switch-knob" />
-                </div>
-              </Row>
-            </div>
+      <div className="card" style={{ padding: '18px 22px' }} hidden={activeTab !== 'collecte'}>
+        <div className="card-title" style={{ marginBottom: 4 }}>Collecte</div>
+        <form onSubmit={saveCollecteSettings} className="settings-table">
+          <Row label="Heure de collecte (cron)" description="Format cron, ex. 30 22 * * *. Effectif au prochain redémarrage du bot.">
+            <input className="input mono" value={cronSchedule} onChange={(e) => setCronSchedule(e.target.value)} placeholder="30 22 * * *" style={{ width: '100%', maxWidth: 220 }} />
+          </Row>
+          <Row label="Fuseau horaire" description="Effectif au prochain redémarrage du bot.">
+            <input className="input" value={timezone} onChange={(e) => setTimezone(e.target.value)} placeholder="Europe/Paris" style={{ width: '100%', maxWidth: 220 }} />
+          </Row>
+          <Row label="Posts par plateforme" description="Nombre de publications récentes prises en compte. Effectif dès la prochaine collecte.">
+            <input className="input" type="number" min="1" max="20" value={postsLimit} onChange={(e) => setPostsLimit(e.target.value)} style={{ width: '100%', maxWidth: 100 }} />
+          </Row>
+          <Row label="">
+            <button type="submit" className="btn btn-ghost" disabled={savingCollecte} style={{ borderRadius: 8 }}>
+              {savingCollecte ? 'Enregistrement…' : 'Enregistrer'}
+            </button>
+          </Row>
+        </form>
+      </div>
 
-            {settings.notifDaily && (
-              <>
-                <div className="settings-table">
-                  <Row label="Alertes de scraping" description="MP au propriétaire en cas d'échec.">
-                    <div className={`switch ${settings.notifWarnings ? 'on' : ''}`} onClick={() => onToggle('notifWarnings', !settings.notifWarnings)}>
-                      <div className="switch-knob" />
-                    </div>
-                  </Row>
-                </div>
-
-                <DiscordSection settings={settings} onUpdateSettings={onUpdateSettings} onToast={onToast} />
-              </>
-            )}
-          </div>
-
-          <BotIdentitySection onToast={onToast} />
-        </>
-      )}
-
-      {activeTab === 'collecte' && (
-        <div className="card" style={{ padding: '18px 22px' }}>
-          <div className="card-title" style={{ marginBottom: 4 }}>Collecte</div>
-          <form onSubmit={saveCollecteSettings} className="settings-table">
-            <Row label="Heure de collecte (cron)" description="Format cron, ex. 30 22 * * *. Effectif au prochain redémarrage du bot.">
-              <input className="input mono" value={cronSchedule} onChange={(e) => setCronSchedule(e.target.value)} placeholder="30 22 * * *" style={{ width: '100%', maxWidth: 220 }} />
-            </Row>
-            <Row label="Fuseau horaire" description="Effectif au prochain redémarrage du bot.">
-              <input className="input" value={timezone} onChange={(e) => setTimezone(e.target.value)} placeholder="Europe/Paris" style={{ width: '100%', maxWidth: 220 }} />
-            </Row>
-            <Row label="Posts par plateforme" description="Nombre de publications récentes prises en compte. Effectif dès la prochaine collecte.">
-              <input className="input" type="number" min="1" max="20" value={postsLimit} onChange={(e) => setPostsLimit(e.target.value)} style={{ width: '100%', maxWidth: 100 }} />
-            </Row>
-            <Row label="">
-              <button type="submit" className="btn btn-ghost" disabled={savingCollecte} style={{ borderRadius: 8 }}>
-                {savingCollecte ? 'Enregistrement…' : 'Enregistrer'}
-              </button>
-            </Row>
-          </form>
-        </div>
-      )}
-
-      {activeTab === 'compte' && (
-        <>
-          <UsersSection currentEmail={currentEmail} onToast={onToast} />
-          <ChangePasswordSection onToast={onToast} />
-        </>
-      )}
+      <div style={{ display: activeTab !== 'compte' ? 'none' : 'flex', flexDirection: 'column', gap: 20 }}>
+        <UsersSection currentEmail={currentEmail} onToast={onToast} />
+        <ChangePasswordSection onToast={onToast} />
+      </div>
     </div>
   );
 }
