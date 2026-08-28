@@ -116,7 +116,6 @@ select:focus-visible,
 .sidebar-brand {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 2px 0;
 }
 .sidebar-brand-mark {
@@ -151,6 +150,7 @@ select:focus-visible,
   margin-left: 0;
 }
 .sidebar-collapse-btn {
+  margin-left: auto;
   width: 26px;
   height: 26px;
   border-radius: 7px;
