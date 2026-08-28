@@ -1,7 +1,9 @@
+// Pas d'entrée "accounts" : la page Comptes a été fusionnée dans Dashboard
+// (voir DashboardView.jsx) — vue possible désormais : 'dashboard' ou
+// 'settings' uniquement (voir Sidebar.jsx#NAV_ITEMS).
 const VIEW_META = {
   dashboard: ['Dashboard', 'Classement, tendance et répartition des vues — Instagram, TikTok, YouTube'],
-  accounts: ['Comptes suivis', 'Comptes configurés pour le suivi'],
-  settings: ['Paramètres', 'Notifications, diffusion, compte et organisation']
+  settings: ['Paramètres', 'Apparence, Discord, collecte et comptes du dashboard']
 };
 
 // Pas de déclenchement de scan depuis le dashboard : la collecte reste

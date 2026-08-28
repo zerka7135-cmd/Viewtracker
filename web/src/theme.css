@@ -771,6 +771,7 @@ select:focus-visible,
   height: 22px;
   border-radius: 11px;
   padding: 2px;
+  border: none;
   cursor: pointer;
   display: flex;
   align-items: center;

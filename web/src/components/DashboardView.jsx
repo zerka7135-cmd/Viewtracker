@@ -90,7 +90,7 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div className="kpi-grid">
         <div className="card kpi-card enter-stagger" style={{ '--enter-delay': '0ms' }}>
-          <div className="kpi-label">Vues totales (all-time)</div>
+          <div className="kpi-label">Vues totales (cumul)</div>
           <div className="kpi-value"><CountUp value={kpis.totalAllTime} /></div>
           <div className="kpi-sub">sur {kpis.accountsCount} comptes suivis</div>
         </div>
@@ -117,7 +117,7 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
                   Vues {f.platform === 'all' ? 'totales' : PLATFORM_NAME[f.platform]} — {rangeLongLabel(chartRange)}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                  {f.platform === 'all' ? 'Une ligne par plateforme, même échelle' : `Isolé sur ${PLATFORM_NAME[f.platform]} — change le filtre « Plateforme » ci-dessous pour comparer`}
+                  {f.platform === 'all' ? 'Une ligne par plateforme, même échelle' : `Filtré sur ${PLATFORM_NAME[f.platform]} — ajuste le filtre « Plateforme » ci-dessous pour comparer`}
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -166,7 +166,7 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
                 {f.sort === 'total' && (
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
                     {f.platform === 'all'
-                      ? 'Classement all-time — trié par total de vues'
+                      ? 'Classement cumulé — trié par total de vues'
                       : `Classement ${PLATFORM_NAME[f.platform]} — trié par vues ${PLATFORM_NAME[f.platform]}`}
                   </div>
                 )}
