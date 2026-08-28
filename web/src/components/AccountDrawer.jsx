@@ -5,9 +5,10 @@ import Sparkline from './Sparkline.jsx';
 import AreaChart from './AreaChart.jsx';
 import AddAccountModal from './AddAccountModal.jsx';
 import ConfirmModal from './ConfirmModal.jsx';
-import { IconEdit, IconTrash } from './icons.jsx';
+import { IconEdit, IconTrash, IconDownload } from './icons.jsx';
 import { useEscapeKey } from '../useEscapeKey.js';
 import CloseButton from './CloseButton.jsx';
+import { downloadCsv } from '../csv.js';
 
 const PLATFORMS = [
   { key: 'ig', name: 'Instagram', color: '#e0409e' },
@@ -40,11 +41,19 @@ function AccountHistoryChart({ accountName }) {
   const hasData = chartData.some((d) => d.value > 0);
   const color = platform === 'all' ? 'var(--accent)' : PLATFORMS.find((p) => p.key === platform).color;
 
+  const exportCsv = () => {
+    downloadCsv(
+      `viewtracker-${accountName}-${platform}-${days}j`,
+      ['Date', 'Vues'],
+      chartData.map((d) => [d.date, d.value])
+    );
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
         <div style={{ fontSize: 13, fontWeight: 600 }}>Évolution</div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           {RANGES.map((d) => (
             <button
               key={d}
@@ -67,6 +76,9 @@ function AccountHistoryChart({ accountName }) {
             <option value="tt">TikTok</option>
             <option value="yt">YouTube</option>
           </select>
+          <button type="button" className="icon-btn" title="Exporter en CSV" aria-label="Exporter l'évolution en CSV" onClick={exportCsv} disabled={!hasData}>
+            <IconDownload size={14} />
+          </button>
         </div>
       </div>
       <div style={{ background: 'var(--card-alt)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px' }}>
