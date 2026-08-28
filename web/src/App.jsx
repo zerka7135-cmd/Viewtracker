@@ -7,6 +7,7 @@ import DashboardView from './components/DashboardView.jsx';
 import SettingsView from './components/SettingsView.jsx';
 import AccountDrawer from './components/AccountDrawer.jsx';
 import LoadingScreen from './components/LoadingScreen.jsx';
+import DashboardSkeleton from './components/DashboardSkeleton.jsx';
 import WelcomeScreen from './components/WelcomeScreen.jsx';
 import LoginScreen from './components/LoginScreen.jsx';
 import Toast from './components/Toast.jsx';
@@ -167,7 +168,6 @@ export default function App() {
   if (!authChecked) return <LoadingScreen />;
   if (!authenticated && showWelcome) return <WelcomeScreen exiting={welcomeExiting} onContinue={dismissWelcome} />;
   if (!authenticated) return <LoginScreen setupMode={!passwordSet} onSuccess={handleLoginSuccess} />;
-  if (!loaded) return <LoadingScreen />;
 
   const drawerAccount = accounts.find((a) => a.name === drawerAccountName) || null;
 
@@ -190,14 +190,18 @@ export default function App() {
           ) : null}
         />
 
-        {view === 'dashboard' && kpis && (
-          <DashboardView
-            kpis={kpis}
-            accounts={accounts}
-            onOpenDrawer={setDrawerAccountName}
-            onAccountsChanged={setAccounts}
-            onToast={showToast}
-          />
+        {view === 'dashboard' && (
+          loaded && kpis ? (
+            <DashboardView
+              kpis={kpis}
+              accounts={accounts}
+              onOpenDrawer={setDrawerAccountName}
+              onAccountsChanged={setAccounts}
+              onToast={showToast}
+            />
+          ) : (
+            <DashboardSkeleton />
+          )
         )}
         {view === 'settings' && (
           <SettingsView

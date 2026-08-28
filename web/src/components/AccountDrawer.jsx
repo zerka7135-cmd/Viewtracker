@@ -88,15 +88,36 @@ function AccountHistoryChart({ accountName }) {
 export default function AccountDrawer({ account, onClose, onAccountsChanged, onToast }) {
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // `account` passe à null dès la demande de fermeture (voir App.jsx) —
+  // sans ce state local, le tiroir démonterait instantanément au lieu de
+  // jouer son animation de sortie (voir theme.css#slideOut). On garde le
+  // dernier compte affiché le temps de l'animation plutôt que de le
+  // perdre immédiatement.
+  const [displayedAccount, setDisplayedAccount] = useState(account);
+  const [closing, setClosing] = useState(false);
+
+  useEffect(() => {
+    if (account) {
+      setDisplayedAccount(account);
+      setClosing(false);
+    } else if (displayedAccount) {
+      setClosing(true);
+      const timer = setTimeout(() => setDisplayedAccount(null), 200);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account]);
+
   useEscapeKey(onClose, Boolean(account) && !editing && !deleting);
 
-  if (!account) return null;
+  if (!displayedAccount) return null;
+  const shown = displayedAccount;
 
   const confirmDelete = async () => {
     try {
-      const res = await deleteAccountApi(account.name);
+      const res = await deleteAccountApi(shown.name);
       onAccountsChanged(res.accounts);
-      onToast(`Compte "${account.name}" supprimé`);
+      onToast(`Compte "${shown.name}" supprimé`);
       setDeleting(false);
       onClose();
     } catch (err) {
@@ -106,13 +127,13 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
 
   return (
     <>
-      <div className="backdrop" onClick={onClose} />
-      <div className="drawer">
+      <div className={`backdrop ${closing ? 'is-exiting' : ''}`} onClick={onClose} />
+      <div className={`drawer ${closing ? 'is-exiting' : ''}`}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <div style={{ fontSize: 19, fontWeight: 700 }}>{account.name}</div>
+            <div style={{ fontSize: 19, fontWeight: 700 }}>{shown.name}</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-              {fmt(account.allTime.total)} vues cumulées (all-time)
+              {fmt(shown.allTime.total)} vues cumulées
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -133,7 +154,7 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
 
         {editing && (
           <AddAccountModal
-            account={account}
+            account={shown}
             onClose={() => setEditing(false)}
             onAdded={(updated) => { onAccountsChanged(updated); setEditing(false); }}
             onToast={onToast}
@@ -142,7 +163,7 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
         {deleting && (
           <ConfirmModal
             title="Supprimer le compte"
-            message={<>Supprimer <strong>{account.name}</strong> ? Son historique de vues sera perdu.</>}
+            message={<>Supprimer <strong>{shown.name}</strong> ? Son historique de vues sera perdu.</>}
             confirmLabel="Supprimer"
             onConfirm={confirmDelete}
             onCancel={() => setDeleting(false)}
@@ -152,7 +173,7 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
         {/* Remonté à chaque ouverture d'un compte différent (key=account.name)
             pour repartir sur la période/plateforme par défaut plutôt que de
             garder l'état du compte précédemment consulté. */}
-        <AccountHistoryChart key={account.name} accountName={account.name} />
+        <AccountHistoryChart key={shown.name} accountName={shown.name} />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {PLATFORMS.map((p) => (
@@ -163,10 +184,10 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
                   <div style={{ fontSize: 13, fontWeight: 600 }}>{p.name}</div>
                 </div>
                 <div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>
-                  {account[p.key] === null ? 'Ban' : fmt(account[p.key])}
+                  {shown[p.key] === null ? 'Ban' : fmt(shown[p.key])}
                 </div>
               </div>
-              <Sparkline values={account.spark} color={p.color} />
+              <Sparkline values={shown.spark} color={p.color} />
             </div>
           ))}
         </div>
@@ -174,7 +195,7 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Derniers posts scrapés</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {PLATFORMS.flatMap((p) => account.posts[p.key].map((post) => ({ ...post, platform: p }))).map((post, i) => (
+            {PLATFORMS.flatMap((p) => shown.posts[p.key].map((post) => ({ ...post, platform: p }))).map((post, i) => (
               <a
                 key={`${post.platform.key}-${post.id}-${i}`}
                 href={post.url || undefined}
@@ -192,7 +213,7 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
                 <div className="mono" style={{ fontWeight: 600 }}>{fmt(post.views)}</div>
               </a>
             ))}
-            {PLATFORMS.every((p) => account.posts[p.key].length === 0) && (
+            {PLATFORMS.every((p) => shown.posts[p.key].length === 0) && (
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Pas encore de posts scrapés pour ce compte.</div>
             )}
           </div>
