@@ -57,6 +57,9 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
   // Exporte le classement actuellement affiché — recherche/filtres/tri
   // compris, pas la liste brute complète : ce qui est exporté correspond à
   // ce que l'utilisateur voit à l'écran au moment du clic.
+  // CSV uniquement ici (le PDF reste unitaire, compte par compte — voir
+  // AccountDrawer.jsx) : sur toute la liste, le tableau PDF généré tenait
+  // mal sur une page et perdait l'intérêt d'un export "à imprimer".
   const exportCsv = () => {
     const rows = f.filtered.map((a) => [a.name, a.ig ?? '', a.tt ?? '', a.yt ?? '', a.total, a.growth24h]);
     downloadCsv(`viewtracker-comptes-${new Date().toISOString().slice(0, 10)}`,
