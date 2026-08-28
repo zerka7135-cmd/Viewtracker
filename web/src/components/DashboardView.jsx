@@ -12,23 +12,27 @@ import { IconSearch, IconEdit, IconTrash, IconPlus } from './icons.jsx';
 
 const PLATFORM_COLOR = { ig: '#e0409e', tt: '#1a93c0', yt: '#ff453a' };
 const PLATFORM_NAME = { ig: 'Instagram', tt: 'TikTok', yt: 'YouTube' };
-// `hours` (24h) vs `days` — deux granularités différentes côté serveur
-// (voir getHistorySeriesHourly), la collecte horaire n'a de sens que sur
-// les dernières 24h.
+// "24h" ne demande pas une granularité horaire au serveur : la collecte ne
+// tourne qu'une fois par jour (cron), donc un vrai découpage par heure
+// donnerait 23 points à 0 et un seul pic à l'heure du scan — un graphique
+// qui a l'air cassé plutôt qu'informatif. `days: 2` renvoie simplement les
+// deux dernières collectes réelles (avant/après), un point de comparaison
+// honnête plutôt qu'une granularité fabriquée (voir dataviz : ne jamais
+// inventer une résolution qu'on n'a pas).
 const CHART_RANGES = [
-  { key: '24h', label: '24h', hours: 24 },
+  { key: '24h', label: '24h', days: 2, isLastScan: true },
   { key: '7', label: '7j', days: 7 },
   { key: '14', label: '14j', days: 14 },
   { key: '30', label: '30j', days: 30 }
 ];
 
-/** "24 dernières heures" / "14 derniers jours" — pour les titres de graphique. */
+/** "depuis la dernière collecte" / "14 derniers jours" — pour les titres de graphique. */
 function rangeLongLabel(range) {
-  return range.hours ? '24 dernières heures' : `${range.days} derniers jours`;
+  return range.isLastScan ? 'depuis la dernière collecte' : `${range.days} derniers jours`;
 }
 /** "24h" / "14 jours" — pour le texte de tendance ("▲ 12% sur ..."). */
 function rangeShortLabel(range) {
-  return range.hours ? '24h' : `${range.days} jours`;
+  return range.isLastScan ? '24h' : `${range.days} jours`;
 }
 
 // Version sans mode Clics (voir backup/dashboard-rewrite-27-08 pour la
