@@ -155,6 +155,15 @@ export function IconDownload(props) {
   );
 }
 
+export function IconCompare(props) {
+  return (
+    <Svg {...props}>
+      <path d="M4 16 9 9l4 4 7-8" />
+      <path d="M4 20h16" />
+    </Svg>
+  );
+}
+
 export function IconSearch(props) {
   return (
     <Svg {...props}>

@@ -184,10 +184,10 @@ export async function startServer(client) {
 
   app.post('/api/accounts', (req, res, next) => {
     try {
-      const { name, urls } = req.body || {};
+      const { name, urls, alertThreshold } = req.body || {};
       const trimmed = (name || '').trim();
       if (!trimmed) return res.status(400).json({ error: 'Nom de compte requis' });
-      addAccount(trimmed, normalizeUrls(urls));
+      addAccount(trimmed, normalizeUrls(urls), normalizeThreshold(alertThreshold));
       res.status(201).json({ accounts: getAccountsWithStats() });
     } catch (error) {
       if (error.message.includes('existe déjà')) return res.status(409).json({ error: error.message });
@@ -197,10 +197,10 @@ export async function startServer(client) {
 
   app.patch('/api/accounts/:name', (req, res, next) => {
     try {
-      const { name, urls } = req.body || {};
+      const { name, urls, alertThreshold } = req.body || {};
       const trimmed = (name || '').trim();
       if (!trimmed) return res.status(400).json({ error: 'Nom de compte requis' });
-      updateAccount(req.params.name, trimmed, normalizeUrls(urls));
+      updateAccount(req.params.name, trimmed, normalizeUrls(urls), normalizeThreshold(alertThreshold));
       res.json({ accounts: getAccountsWithStats() });
     } catch (error) {
       if (error.message.includes('introuvable')) return res.status(404).json({ error: error.message });
@@ -282,6 +282,13 @@ export async function startServer(client) {
 function normalizeUrls(urls) {
   const arr = Array.isArray(urls) ? urls : [];
   return [0, 1, 2].map(i => (arr[i] || '').trim());
+}
+
+// undefined/''/0/négatif -> null (désactive l'alerte) plutôt qu'un nombre
+// invalide silencieusement accepté.
+function normalizeThreshold(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
 }
 
 // MP à l'owner dès qu'une IP dépasse le seuil d'échecs de connexion

@@ -8,8 +8,9 @@ import MultiLineChart from './MultiLineChart.jsx';
 import CountUp from './CountUp.jsx';
 import AddAccountModal from './AddAccountModal.jsx';
 import ConfirmModal from './ConfirmModal.jsx';
-import { IconSearch, IconEdit, IconTrash, IconPlus, IconDownload } from './icons.jsx';
+import { IconSearch, IconEdit, IconTrash, IconPlus, IconDownload, IconCompare } from './icons.jsx';
 import { downloadCsv } from '../csv.js';
+import AccountComparisonModal from './AccountComparisonModal.jsx';
 
 const PLATFORM_COLOR = { ig: '#e0409e', tt: '#1a93c0', yt: '#ff453a' };
 const PLATFORM_NAME = { ig: 'Instagram', tt: 'TikTok', yt: 'YouTube' };
@@ -48,6 +49,7 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
   const [chartRange, setChartRange] = useState(CHART_RANGES[2]); // 14j par défaut
   const [platformSeries, setPlatformSeries] = useState({ ig: [], tt: [], yt: [] });
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showCompareModal, setShowCompareModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
   const [deletingAccount, setDeletingAccount] = useState(null);
   const f = useAccountFilters(accounts);
@@ -190,6 +192,9 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
                 <button type="button" className="btn btn-ghost" onClick={exportCsv} disabled={f.filtered.length === 0} title="Exporter le classement affiché en CSV">
                   <IconDownload size={14} /> CSV
                 </button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowCompareModal(true)} disabled={accounts.length < 2} title={accounts.length < 2 ? 'Ajoute au moins 2 comptes pour comparer' : undefined}>
+                  <IconCompare size={14} /> Comparer
+                </button>
                 <button type="button" className="btn btn-accent" onClick={() => setShowAddModal(true)}>
                   <IconPlus size={14} /> Ajouter
                 </button>
@@ -305,6 +310,12 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
           onClose={() => setShowAddModal(false)}
           onAdded={onAccountsChanged}
           onToast={onToast}
+        />
+      )}
+      {showCompareModal && (
+        <AccountComparisonModal
+          accounts={accounts}
+          onClose={() => setShowCompareModal(false)}
         />
       )}
       {editingAccount && (
