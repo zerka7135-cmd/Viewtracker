@@ -95,6 +95,26 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
 
   const warningsCount = kpis.warningsCount;
 
+  // Part du cumul all-time par plateforme, tous comptes confondus — même
+  // logique cumul que les cartes "Vues totales" et le classement (ig/tt/yt
+  // sur `accounts`, voir dashboardData.js), pas le snapshot du jour. null
+  // (plateforme non configurée pour un compte) traité comme 0, pareil que
+  // partout ailleurs sur cette page.
+  const platformTotals = accounts.reduce(
+    (acc, a) => {
+      acc.ig += a.ig ?? 0;
+      acc.tt += a.tt ?? 0;
+      acc.yt += a.yt ?? 0;
+      return acc;
+    },
+    { ig: 0, tt: 0, yt: 0 }
+  );
+  const platformSum = platformTotals.ig + platformTotals.tt + platformTotals.yt;
+  const platformBreakdown = ['ig', 'tt', 'yt']
+    .map((p) => ({ key: p, value: platformTotals[p], pct: platformSum ? Math.round((platformTotals[p] / platformSum) * 100) : 0 }))
+    .sort((a, b) => b.value - a.value);
+  const topPlatform = platformBreakdown[0];
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div className="kpi-grid">
@@ -114,6 +134,29 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
           <div className="kpi-sub" style={{ color: warningsCount ? 'var(--orange)' : 'var(--text-muted)' }}>
             {warningsCount ? `${warningsCount} en attente de configuration` : 'tous configurés'}
           </div>
+        </div>
+        <div className="card kpi-card enter-stagger" style={{ '--enter-delay': '150ms' }}>
+          <div className="kpi-label">Répartition par plateforme</div>
+          {platformSum ? (
+            <>
+              <div className="kpi-value" style={{ fontSize: 20, color: PLATFORM_COLOR[topPlatform.key] }}>
+                {PLATFORM_NAME[topPlatform.key]} · {topPlatform.pct}%
+              </div>
+              <div className="kpi-sub" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {platformBreakdown.slice(1).map((p) => (
+                  <span key={p.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: PLATFORM_COLOR[p.key], display: 'inline-block', flexShrink: 0 }} />
+                    {PLATFORM_NAME[p.key]} {p.pct}%
+                  </span>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="kpi-value" style={{ fontSize: 20 }}>—</div>
+              <div className="kpi-sub">aucune donnée</div>
+            </>
+          )}
         </div>
       </div>
 
