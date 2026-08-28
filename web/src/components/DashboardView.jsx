@@ -95,13 +95,6 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
 
   const warningsCount = kpis.warningsCount;
 
-  // Compte avec la plus forte progression sur le cycle (delta absolu, même
-  // unité que "Vues gagnées 24h" juste à côté — pas un %, qui favoriserait
-  // artificiellement les petits comptes sur une variation minime). null si
-  // personne n'a gagné de vue ce cycle (pas de "meilleure progression" à
-  // montrer plutôt qu'un compte à 0 mis en avant pour rien).
-  const bestGrowth = accounts.reduce((best, a) => (a.growth24h > (best?.growth24h ?? 0) ? a : best), null);
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div className="kpi-grid">
@@ -121,27 +114,6 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
           <div className="kpi-sub" style={{ color: warningsCount ? 'var(--orange)' : 'var(--text-muted)' }}>
             {warningsCount ? `${warningsCount} en attente de configuration` : 'tous configurés'}
           </div>
-        </div>
-        <div
-          className="card kpi-card enter-stagger"
-          role={bestGrowth ? 'button' : undefined}
-          tabIndex={bestGrowth ? 0 : undefined}
-          style={{ '--enter-delay': '150ms', cursor: bestGrowth ? 'pointer' : 'default' }}
-          onClick={bestGrowth ? () => onOpenDrawer(bestGrowth.name) : undefined}
-          onKeyDown={bestGrowth ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenDrawer(bestGrowth.name); } } : undefined}
-        >
-          <div className="kpi-label">Meilleure progression (24h)</div>
-          {bestGrowth ? (
-            <>
-              <div className="kpi-value ellipsis" style={{ fontFamily: 'inherit', fontSize: 20 }}>{bestGrowth.name}</div>
-              <div className="kpi-sub" style={{ color: 'var(--green)' }}>+{fmtShort(bestGrowth.growth24h)} vues</div>
-            </>
-          ) : (
-            <>
-              <div className="kpi-value" style={{ fontSize: 20 }}>—</div>
-              <div className="kpi-sub">aucune progression ce cycle</div>
-            </>
-          )}
         </div>
       </div>
 
