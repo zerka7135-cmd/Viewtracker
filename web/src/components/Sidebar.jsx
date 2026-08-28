@@ -25,18 +25,25 @@ export const NAV_ITEMS = [
 export default function Sidebar({ view, onNavigate, collapsed, onToggleCollapsed, onLogout }) {
   return (
     <div className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
+      {/* Pastille flottante à cheval sur le bord droit de la sidebar,
+          plutôt qu'un bouton dans la ligne du logo (voir theme.css#
+          sidebar-collapse-btn) : toujours à la même position relative au
+          bord — ouvert ou replié — donc jamais à l'étroit ni écrasé contre
+          le logo en mode replié (colonne à 76px, avant : icône + bouton se
+          disputaient une largeur trop juste). */}
+      <button
+        type="button"
+        className="sidebar-collapse-btn"
+        onClick={onToggleCollapsed}
+        title={collapsed ? 'Déplier la navigation' : 'Replier la navigation'}
+        aria-label={collapsed ? 'Déplier la navigation' : 'Replier la navigation'}
+      >
+        {collapsed ? <IconChevronRight size={11} /> : <IconChevronLeft size={11} />}
+      </button>
+
       <div className="sidebar-brand">
         <div className="sidebar-brand-mark"><IconLogo style={{ width: '60%', height: '60%' }} /></div>
         <div className="sidebar-brand-name">ViewTracker</div>
-        <button
-          type="button"
-          className="sidebar-collapse-btn"
-          onClick={onToggleCollapsed}
-          title={collapsed ? 'Déplier la navigation' : 'Replier la navigation'}
-          aria-label={collapsed ? 'Déplier la navigation' : 'Replier la navigation'}
-        >
-          {collapsed ? <IconChevronRight size={14} /> : <IconChevronLeft size={14} />}
-        </button>
       </div>
 
       {/* role="button"+tabIndex+onKeyDown : un <div onClick> seul n'est ni
