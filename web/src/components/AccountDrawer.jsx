@@ -7,6 +7,7 @@ import AddAccountModal from './AddAccountModal.jsx';
 import ConfirmModal from './ConfirmModal.jsx';
 import { IconEdit, IconTrash } from './icons.jsx';
 import { useEscapeKey } from '../useEscapeKey.js';
+import CloseButton from './CloseButton.jsx';
 
 const PLATFORMS = [
   { key: 'ig', name: 'Instagram', color: '#e0409e' },
@@ -143,12 +144,7 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
             <button type="button" className="icon-btn icon-btn-danger" title="Supprimer" aria-label="Supprimer le compte" onClick={() => setDeleting(true)}>
               <IconTrash size={15} />
             </button>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Fermer"
-              style={{ cursor: 'pointer', background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: 22, lineHeight: 1, padding: 4, marginLeft: 4 }}
-            >×</button>
+            <CloseButton onClick={onClose} size={22} style={{ marginLeft: 4 }} />
           </div>
         </div>
 
@@ -163,7 +159,7 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
         {deleting && (
           <ConfirmModal
             title="Supprimer le compte"
-            message={<>Supprimer <strong>{shown.name}</strong> ? Son historique de vues sera perdu.</>}
+            message={<>Supprimer <strong>{shown.name}</strong> ? <span style={{ color: 'var(--red)', fontWeight: 600 }}>Son historique de vues sera perdu, définitivement.</span></>}
             confirmLabel="Supprimer"
             onConfirm={confirmDelete}
             onCancel={() => setDeleting(false)}

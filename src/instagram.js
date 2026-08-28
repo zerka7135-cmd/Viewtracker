@@ -453,8 +453,15 @@ export async function buildViewsSummary(accounts = config.accounts, postsLimit =
             apiUrl.searchParams.set('count', String(Math.max(10, postsLimit * 2))); // marge au-delà de postsLimit pour compenser les vidéos épinglées exclues
             apiUrl.searchParams.set('cursor', '0');
 
+            // AbortSignal.timeout : sans lui, un fournisseur qui reste
+            // silencieux (ni réponse ni erreur HTTP, contrairement au cas
+            // `!res.ok` géré juste en dessous) bloquerait ce fetch
+            // indéfiniment — et donc toute la collecte de ce compte, comme
+            // lors de la panne du 12/08 où plusieurs comptes ont échoué
+            // d'un coup (voir le commentaire du randomDelay ci-dessus).
             const res = await fetch(apiUrl, {
-              headers: { Authorization: `Bearer ${process.env.TIKTOK_API_KEY}` }
+              headers: { Authorization: `Bearer ${process.env.TIKTOK_API_KEY}` },
+              signal: AbortSignal.timeout(15000)
             });
             if (!res.ok) {
               throw new Error(`tiktokapi.store a répondu ${res.status} pour @${username}`);
