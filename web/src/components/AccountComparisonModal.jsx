@@ -4,7 +4,7 @@ import { fmt, fmtShort } from '../format.js';
 import MultiLineChart from './MultiLineChart.jsx';
 import CloseButton from './CloseButton.jsx';
 import { useEscapeKey } from '../useEscapeKey.js';
-import { IconSearch, IconFile } from './icons.jsx';
+import { IconSearch, IconDownload } from './icons.jsx';
 import { downloadPdf } from '../pdf.js';
 
 const MAX_COMPARE = 4;
@@ -174,7 +174,7 @@ export default function AccountComparisonModal({ accounts, onClose, onToast }) {
                   onClick={exportPdf}
                   disabled={exporting || chartData.length === 0}
                 >
-                  {exporting ? <span className="login-spinner" /> : <IconFile size={14} />}
+                  {exporting ? <span className="login-spinner" /> : <IconDownload size={14} />}
                 </button>
               </div>
 

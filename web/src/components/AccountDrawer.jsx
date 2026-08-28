@@ -5,7 +5,7 @@ import Sparkline from './Sparkline.jsx';
 import AreaChart from './AreaChart.jsx';
 import AddAccountModal from './AddAccountModal.jsx';
 import ConfirmModal from './ConfirmModal.jsx';
-import { IconEdit, IconTrash, IconFile } from './icons.jsx';
+import { IconEdit, IconTrash, IconDownload } from './icons.jsx';
 import { useEscapeKey } from '../useEscapeKey.js';
 import CloseButton from './CloseButton.jsx';
 import { downloadPdf } from '../pdf.js';
@@ -91,7 +91,7 @@ function AccountHistoryChart({ account, onToast }) {
             <option value="yt">YouTube</option>
           </select>
           <button type="button" className="icon-btn" title="Exporter en PDF" aria-label="Exporter l'évolution en PDF" onClick={exportPdf} disabled={!hasData || exporting}>
-            {exporting ? <span className="login-spinner" /> : <IconFile size={14} />}
+            {exporting ? <span className="login-spinner" /> : <IconDownload size={14} />}
           </button>
         </div>
       </div>
