@@ -454,13 +454,6 @@ select:focus-visible,
   color: var(--text-muted);
   font-family: ui-monospace, 'SF Mono', monospace;
 }
-/* Doublon volontaire de la déconnexion de la Sidebar — celle-ci est
-   masquée sous 700px au profit de MobileTabBar (voir plus bas), qui n'a
-   pas de place pour un 3e bouton. Masqué par défaut, réaffiché en mobile. */
-.topbar-logout {
-  display: none;
-}
-
 .btn {
   border: none;
   cursor: pointer;
@@ -1493,20 +1486,6 @@ select:focus-visible,
        profite au contenu, le titre seul suffit à s'orienter sur 2 pages. */
     display: none;
   }
-  .topbar-logout {
-    display: flex;
-  }
-  /* .topbar-actions passe en pleine largeur sous 640px (voir plus haut) —
-     avec justify-content:space-between, un seul enfant (le bouton de
-     déconnexion seul, sur Paramètres où il n'y a pas d'indicateur de scan
-     à côté) se retrouvait plaqué à gauche au lieu de rester à droite. La
-     marge auto le pousse à droite sans changer le comportement à 2
-     enfants (indicateur de scan à gauche, déconnexion à droite sur
-     Dashboard, déjà correct). */
-  .topbar-actions > *:only-child {
-    margin-left: auto;
-  }
-
   /* --- Feuilles plein écran (tiroir + modales) ---
 
      Sur desktop, .drawer glisse depuis la droite et .modal-card flotte au

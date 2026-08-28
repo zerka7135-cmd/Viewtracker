@@ -22,49 +22,10 @@ const RANGES = [7, 14, 30];
 // Graphique d'évolution du compte (voir getAccountHistorySeries côté
 // serveur) — même composant AreaChart que Dashboard/Historique, mais
 // filtré sur ce seul compte plutôt qu'agrégé sur toute l'organisation.
-// Chargé à part (pas dans getAccountsWithStats) car il dépend de la
-// période/plateforme choisies par l'utilisateur dans le tiroir.
-function AccountHistoryChart({ account, onToast }) {
-  const accountName = account.name;
-  const [days, setDays] = useState(14);
-  const [platform, setPlatform] = useState('all');
-  const [series, setSeries] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    getAccountHistory(accountName, days, platform)
-      .then((res) => { if (!cancelled) setSeries(res.series); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [accountName, days, platform]);
-
-  const chartData = series.map((d) => ({ date: d.date, value: d.value ?? 0 }));
-  const hasData = chartData.some((d) => d.value > 0);
-  const color = platform === 'all' ? 'var(--accent)' : PLATFORMS.find((p) => p.key === platform).color;
-
-  const exportPdf = async () => {
-    setExporting(true);
-    try {
-      const filename = `viewtracker-${accountName}-${platform}-${days}j`;
-      const rows = chartData.map((d) => [d.date, d.value]);
-      const rangeLabel = platform === 'all' ? 'Toutes plateformes' : PLATFORMS.find((p) => p.key === platform).name;
-      const summary = [
-        ['Total cumulé', fmt(account.allTime.total)],
-        ['Instagram', account.ig === null ? 'Ban' : fmt(account.allTime.ig)],
-        ['TikTok', account.tt === null ? 'Ban' : fmt(account.allTime.tt)],
-        ['YouTube', account.yt === null ? 'Ban' : fmt(account.allTime.yt)]
-      ];
-      await downloadPdf(filename, accountName, `${rangeLabel} — ${days} derniers jours`, summary, ['Date', 'Vues'], rows);
-    } catch (err) {
-      onToast(`Erreur export PDF : ${err.message}`);
-    } finally {
-      setExporting(false);
-    }
-  };
-
+// Purement présentation : période/plateforme et export PDF sont pilotés
+// par AccountDrawer (voir plus bas) — le bouton de téléchargement a
+// rejoint les autres actions du header plutôt que de rester isolé ici.
+function AccountHistoryChart({ days, onDaysChange, platform, onPlatformChange, loading, hasData, chartData, color }) {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
@@ -75,26 +36,23 @@ function AccountHistoryChart({ account, onToast }) {
               key={d}
               type="button"
               className="btn"
-              onClick={() => setDays(d)}
+              onClick={() => onDaysChange(d)}
               style={{
                 padding: '5px 10px', borderRadius: 980, fontSize: 11, fontWeight: 600,
-                border: `1px solid ${d === days ? 'var(--accent)' : 'var(--border-strong)'}`,
+                border: `1px solid ${d === days ? 'var(--accent)' : 'color-mix(in oklab, var(--accent) 55%, transparent)'}`,
                 background: d === days ? 'var(--accent)' : 'transparent',
-                color: d === days ? '#fff' : 'var(--text-faint)'
+                color: d === days ? '#fff' : 'var(--accent)'
               }}
             >
               {d}j
             </button>
           ))}
-          <select className="select" style={{ fontSize: 11, padding: '5px 8px' }} value={platform} onChange={(e) => setPlatform(e.target.value)}>
+          <select className="select" style={{ fontSize: 11, padding: '5px 8px' }} value={platform} onChange={(e) => onPlatformChange(e.target.value)}>
             <option value="all">Toutes plateformes</option>
             <option value="ig">Instagram</option>
             <option value="tt">TikTok</option>
             <option value="yt">YouTube</option>
           </select>
-          <button type="button" className="icon-btn" title="Exporter en PDF" aria-label="Exporter l'évolution en PDF" onClick={exportPdf} disabled={!hasData || exporting}>
-            {exporting ? <span className="login-spinner" /> : <IconDownload size={14} />}
-          </button>
         </div>
       </div>
       <div style={{ background: 'var(--card-alt)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px' }}>
@@ -125,6 +83,16 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
   const [displayedAccount, setDisplayedAccount] = useState(account);
   const [closing, setClosing] = useState(false);
 
+  // Période/plateforme du graphique d'évolution + état d'export PDF —
+  // portés ici (plutôt que dans AccountHistoryChart) pour que le bouton de
+  // téléchargement puisse rejoindre les autres actions du header (voir
+  // plus bas) au lieu de rester isolé à côté du sélecteur de période.
+  const [days, setDays] = useState(14);
+  const [platform, setPlatform] = useState('all');
+  const [series, setSeries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+
   useEffect(() => {
     if (account) {
       setDisplayedAccount(account);
@@ -137,6 +105,26 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account]);
 
+  // Repart sur la période/plateforme par défaut à chaque changement de
+  // compte affiché — avant la fusion du bouton d'export dans le header,
+  // un `key={shown.name}` sur AccountHistoryChart obtenait ce même effet
+  // via un remount complet ; l'état étant maintenant ici, il faut le
+  // réinitialiser explicitement.
+  useEffect(() => {
+    setDays(14);
+    setPlatform('all');
+  }, [displayedAccount?.name]);
+
+  useEffect(() => {
+    if (!displayedAccount) return;
+    let cancelled = false;
+    setLoading(true);
+    getAccountHistory(displayedAccount.name, days, platform)
+      .then((res) => { if (!cancelled) setSeries(res.series); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [displayedAccount?.name, days, platform]);
+
   useEscapeKey(onClose, Boolean(account) && !editing && !deleting);
   // Balayage vers le bas depuis la poignée pour fermer, sur mobile
   // uniquement (voir useSwipeToClose.js) — même geste que la croix/le tap
@@ -145,6 +133,30 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
 
   if (!displayedAccount) return null;
   const shown = displayedAccount;
+
+  const chartData = series.map((d) => ({ date: d.date, value: d.value ?? 0 }));
+  const hasData = chartData.some((d) => d.value > 0);
+  const color = platform === 'all' ? 'var(--accent)' : PLATFORMS.find((p) => p.key === platform).color;
+
+  const exportPdf = async () => {
+    setExporting(true);
+    try {
+      const filename = `viewtracker-${shown.name}-${platform}-${days}j`;
+      const rows = chartData.map((d) => [d.date, d.value]);
+      const rangeLabel = platform === 'all' ? 'Toutes plateformes' : PLATFORMS.find((p) => p.key === platform).name;
+      const summary = [
+        ['Total cumulé', fmt(shown.allTime.total)],
+        ['Instagram', shown.ig === null ? 'Ban' : fmt(shown.allTime.ig)],
+        ['TikTok', shown.tt === null ? 'Ban' : fmt(shown.allTime.tt)],
+        ['YouTube', shown.yt === null ? 'Ban' : fmt(shown.allTime.yt)]
+      ];
+      await downloadPdf(filename, shown.name, `${rangeLabel} — ${days} derniers jours`, summary, ['Date', 'Vues'], rows);
+    } catch (err) {
+      onToast(`Erreur export PDF : ${err.message}`);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const confirmDelete = async () => {
     try {
@@ -171,6 +183,9 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button type="button" className="icon-btn" title="Exporter en PDF" aria-label="Exporter l'évolution en PDF" onClick={exportPdf} disabled={!hasData || exporting}>
+              {exporting ? <span className="login-spinner" /> : <IconDownload size={15} />}
+            </button>
             <button type="button" className="icon-btn" title="Modifier" aria-label="Modifier le compte" onClick={() => setEditing(true)}>
               <IconEdit size={15} />
             </button>
@@ -199,10 +214,16 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
           />
         )}
 
-        {/* Remonté à chaque ouverture d'un compte différent (key=account.name)
-            pour repartir sur la période/plateforme par défaut plutôt que de
-            garder l'état du compte précédemment consulté. */}
-        <AccountHistoryChart key={shown.name} account={shown} onToast={onToast} />
+        <AccountHistoryChart
+          days={days}
+          onDaysChange={setDays}
+          platform={platform}
+          onPlatformChange={setPlatform}
+          loading={loading}
+          hasData={hasData}
+          chartData={chartData}
+          color={color}
+        />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {PLATFORMS.map((p) => (

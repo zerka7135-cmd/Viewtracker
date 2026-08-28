@@ -186,7 +186,6 @@ export default function App() {
         <TopBar
           view={view}
           actions={view === 'dashboard' ? <ScanStatusIndicator scan={scan} /> : null}
-          onLogout={handleLogout}
         />
 
         {view === 'dashboard' && (
@@ -209,6 +208,7 @@ export default function App() {
             onUpdateSettings={handleUpdateSettings}
             onToast={showToast}
             currentEmail={currentEmail}
+            onLogout={handleLogout}
           />
         )}
       </div>

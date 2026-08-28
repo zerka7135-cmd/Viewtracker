@@ -10,7 +10,8 @@ import { NAV_ITEMS } from './Sidebar.jsx';
 //
 // Pas de bouton "Se déconnecter" ici : 3 icônes sur une barre pensée pour
 // 2 destinations aurait été plus dense que lisible au pouce — la
-// déconnexion reste accessible via TopBar sur mobile (voir TopBar.jsx).
+// déconnexion reste accessible via Paramètres > Compte (voir
+// SettingsView.jsx), y compris sur mobile où la Sidebar est masquée.
 export default function MobileTabBar({ view, onNavigate }) {
   return (
     <nav className="mobile-tabbar" aria-label="Navigation principale">

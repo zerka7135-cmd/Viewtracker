@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getBotConfig, updateBotConfig, changePassword, getUsers, addUser as addUserApi, removeUser as removeUserApi } from '../api.js';
-import { IconTrash } from './icons.jsx';
+import { IconTrash, IconLogout } from './icons.jsx';
 
 // Version sans multi-organisation (voir backup/dashboard-rewrite-27-08
 // pour cette version-là, qui a besoin de Postgres) : pas d'onglet
@@ -281,6 +281,27 @@ function ChangePasswordSection({ onToast }) {
   );
 }
 
+// Ne concerne que l'appareil courant (voir handleLogout dans App.jsx) —
+// rendu ici plutôt qu'en bouton flottant, car c'est le seul endroit
+// garanti accessible sur toutes les tailles d'écran : la Sidebar (qui
+// porte aussi la déconnexion) est masquée sur mobile au profit de
+// MobileTabBar, qui n'a pas de place pour un 3e bouton (voir
+// MobileTabBar.jsx).
+function LogoutSection({ onLogout }) {
+  return (
+    <div className="card" style={{ padding: '18px 22px' }}>
+      <div className="card-title" style={{ marginBottom: 4 }}>Session</div>
+      <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.5 }}>
+        Déconnecte cet appareil — les autres comptes/appareils ne sont pas affectés.
+      </div>
+      <button type="button" className="btn btn-ghost" onClick={onLogout} style={{ display: 'flex', alignItems: 'center', gap: 8, borderRadius: 8 }}>
+        <IconLogout size={14} />
+        Se déconnecter
+      </button>
+    </div>
+  );
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Comptes autorisés à se connecter au dashboard (voir auth.js) — pas de
@@ -377,7 +398,7 @@ function UsersSection({ currentEmail, onToast }) {
   );
 }
 
-export default function SettingsView({ settings, onToggle, onUpdateSettings, onToast, currentEmail }) {
+export default function SettingsView({ settings, onToggle, onUpdateSettings, onToast, currentEmail, onLogout }) {
   const [activeTab, setActiveTab] = useState('discord');
 
   const [cronSchedule, setCronSchedule] = useState(settings.cronSchedule || '');
@@ -463,6 +484,7 @@ export default function SettingsView({ settings, onToggle, onUpdateSettings, onT
       <div style={{ display: activeTab !== 'compte' ? 'none' : 'flex', flexDirection: 'column', gap: 20 }}>
         <UsersSection currentEmail={currentEmail} onToast={onToast} />
         <ChangePasswordSection onToast={onToast} />
+        <LogoutSection onLogout={onLogout} />
       </div>
     </div>
   );
