@@ -77,7 +77,6 @@ export function getAccountsWithStats() {
     return {
       name: user.name,
       urls: user.urls, // pour l'édition depuis le dashboard (voir AccountsView.jsx)
-      alertThreshold: user.alertThreshold ?? null, // pour pré-remplir le champ en édition (voir AddAccountModal.jsx)
       ig: cumulOrNull('ig'),
       tt: cumulOrNull('tt'),
       yt: cumulOrNull('yt'),

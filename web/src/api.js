@@ -44,8 +44,8 @@ export const addUser = (email, password) => request('/users', { method: 'POST', 
 export const removeUser = (email) => request(`/users/${encodeURIComponent(email)}`, { method: 'DELETE' });
 
 export const getDashboard = () => request('/dashboard');
-export const addAccount = (name, urls, alertThreshold) => request('/accounts', { method: 'POST', body: JSON.stringify({ name, urls, alertThreshold }) });
-export const updateAccount = (currentName, name, urls, alertThreshold) => request(`/accounts/${encodeURIComponent(currentName)}`, { method: 'PATCH', body: JSON.stringify({ name, urls, alertThreshold }) });
+export const addAccount = (name, urls) => request('/accounts', { method: 'POST', body: JSON.stringify({ name, urls }) });
+export const updateAccount = (currentName, name, urls) => request(`/accounts/${encodeURIComponent(currentName)}`, { method: 'PATCH', body: JSON.stringify({ name, urls }) });
 export const deleteAccount = (name) => request(`/accounts/${encodeURIComponent(name)}`, { method: 'DELETE' });
 
 // `range.days` : nombre de collectes les plus récentes — le filtre "24h"
