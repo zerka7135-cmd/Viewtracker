@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import { login, setupPassword } from '../api.js';
-import { IconLogo, IconEye, IconEyeOff } from './icons.jsx';
+import { IconLogo, IconEye, IconEyeOff, IconCheck } from './icons.jsx';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const LAST_EMAIL_KEY = 'vt-last-email';
+// Doit correspondre à la durée totale de .login-split-card.is-success
+// (délai + animation, voir theme.css#loginCardOut) — le temps de laisser
+// voir le check avant de démonter l'écran et de passer au dashboard.
+const SUCCESS_EXIT_MS = 750;
 
 // Écran de connexion à deux panneaux (identité ViewTracker : bleu
 // --accent, IconLogo, formes discrètes) — même composition qu'une
@@ -25,6 +29,7 @@ export default function LoginScreen({ setupMode, onSuccess }) {
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
   const [reveal, setReveal] = useState(false);
   const [capsLock, setCapsLock] = useState(false);
 
@@ -53,17 +58,21 @@ export default function LoginScreen({ setupMode, onSuccess }) {
       if (setupMode) await setupPassword(trimmedEmail, password);
       else await login(trimmedEmail, password);
       try { localStorage.setItem(LAST_EMAIL_KEY, trimmedEmail); } catch { /* non bloquant */ }
-      onSuccess();
+      // Laisse voir le check + la carte s'effacer (voir theme.css) avant
+      // de prévenir App.jsx — sinon le dashboard remplacerait cet écran
+      // d'un coup, sans transition, pile au moment où la requête réussit.
+      setSubmitting(false);
+      setSuccess(true);
+      setTimeout(onSuccess, SUCCESS_EXIT_MS);
     } catch (err) {
       setError(err.message);
-    } finally {
       setSubmitting(false);
     }
   };
 
   return (
     <div className="login-screen">
-      <div className="login-split-card">
+      <div className={`login-split-card ${success ? 'is-success' : ''}`}>
         <div className="login-panel-brand">
           <DecorativeShapes />
           <div className="login-panel-brand-mark"><IconLogo style={{ width: '56%', height: '56%' }} /></div>
@@ -121,7 +130,7 @@ export default function LoginScreen({ setupMode, onSuccess }) {
               tabIndex={-1}
               aria-label={reveal ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
             >
-              {reveal ? <IconEyeOff size={16} /> : <IconEye size={16} />}
+              {reveal ? <IconEyeOff size={16} key="off" /> : <IconEye size={16} key="on" />}
             </button>
           </div>
 
@@ -160,12 +169,18 @@ export default function LoginScreen({ setupMode, onSuccess }) {
 
           <button
             type="submit"
-            className="btn btn-accent"
-            disabled={submitting || !emailValid || !password || (setupMode && (password.length < 8 || confirmMismatch))}
+            className={`btn btn-accent ${success ? 'login-success-btn' : ''}`}
+            disabled={submitting || success || !emailValid || !password || (setupMode && (password.length < 8 || confirmMismatch))}
             style={{ width: '100%', justifyContent: 'center', padding: '11px 0', gap: 8 }}
           >
-            {submitting && <span className="login-spinner" aria-hidden="true" />}
-            {submitting ? 'Un instant…' : setupMode ? 'Créer et se connecter' : 'Se connecter'}
+            {success ? (
+              <IconCheck className="login-check" size={18} />
+            ) : (
+              <>
+                {submitting && <span className="login-spinner" aria-hidden="true" />}
+                {submitting ? 'Un instant…' : setupMode ? 'Créer et se connecter' : 'Se connecter'}
+              </>
+            )}
           </button>
         </form>
       </div>

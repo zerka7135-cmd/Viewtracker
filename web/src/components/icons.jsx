@@ -91,6 +91,14 @@ export function IconLogout(props) {
   );
 }
 
+export function IconCheck(props) {
+  return (
+    <Svg {...props}>
+      <path d="M4.5 12.5l5 5 10-11" />
+    </Svg>
+  );
+}
+
 export function IconEye(props) {
   return (
     <Svg {...props}>
