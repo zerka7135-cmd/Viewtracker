@@ -112,7 +112,7 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
           <div>
             <div style={{ fontSize: 19, fontWeight: 700 }}>{account.name}</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-              {fmt(account.allTime.total)} vues cumulées (all-time)
+              {fmt(account.allTime.total)} vues cumulées
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>

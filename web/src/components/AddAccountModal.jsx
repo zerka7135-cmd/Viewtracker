@@ -24,7 +24,7 @@ export default function AddAccountModal({ account, onClose, onAdded, onToast }) 
         ? await updateAccountApi(account.name, trimmed, [igUrl.trim(), ttUrl.trim(), ytUrl.trim()])
         : await addAccountApi(trimmed, [igUrl.trim(), ttUrl.trim(), ytUrl.trim()]);
       onAdded(res.accounts);
-      onToast(isEdit ? `Compte "${trimmed}" mis à jour` : `Compte "${trimmed}" ajouté — apparaîtra au prochain scan`);
+      onToast(isEdit ? `Compte "${trimmed}" mis à jour` : `Compte "${trimmed}" ajouté — apparaîtra à la prochaine collecte`);
       onClose();
     } catch (err) {
       onToast(`Erreur : ${err.message}`);

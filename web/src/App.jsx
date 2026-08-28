@@ -131,7 +131,7 @@ export default function App() {
       api.getScanStatus().then((status) => {
         setScan(status);
         if (wasScanning.current && !status.scanning) {
-          showToast(status.lastScanError ? `Scan terminé avec erreur : ${status.lastScanError}` : 'Scan terminé — classement mis à jour');
+          showToast(status.lastScanError ? `Collecte terminée avec erreur : ${status.lastScanError}` : 'Collecte terminée — classement mis à jour');
           loadDashboard();
         }
         wasScanning.current = status.scanning;
