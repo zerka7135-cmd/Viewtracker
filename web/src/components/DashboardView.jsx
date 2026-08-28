@@ -237,24 +237,32 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
               <div className="search-input-wrap" style={{ flex: 1, minWidth: 110 }}>
                 <IconSearch size={13} />
                 <input className="input" placeholder="Rechercher…" value={f.search} onChange={(e) => f.setSearch(e.target.value)} />
+                {f.search && (
+                  <button type="button" className="search-clear-btn" aria-label="Effacer la recherche" onClick={() => f.setSearch('')}>×</button>
+                )}
               </div>
-              <select className="select" value={f.status} onChange={(e) => f.setStatus(e.target.value)}>
+              <select className={`select ${f.status !== 'all' ? 'is-active' : ''}`} value={f.status} onChange={(e) => f.setStatus(e.target.value)}>
                 <option value="all">Statut : tous</option>
                 <option value="active">Actifs</option>
                 <option value="warning">Placeholders</option>
               </select>
-              <select className="select" value={f.platform} onChange={(e) => f.setPlatform(e.target.value)}>
+              <select className={`select ${f.platform !== 'all' ? 'is-active' : ''}`} value={f.platform} onChange={(e) => f.setPlatform(e.target.value)}>
                 <option value="all">Plateforme : toutes</option>
                 <option value="ig">Instagram</option>
                 <option value="tt">TikTok</option>
                 <option value="yt">YouTube</option>
               </select>
-              <select className="select" value={f.sort} onChange={(e) => f.setSort(e.target.value)}>
+              <select className={`select ${f.sort !== 'total' ? 'is-active' : ''}`} value={f.sort} onChange={(e) => f.setSort(e.target.value)}>
                 <option value="total">Trier : total</option>
                 <option value="nom">Trier : nom</option>
                 <option value="croissance">Trier : croissance</option>
               </select>
-              {f.active && <button className="btn-link" onClick={f.reset}>Réinitialiser</button>}
+              {/* Toujours monté (juste masqué via :disabled, voir theme.css) —
+                  évite que la ligne de filtres saute d'une largeur à l'autre
+                  à chaque fois qu'un filtre s'active/se désactive. */}
+              <button type="button" className="btn-link filters-reset" onClick={f.reset} disabled={!f.active}>
+                ↺ Réinitialiser
+              </button>
             </div>
 
             <div className="table-scroll">
