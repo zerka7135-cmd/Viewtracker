@@ -1,20 +1,28 @@
 import { useState } from 'react';
 import { fmt, fmtDate } from '../format.js';
 
-const SERIES = [['ig', 'Instagram'], ['tt', 'TikTok'], ['yt', 'YouTube']];
+const DEFAULT_SERIES = [['ig', 'Instagram'], ['tt', 'TikTok'], ['yt', 'YouTube']];
 
 /**
- * Une ligne par plateforme, un seul axe partagé (jamais un axe par série —
- * voir dataviz skill, "one axis") puisque IG/TT/YT sont la même unité
- * (des vues). Même langage visuel que AreaChart.jsx (tiroir de détail
- * d'un compte) : pas d'axe/gridlines visibles, juste les lignes et un
- * tooltip flottant au survol — ici avec les 3 séries dans le même tooltip
- * plutôt qu'une seule.
- * @param {Array<{date: string, ig: number, tt: number, yt: number}>} data
- * @param {Record<'ig'|'tt'|'yt', string>} colors
+ * Une ligne par série, un seul axe partagé (jamais un axe par série — voir
+ * dataviz skill, "one axis") puisqu'elles partagent la même unité (des
+ * vues). Même langage visuel que AreaChart.jsx (tiroir de détail d'un
+ * compte) : pas d'axe/gridlines visibles, juste les lignes et un tooltip
+ * flottant au survol regroupant toutes les séries.
+ *
+ * Générique : `series` par défaut = les 3 plateformes (usage historique,
+ * voir DashboardView.jsx), mais accepte n'importe quelle liste de
+ * [clé, libellé] — réutilisé pour comparer des comptes entre eux plutôt
+ * que des plateformes (voir AccountComparisonModal.jsx), pas de deuxième
+ * composant à dupliquer/maintenir pour un besoin identique (une ligne par
+ * catégorie, même échelle).
+ * @param {Array<{date: string, [key: string]: number}>} data
+ * @param {Record<string, string>} colors
+ * @param {Array<[string, string]>} [series]
  */
-export default function MultiLineChart({ data, colors, width = 560, height = 150 }) {
+export default function MultiLineChart({ data, colors, series = DEFAULT_SERIES, width = 560, height = 150 }) {
   const [hoverIndex, setHoverIndex] = useState(null);
+  const SERIES = series;
 
   if (data.length === 0) {
     return <div style={{ fontSize: 12, color: 'var(--text-muted)', height }}>Pas encore de données.</div>;
