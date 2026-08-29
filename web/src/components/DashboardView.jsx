@@ -13,6 +13,11 @@ import AccountComparisonModal from './AccountComparisonModal.jsx';
 
 const PLATFORM_COLOR = { ig: '#e0409e', tt: '#1a93c0', yt: '#ff453a' };
 const PLATFORM_NAME = { ig: 'Instagram', tt: 'TikTok', yt: 'YouTube' };
+// Mêmes médailles que le classement 24h de Discord (voir embed.js#medals
+// / build24hEmbed) — un coup d'œil suffit à reconnaître le même classement
+// des deux côtés plutôt qu'un rang numéroté qui ne dit rien de plus que le
+// tableau "Classement des comptes" juste en dessous.
+const MEDALS = ['🥇', '🥈', '🥉'];
 // "24h" ne demande pas une granularité horaire au serveur : la collecte ne
 // tourne qu'une fois par jour (cron), donc un vrai découpage par heure
 // donnerait 23 points à 0 et un seul pic à l'heure du scan — un graphique
@@ -209,6 +214,51 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
             ) : (
               <AreaChart data={chartData} color={PLATFORM_COLOR[f.platform]} />
             )}
+          </div>
+
+          <div className="card enter-stagger" style={{ padding: '20px 22px', '--enter-delay': '175ms' }}>
+            <div className="card-header">
+              <div>
+                <div className="card-title">Classement des dernières 24h</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                  Même classement que sur Discord — trié par vues gagnées depuis la dernière collecte, indépendamment du cumul all-time.
+                </div>
+              </div>
+            </div>
+            <div className="table-scroll">
+              <div className="table-header" style={{ gridTemplateColumns: '28px minmax(0,1.3fr) 50px 50px 50px 64px' }}>
+                <div>#</div><div className="ellipsis">Compte</div><div>IG</div><div>TT</div><div>YT</div><div>24h</div>
+              </div>
+              {accounts.length === 0 ? (
+                <div className="table-empty">
+                  <div className="table-empty-title">Aucun compte suivi</div>
+                  <div className="table-empty-sub">Le classement 24h apparaît dès qu'au moins un compte a deux collectes derrière lui.</div>
+                </div>
+              ) : (
+                [...accounts].sort((a, b) => b.growth24h - a.growth24h).map((a, i) => (
+                  <div
+                    key={a.name}
+                    role="button"
+                    tabIndex={0}
+                    className="table-row"
+                    style={{ gridTemplateColumns: '28px minmax(0,1.3fr) 50px 50px 50px 64px' }}
+                    onClick={() => onOpenDrawer(a.name)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenDrawer(a.name); } }}
+                  >
+                    <div className="table-cell-hide-mobile" style={{ fontWeight: 600, fontSize: i < 3 ? 15 : 13, color: 'var(--text-muted)' }}>
+                      {i < 3 ? MEDALS[i] : i + 1}
+                    </div>
+                    <div className="table-cell-title ellipsis" style={{ fontWeight: 600, fontSize: 13.5 }}>{a.name}</div>
+                    <div className="mono" data-label="Instagram" style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>{platformLabel(a.growth24hIg)}</div>
+                    <div className="mono" data-label="TikTok" style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>{platformLabel(a.growth24hTt)}</div>
+                    <div className="mono" data-label="YouTube" style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>{platformLabel(a.growth24hYt)}</div>
+                    <div className="mono" data-label="24h" style={{ fontSize: 12.5, fontWeight: 700, color: a.growth24h > 0 ? 'var(--green)' : 'var(--text-muted)' }}>
+                      +{fmtShort(a.growth24h)}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
           <div className="card enter-stagger" style={{ padding: '20px 22px', '--enter-delay': '200ms' }}>
