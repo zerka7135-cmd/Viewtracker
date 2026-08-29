@@ -13,11 +13,6 @@ import AccountComparisonModal from './AccountComparisonModal.jsx';
 
 const PLATFORM_COLOR = { ig: '#e0409e', tt: '#1a93c0', yt: '#ff453a' };
 const PLATFORM_NAME = { ig: 'Instagram', tt: 'TikTok', yt: 'YouTube' };
-// Mêmes médailles que le classement 24h de Discord (voir embed.js#medals
-// / build24hEmbed) — un coup d'œil suffit à reconnaître le même classement
-// des deux côtés plutôt qu'un rang numéroté qui ne dit rien de plus que le
-// tableau "Classement des comptes" juste en dessous.
-const MEDALS = ['🥇', '🥈', '🥉'];
 // "24h" ne demande pas une granularité horaire au serveur : la collecte ne
 // tourne qu'une fois par jour (cron), donc un vrai découpage par heure
 // donnerait 23 points à 0 et un seul pic à l'heure du scan — un graphique
@@ -216,6 +211,11 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
             )}
           </div>
 
+          {/* Les deux classements côte à côte à partir de 1100px (même seuil
+              que .dashboard-all-grid, voir theme.css) — en dessous, ils
+              redeviennent empilés comme le reste de la colonne plutôt que
+              de se retrouver écrasés à moins de ~450px chacun. */}
+          <div className="ranking-row">
           <div className="card enter-stagger" style={{ padding: '20px 22px', '--enter-delay': '175ms' }}>
             <div className="card-header">
               <div>
@@ -245,8 +245,8 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
                     onClick={() => onOpenDrawer(a.name)}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenDrawer(a.name); } }}
                   >
-                    <div className="table-cell-hide-mobile" style={{ fontWeight: 600, fontSize: i < 3 ? 15 : 13, color: 'var(--text-muted)' }}>
-                      {i < 3 ? MEDALS[i] : i + 1}
+                    <div className="table-cell-hide-mobile" style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-muted)' }}>
+                      {i + 1}
                     </div>
                     <div className="table-cell-title ellipsis" style={{ fontWeight: 600, fontSize: 13.5 }}>{a.name}</div>
                     <div className="mono" data-label="Instagram" style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>{platformLabel(a.growth24hIg)}</div>
@@ -383,6 +383,7 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
                 </div>
               ))}
             </div>
+          </div>
           </div>
         </div>
 
