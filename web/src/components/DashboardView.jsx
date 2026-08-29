@@ -211,57 +211,7 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
             )}
           </div>
 
-          {/* Les deux classements côte à côte à partir de 1100px (même seuil
-              que .dashboard-all-grid, voir theme.css) — en dessous, ils
-              redeviennent empilés comme le reste de la colonne plutôt que
-              de se retrouver écrasés à moins de ~450px chacun. */}
-          <div className="ranking-row">
           <div className="card enter-stagger" style={{ padding: '20px 22px', '--enter-delay': '175ms' }}>
-            <div className="card-header">
-              <div>
-                <div className="card-title">Classement des dernières 24h</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                  Même classement que sur Discord — trié par vues gagnées depuis la dernière collecte, indépendamment du cumul all-time.
-                </div>
-              </div>
-            </div>
-            <div className="table-scroll">
-              <div className="table-header" style={{ gridTemplateColumns: '28px minmax(0,1.3fr) 50px 50px 50px 64px' }}>
-                <div>#</div><div className="ellipsis">Compte</div><div>IG</div><div>TT</div><div>YT</div><div>24h</div>
-              </div>
-              {accounts.length === 0 ? (
-                <div className="table-empty">
-                  <div className="table-empty-title">Aucun compte suivi</div>
-                  <div className="table-empty-sub">Le classement 24h apparaît dès qu'au moins un compte a deux collectes derrière lui.</div>
-                </div>
-              ) : (
-                [...accounts].sort((a, b) => b.growth24h - a.growth24h).map((a, i) => (
-                  <div
-                    key={a.name}
-                    role="button"
-                    tabIndex={0}
-                    className="table-row"
-                    style={{ gridTemplateColumns: '28px minmax(0,1.3fr) 50px 50px 50px 64px' }}
-                    onClick={() => onOpenDrawer(a.name)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenDrawer(a.name); } }}
-                  >
-                    <div className="table-cell-hide-mobile" style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-muted)' }}>
-                      {i + 1}
-                    </div>
-                    <div className="table-cell-title ellipsis" style={{ fontWeight: 600, fontSize: 13.5 }}>{a.name}</div>
-                    <div className="mono" data-label="Instagram" style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>{platformLabel(a.growth24hIg)}</div>
-                    <div className="mono" data-label="TikTok" style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>{platformLabel(a.growth24hTt)}</div>
-                    <div className="mono" data-label="YouTube" style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>{platformLabel(a.growth24hYt)}</div>
-                    <div className="mono" data-label="24h" style={{ fontSize: 12.5, fontWeight: 700, color: a.growth24h > 0 ? 'var(--green)' : 'var(--text-muted)' }}>
-                      +{fmtShort(a.growth24h)}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="card enter-stagger" style={{ padding: '20px 22px', '--enter-delay': '200ms' }}>
             <div className="card-header">
               <div>
                 <div className="card-title">Classement des comptes</div>
@@ -316,8 +266,8 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
             </div>
 
             <div className="table-scroll">
-              <div className="table-header" style={{ gridTemplateColumns: '20px minmax(0,1.3fr) 40px 40px 40px 46px 34px 64px' }}>
-                <div>#</div><div className="ellipsis">Compte</div><div>IG</div><div>TT</div><div>YT</div><div>Total</div><div></div><div></div>
+              <div className="table-header" style={{ gridTemplateColumns: '20px minmax(0,1.3fr) 40px 40px 40px 46px 52px 34px 64px' }}>
+                <div>#</div><div className="ellipsis">Compte</div><div>IG</div><div>TT</div><div>YT</div><div>Total</div><div>24h</div><div></div><div></div>
               </div>
               {f.filtered.length === 0 && (
                 <div className="table-empty">
@@ -344,7 +294,7 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
                   role="button"
                   tabIndex={0}
                   className="table-row"
-                  style={{ gridTemplateColumns: '20px minmax(0,1.3fr) 40px 40px 40px 46px 34px 64px' }}
+                  style={{ gridTemplateColumns: '20px minmax(0,1.3fr) 40px 40px 40px 46px 52px 34px 64px' }}
                   onClick={() => onOpenDrawer(a.name)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenDrawer(a.name); } }}
                 >
@@ -359,6 +309,9 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
                   <div className="mono" data-label="TikTok" style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>{platformLabel(a.tt)}</div>
                   <div className="mono" data-label="YouTube" style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>{platformLabel(a.yt)}</div>
                   <div className="mono" data-label="Total" style={{ fontSize: 12.5, fontWeight: 700 }}>{fmtShort(a.total)}</div>
+                  <div className="mono" data-label="24h" style={{ fontSize: 11.5, fontWeight: 600, color: a.growth24h > 0 ? 'var(--green)' : 'var(--text-muted)' }}>
+                    +{fmtShort(a.growth24h)}
+                  </div>
                   <div className="table-cell-hide-mobile">
                     <Sparkline values={a.spark} color={a.growth24h >= 0 ? 'var(--green)' : 'var(--red)'} />
                   </div>
@@ -383,7 +336,6 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
                 </div>
               ))}
             </div>
-          </div>
           </div>
         </div>
 

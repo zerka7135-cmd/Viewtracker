@@ -93,16 +93,6 @@ export function getAccountsWithStats() {
         yt: cumul?.yt ?? 0
       },
       growth24h: growth ? growth.total : 0,
-      // Détail par plateforme du gain 24h (voir computeGrowth24h) — pour le
-      // tableau "Classement des dernières 24h" du dashboard (DashboardView.jsx),
-      // qui reprend le format du classement 24h de Discord (build24hEmbed,
-      // voir embed.js) plutôt que le seul total déjà utilisé par la carte
-      // KPI "Vues gagnées (24h)". Même règle "Ban" que les colonnes
-      // all-time ci-dessus : null si la plateforme n'est pas configurée,
-      // même si le delta correspondant vaudrait 0 par défaut.
-      growth24hIg: latest?.ig === null ? null : (growth?.ig ?? 0),
-      growth24hTt: latest?.tt === null ? null : (growth?.tt ?? 0),
-      growth24hYt: latest?.yt === null ? null : (growth?.yt ?? 0),
       spark,
       posts: {
         ig: postsFor('ig'),

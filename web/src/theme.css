@@ -579,26 +579,6 @@ select:focus-visible,
   min-width: 0;
 }
 
-/* Classement 24h + classement des comptes côte à côte (voir
-   DashboardView.jsx) — chaque table gère déjà son propre scroll
-   horizontal (.table-scroll) si ses colonnes se retrouvent à l'étroit,
-   donc pas besoin d'une largeur minimale garantie ici comme pour
-   .dashboard-all-grid ci-dessous. items-start : les deux cartes n'ont
-   aucune raison d'avoir la même hauteur (filtres + pagination du
-   classement des comptes le rend presque toujours plus grand que le
-   classement 24h, sans filtres). */
-.ranking-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  align-items: start;
-}
-@media (max-width: 1100px) {
-  .ranking-row {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* --- Dashboard, mode "Tous" (voir DashboardView.jsx) --- */
 
 .dashboard-all-grid {
