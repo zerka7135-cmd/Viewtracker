@@ -234,7 +234,7 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
               </div>
             </div>
             <div className="filters-row" style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
-              <div className="search-input-wrap" style={{ flex: 1, minWidth: 110 }}>
+              <div className="search-input-wrap" style={{ flex: '0 1 220px', minWidth: 110 }}>
                 <IconSearch size={13} />
                 <input className="input" placeholder="Rechercher…" value={f.search} onChange={(e) => f.setSearch(e.target.value)} />
                 {f.search && (
