@@ -21,13 +21,6 @@ const MIN_LOADING_MS = 1500; // durée minimale du loader initial (voir LoadingS
 // Postgres) : un seul bot, mais plusieurs personnes peuvent avoir leur
 // propre compte pour s'y connecter.
 export default function App() {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try { return localStorage.getItem('vt-sidebar-collapsed') === '1'; } catch { return false; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem('vt-sidebar-collapsed', sidebarCollapsed ? '1' : '0'); } catch { /* non bloquant */ }
-  }, [sidebarCollapsed]);
-
   // Vérifié une fois au montage : passwordSet distingue le tout premier
   // accès (aucun mot de passe encore créé, voir auth.js#isPasswordSet) de
   // la reconnexion normale — même écran (LoginScreen), juste le mode qui
@@ -173,8 +166,6 @@ export default function App() {
       <Sidebar
         view={view}
         onNavigate={setView}
-        collapsed={sidebarCollapsed}
-        onToggleCollapsed={() => setSidebarCollapsed((c) => !c)}
         onLogout={handleLogout}
       />
       {/* Barre d'onglets du bas — même destinations que Sidebar, visible

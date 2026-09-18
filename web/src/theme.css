@@ -131,15 +131,6 @@ select:focus-visible,
   height: 100vh;
   overflow-y: auto;
 }
-.sidebar.collapsed {
-  width: 76px;
-  padding: 22px 10px;
-}
-
-/* Les libellés texte restent montés dans le DOM (voir Sidebar.jsx) et
-   animent max-width/opacity/margin en même temps que la largeur de la
-   sidebar (même durée/courbe) — évite l'effet "texte qui disparaît d'un
-   coup" pendant que le conteneur est encore en train d'animer. */
 .sidebar-brand {
   display: flex;
   align-items: center;
@@ -171,35 +162,6 @@ select:focus-visible,
   margin-left: 8px;
   transition: max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.14s ease, margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.sidebar.collapsed .sidebar-brand-name {
-  max-width: 0;
-  opacity: 0;
-  margin-left: 0;
-}
-.sidebar-collapse-btn {
-  margin-left: auto;
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  border: 1px solid var(--border-strong);
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  flex-shrink: 0;
-  transition: background 0.15s, color 0.15s, margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.sidebar-collapse-btn:hover {
-  background: var(--card-hover);
-  color: var(--text);
-}
-.sidebar.collapsed .sidebar-collapse-btn {
-  margin-left: 6px;
-}
-
 .nav {
   display: flex;
   flex-direction: column;
@@ -243,25 +205,6 @@ select:focus-visible,
   margin-left: 10px;
   transition: max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.14s ease, margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.sidebar.collapsed .nav-item-label {
-  max-width: 0;
-  opacity: 0;
-  margin-left: 0;
-}
-.sidebar.collapsed .nav-item {
-  justify-content: center;
-  padding: 8px;
-  /* `justify-content` n'est pas interpolable, donc pas transitionable par
-     défaut : sans `allow-discrete` (transition-behavior), le navigateur
-     l'applique instantanément dès le changement de classe, pendant que le
-     libellé est encore visible/en train de rétrécir — l'icône "saute" au
-     centre avant que le texte ait fini de disparaître. `allow-discrete`
-     bascule la valeur seulement en toute fin de transition (une fois le
-     libellé disparu), imperceptible plutôt que saccadé. Au dépli (règle de
-     base .nav-item, sans allow-discrete), le retour à flex-start reste
-     instantané dès le début — passe inaperçu sur une ligne encore étroite. */
-  transition: background 0.15s, color 0.15s, padding 0.22s cubic-bezier(0.4, 0, 0.2, 1), justify-content 0.05s allow-discrete 0.2s;
-}
 .nav-item.active {
   color: #fff;
   font-weight: 600;
@@ -297,11 +240,6 @@ select:focus-visible,
   overflow: hidden;
   transition: max-height 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.14s ease, margin-bottom 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.sidebar.collapsed .sidebar-server-label {
-  max-height: 0;
-  opacity: 0;
-  margin-bottom: 0;
-}
 .sidebar-server-row {
   display: flex;
   align-items: center;
@@ -327,18 +265,6 @@ select:focus-visible,
   margin-left: 8px;
   overflow: hidden;
   transition: max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.14s ease, margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.sidebar.collapsed .sidebar-server-info {
-  max-width: 0;
-  opacity: 0;
-  margin-left: 0;
-}
-.sidebar.collapsed .sidebar-server {
-  padding: 10px 8px;
-  align-items: center;
-}
-.sidebar.collapsed .sidebar-server-row {
-  justify-content: center;
 }
 .sidebar-logout {
   display: flex;
@@ -367,17 +293,6 @@ select:focus-visible,
   margin-left: 8px;
   transition: max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.14s ease, margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.sidebar.collapsed .sidebar-logout span {
-  max-width: 0;
-  opacity: 0;
-  margin-left: 0;
-}
-.sidebar.collapsed .sidebar-logout {
-  justify-content: center;
-  /* Même bascule différée que .nav-item ci-dessus, pour la même raison
-     (justify-content non interpolable sans allow-discrete). */
-  transition: background 0.15s, color 0.15s, justify-content 0.05s allow-discrete 0.2s;
-}
 .sidebar-status {
   display: flex;
   align-items: center;
@@ -386,9 +301,6 @@ select:focus-visible,
   font-family: var(--mono);
   margin-bottom: 8px;
 }
-.sidebar.collapsed .sidebar-status {
-  justify-content: center;
-}
 .sidebar-status-label {
   overflow: hidden;
   white-space: nowrap;
@@ -396,11 +308,6 @@ select:focus-visible,
   opacity: 1;
   margin-left: 6px;
   transition: max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.14s ease, margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.sidebar.collapsed .sidebar-status-label {
-  max-width: 0;
-  opacity: 0;
-  margin-left: 0;
 }
 .dot {
   width: 6px;
