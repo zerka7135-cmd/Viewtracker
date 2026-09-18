@@ -31,7 +31,7 @@ export default function ConfirmModal({ title, message, confirmLabel = 'Confirmer
     <>
       <div className="backdrop" onClick={onCancel} />
       <div className="modal">
-        <div className="card modal-card" style={{ border: '1px solid rgba(255,69,58,0.35)' }} ref={sheetRef}>
+        <div className="card modal-card" style={{ border: '1px solid color-mix(in oklab, var(--red) 35%, transparent)' }} ref={sheetRef}>
           <SheetHandle {...handleProps} />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--red)' }}>{title}</div>

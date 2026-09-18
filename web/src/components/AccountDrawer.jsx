@@ -12,10 +12,12 @@ import CloseButton from './CloseButton.jsx';
 import SheetHandle from './SheetHandle.jsx';
 import { downloadPdf } from '../pdf.js';
 
+// Référence les tokens --ig/--tt/--yt (theme.css) plutôt que de dupliquer
+// leurs valeurs hex en dur — voir le même choix dans DashboardView.jsx.
 const PLATFORMS = [
-  { key: 'ig', name: 'Instagram', color: '#e0409e' },
-  { key: 'tt', name: 'TikTok', color: '#1a93c0' },
-  { key: 'yt', name: 'YouTube', color: '#ff453a' }
+  { key: 'ig', name: 'Instagram', color: 'var(--ig)' },
+  { key: 'tt', name: 'TikTok', color: 'var(--tt)' },
+  { key: 'yt', name: 'YouTube', color: 'var(--yt)' }
 ];
 const RANGES = [7, 14, 30];
 

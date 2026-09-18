@@ -184,7 +184,7 @@ function BotIdentitySection({ onToast }) {
   if (!status) return null;
 
   return (
-    <div style={{ padding: '14px 16px', marginTop: 4, border: '1px solid rgba(255,159,10,0.3)', borderRadius: 10 }}>
+    <div style={{ padding: '14px 16px', marginTop: 4, border: '1px solid color-mix(in oklab, var(--orange) 30%, transparent)', borderRadius: 10 }}>
       <SubsectionLabel>Identifiants du bot</SubsectionLabel>
       <div style={{ fontSize: 11.5, color: 'var(--orange)', marginBottom: 6, lineHeight: 1.5 }}>
         ⚠ Quiconque connaît le mot de passe du dashboard peut changer ces valeurs et prendre le contrôle du bot — gardez-le aussi confidentiel que le token lui-même.

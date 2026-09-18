@@ -11,7 +11,13 @@ import ConfirmModal from './ConfirmModal.jsx';
 import { IconSearch, IconEdit, IconTrash, IconPlus, IconCompare } from './icons.jsx';
 import AccountComparisonModal from './AccountComparisonModal.jsx';
 
-const PLATFORM_COLOR = { ig: '#e0409e', tt: '#1a93c0', yt: '#ff453a' };
+// Référence les tokens --ig/--tt/--yt (theme.css) plutôt que de dupliquer
+// leurs valeurs hex en dur — un seul endroit à mettre à jour si la palette
+// change, jamais de risque de dérive entre CSS et JS (déjà le cas pour
+// stroke="var(--card)" ailleurs dans les graphiques, voir AreaChart.jsx/
+// MultiLineChart.jsx : un attribut SVG résout var() comme n'importe quelle
+// valeur CSS).
+const PLATFORM_COLOR = { ig: 'var(--ig)', tt: 'var(--tt)', yt: 'var(--yt)' };
 const PLATFORM_NAME = { ig: 'Instagram', tt: 'TikTok', yt: 'YouTube' };
 // "24h" ne demande pas une granularité horaire au serveur : la collecte ne
 // tourne qu'une fois par jour (cron), donc un vrai découpage par heure
@@ -341,9 +347,9 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
 
         <div className="stack">
           {warningsCount > 0 && (
-            <div className="card" style={{ background: 'rgba(255,159,10,0.12)', border: '1px solid rgba(255,159,10,0.35)', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div className="card" style={{ background: 'color-mix(in oklab, var(--orange) 12%, transparent)', border: '1px solid color-mix(in oklab, var(--orange) 35%, transparent)', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--orange)' }}>⚠ {warningsCount} compte(s) sans donnée</div>
-              <div style={{ fontSize: 12, color: '#d1a45c', lineHeight: 1.5 }}>Aucune vue détectée à la dernière collecte — vérifiez les URLs ci-dessus ou les logs du scraping.</div>
+              <div style={{ fontSize: 12, color: 'color-mix(in oklab, var(--orange) 70%, var(--text-faint))', lineHeight: 1.5 }}>Aucune vue détectée à la dernière collecte — vérifiez les URLs ci-dessus ou les logs du scraping.</div>
             </div>
           )}
         </div>

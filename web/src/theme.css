@@ -755,7 +755,7 @@ select:focus-visible,
   color: var(--text);
 }
 .icon-btn-danger:hover {
-  background: rgba(255, 69, 58, 0.14);
+  background: color-mix(in oklab, var(--red) 14%, transparent);
   color: var(--red);
 }
 
