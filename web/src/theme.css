@@ -1,28 +1,52 @@
-/* Toujours sombre — pas de thème clair (retiré, voir Paramètres > un seul
-   thème possible désormais, plus de bascule à proposer). */
+/* Identité graphique reprise telle quelle du design system du portfolio
+   (artefact "Design System Vincent Le Vaillant") : même palette (primitives
+   → alias sémantiques), même typo (Manrope + JetBrains Mono), mêmes rayons/
+   ombres. Thème clair assumé — color-scheme: light déclaré explicitement
+   (même raison que le design system source : éviter qu'un navigateur en
+   mode sombre n'inversite de lui-même barres de défilement/contrôles),
+   remplace le "toujours sombre" précédent. Les noms de variables existants
+   sont conservés (--accent, --bg, --card…) pour ne pas avoir à toucher
+   chaque composant — seules les valeurs changent, plus quelques tokens
+   propres à ce dashboard (comptes/plateformes/alertes) que le design
+   system source, un portfolio, n'a pas à couvrir : --ig/--tt/--yt (identité
+   des plateformes suivies) et --orange (alerte compte bloqué) étendent la
+   palette en suivant sa même logique primitive → rôle plutôt que d'inventer
+   un style à part. */
 :root {
-  --accent: #0a84ff;
-  --bg: #1c1c1e;
-  --card: #2c2c2e;
-  --card-alt: #3a3a3c;
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.14);
-  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --switch-off: #e8e8ed;
-  --text: #f5f5f7;
-  --text-muted: #98989d;
-  --text-faint: #aeaeb2;
-  --green: #30d158;
-  --orange: #ff9f0a;
-  --red: #ff453a;
+  color-scheme: light;
+  --accent: #0071e3;
+  --accent-hover: #0063c7;
+  --bg: #ffffff;
+  --card: #ffffff;
+  --card-alt: #f8f9fb;
+  /* Distinct de --card-alt : le design system source sépare explicitement
+     une teinte de surface statique (panneaux, galerie — --card-alt) d'une
+     teinte de survol volontairement plus dense (--color-bg-subtle dans le
+     document source) — les confondre aurait rendu les survols à peine
+     perceptibles sur fond blanc. */
+  --card-hover: #f5f5f7;
+  --border: #e5e5e5;
+  --border-strong: #d2d7de;
+  --card-shadow: none;
+  --shadow-nav: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-float: 0 4px 24px rgba(0, 0, 0, 0.08);
+  --switch-off: #d2d7de;
+  --text: #1d1d1f;
+  --text-muted: #6e6e73;
+  --text-faint: #76767c;
+  --green: #0f7b3d;
+  --orange: #b54708;
+  --red: #b3261e;
   --ig: #e0409e;
   --tt: #1a93c0;
   --yt: #ff453a;
-  --sidebar-bg: rgba(28, 28, 30, 0.76);
-  --scrollbar-thumb: rgba(255, 255, 255, 0.18);
-  --table-row-border: rgba(255, 255, 255, 0.06);
-  --toast-bg: #3a3a3c;
+  --sidebar-bg: rgba(255, 255, 255, 0.72);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.18);
+  --table-row-border: rgba(0, 0, 0, 0.06);
+  --toast-bg: #1d1d1f;
   --toast-text: #ffffff;
+  --sans: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 * {
@@ -33,7 +57,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Inter, sans-serif;
+  font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -88,6 +112,9 @@ select:focus-visible,
   flex-shrink: 0;
   background: var(--sidebar-bg);
   backdrop-filter: blur(20px);
+  /* Même traitement que .p-nav du design system source (verre dépoli +
+     shadow-nav) — la nav est une surface flottante par nature. */
+  box-shadow: var(--shadow-nav);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -166,7 +193,7 @@ select:focus-visible,
   transition: background 0.15s, color 0.15s, margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .sidebar-collapse-btn:hover {
-  background: var(--card-alt);
+  background: var(--card-hover);
   color: var(--text);
 }
 .sidebar.collapsed .sidebar-collapse-btn {
@@ -238,10 +265,14 @@ select:focus-visible,
 .nav-item.active {
   color: #fff;
   font-weight: 600;
-  background: color-mix(in oklab, var(--accent) 55%, var(--bg));
+  /* Accent plein plutôt que mélangé à --bg (dont la valeur passe du
+     sombre au blanc avec le thème) : un mélange avec du blanc s'éclaircit
+     jusqu'à devenir trop pâle pour porter un texte/icône blancs — l'accent
+     plein reste lisible quel que soit --bg. */
+  background: var(--accent);
 }
 .nav-item:hover:not(.active) {
-  background: var(--card);
+  background: var(--card-hover);
 }
 
 .sidebar-server {
@@ -325,7 +356,7 @@ select:focus-visible,
   transition: background 0.15s, color 0.15s;
 }
 .sidebar-logout:hover {
-  background: var(--card);
+  background: var(--card-hover);
   color: var(--text);
 }
 .sidebar-logout span {
@@ -352,7 +383,7 @@ select:focus-visible,
   align-items: center;
   font-size: 11px;
   color: var(--green);
-  font-family: ui-monospace, 'SF Mono', monospace;
+  font-family: var(--mono);
   margin-bottom: 8px;
 }
 .sidebar.collapsed .sidebar-status {
@@ -462,7 +493,7 @@ select:focus-visible,
 .topbar-meta {
   font-size: 12px;
   color: var(--text-muted);
-  font-family: ui-monospace, 'SF Mono', monospace;
+  font-family: var(--mono);
 }
 .btn {
   border: none;
@@ -559,7 +590,7 @@ select:focus-visible,
 .kpi-value {
   font-size: 26px;
   font-weight: 700;
-  font-family: ui-monospace, 'SF Mono', monospace;
+  font-family: var(--mono);
   letter-spacing: -0.01em;
 }
 .kpi-sub {
@@ -680,14 +711,14 @@ select:focus-visible,
   background-repeat: no-repeat;
   background-position: right 8px center;
   background-size: 14px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2398989d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236e6e73' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   transition: border-color 0.15s, background-color 0.15s, color 0.15s;
 }
 .select.is-active {
   border-color: var(--accent);
   color: var(--accent);
   background-color: color-mix(in oklab, var(--accent) 12%, var(--card-alt));
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230a84ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230071e3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
 }
 .filters-reset {
   display: flex;
@@ -751,7 +782,7 @@ select:focus-visible,
   transition: background 0.15s, color 0.15s;
 }
 .icon-btn:hover {
-  background: var(--card-alt);
+  background: var(--card-hover);
   color: var(--text);
 }
 .icon-btn-danger:hover {
@@ -796,7 +827,7 @@ select:focus-visible,
   border-radius: 8px;
 }
 .table-row:hover {
-  background: var(--card-alt);
+  background: var(--card-hover);
 }
 .table-empty {
   display: flex;
@@ -822,7 +853,7 @@ select:focus-visible,
   white-space: nowrap;
 }
 .mono {
-  font-family: ui-monospace, 'SF Mono', monospace;
+  font-family: var(--mono);
 }
 
 /* --- Toggle switch --- */
@@ -884,6 +915,11 @@ select:focus-visible,
   max-width: 100vw;
   background: var(--card);
   border-left: 1px solid var(--border);
+  /* .card met --card-shadow (none, contenu courant) — le tiroir est une
+     vraie surface flottante par-dessus le fond assombri (voir .backdrop),
+     comme le panneau/la galerie du design system source : shadow-float
+     plutôt que la bordure seule. */
+  box-shadow: var(--shadow-float);
   z-index: 41;
   padding: 24px;
   display: flex;
@@ -927,6 +963,9 @@ select:focus-visible,
   flex-direction: column;
   gap: 16px;
   pointer-events: auto;
+  /* Même raison que .drawer ci-dessus : surface flottante par-dessus le
+     fond assombri, shadow-float plutôt que --card-shadow (none). */
+  box-shadow: var(--shadow-float);
   animation: modalIn 0.18s ease;
 }
 @keyframes modalIn {
@@ -1030,7 +1069,7 @@ select:focus-visible,
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 12px 32px rgba(10, 132, 255, 0.35);
+  box-shadow: 0 12px 32px color-mix(in oklab, var(--accent) 35%, transparent);
   margin-bottom: 24px;
   animation: loginMarkIn 0.55s 0.1s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -1154,7 +1193,13 @@ select:focus-visible,
   display: flex;
   border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  /* Ombre allégée par rapport au thème sombre d'origine (0.35 d'opacité) —
+     le design system source garde ses ombres très légères (0.04 à 0.08),
+     réservées aux surfaces flottantes ; celle-ci reste la plus marquée de
+     l'app puisque la carte de connexion est l'unique élément de l'écran,
+     mais s'aligne sur cette même retenue plutôt que de trancher trop fort
+     sur un fond blanc. */
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.14);
   animation: loginCardIn 0.45s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes loginCardIn {
@@ -1182,7 +1227,7 @@ select:focus-visible,
   flex-direction: column;
   justify-content: flex-end;
   gap: 10px;
-  background: linear-gradient(155deg, var(--accent), color-mix(in oklab, var(--accent) 55%, #1c1c1e));
+  background: linear-gradient(155deg, var(--accent), color-mix(in oklab, var(--accent) 55%, var(--text)));
   color: #fff;
   overflow: hidden;
 }
@@ -1293,7 +1338,7 @@ select:focus-visible,
   transition: background 0.12s ease, color 0.12s ease;
 }
 .login-reveal-btn:hover {
-  background: var(--card-alt);
+  background: var(--card-hover);
   color: var(--text);
 }
 
@@ -1650,7 +1695,7 @@ select:focus-visible,
     transform: scale(0.96);
   }
   .table-row:active {
-    background: var(--card-alt);
+    background: var(--card-hover);
   }
 }
 @media (max-width: 700px) and (prefers-reduced-motion: no-preference) {
