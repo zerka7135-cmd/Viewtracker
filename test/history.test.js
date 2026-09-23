@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeGrowth24h, detectStuckAccounts } from '../src/history.js';
+import { computeGrowth24h, detectStuckAccounts, detectDecliningAccounts } from '../src/history.js';
 
 // Formate une date en YYYY-MM-DD dans le fuseau Europe/Paris, comme le
 // fait le code testé (voir history.js#todayKey) — construit ici plutôt
@@ -114,4 +114,63 @@ test('detectStuckAccounts : historique plus court que minDays -> jamais d\'alert
   const history = [{ date: dateKey(0), accounts: [errorEntry] }];
 
   assert.equal(detectStuckAccounts(history, 3).length, 0);
+});
+
+// Construit un historique de `deltas.length + 1` entrées (un jour de
+// référence, puis un jour par delta) pour un seul compte — daysNeeded pour
+// detectDecliningAccounts(history, baselineDays, recentDays) vaut
+// baselineDays + recentDays + 1, donc deltas doit faire baselineDays +
+// recentDays de long pour couvrir tout juste la fenêtre.
+function historyFromDeltas(deltas) {
+  let total = 0;
+  const totals = [total, ...deltas.map((d) => (total += d))];
+  return totals.map((t, i) => ({
+    date: dateKey(totals.length - 1 - i),
+    accounts: [{ account: 'compteA', total: t }]
+  }));
+}
+
+test('detectDecliningAccounts : détecte un rythme récent tombé sous 30% de la moyenne habituelle', () => {
+  const deltas = [1000, 1000, 1000, 1000, 1000, 1000, 1000, 100, 100, 100]; // 7 baseline, 3 récents
+  const history = historyFromDeltas(deltas);
+
+  const declining = detectDecliningAccounts(history, 7, 3);
+  assert.equal(declining.length, 1);
+  assert.equal(declining[0].account, 'compteA');
+  assert.equal(declining[0].avgBaseline, 1000);
+  assert.equal(declining[0].avgRecent, 100);
+  assert.ok(declining[0].ratio < 0.3);
+});
+
+test('detectDecliningAccounts : rythme stable -> pas d\'alerte', () => {
+  const deltas = new Array(10).fill(1000);
+  const history = historyFromDeltas(deltas);
+
+  assert.equal(detectDecliningAccounts(history, 7, 3).length, 0);
+});
+
+test('detectDecliningAccounts : compte déjà à l\'arrêt avant (baseline nulle) -> ignoré', () => {
+  const deltas = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  const history = historyFromDeltas(deltas);
+
+  assert.equal(detectDecliningAccounts(history, 7, 3).length, 0);
+});
+
+test('detectDecliningAccounts : historique plus court que la fenêtre -> jamais d\'alerte', () => {
+  const deltas = [1000, 1000, 1000, 100, 100, 100]; // trop court pour baselineDays=7 + recentDays=3
+  const history = historyFromDeltas(deltas);
+
+  assert.equal(detectDecliningAccounts(history, 7, 3).length, 0);
+});
+
+test('detectDecliningAccounts : panne de scraping (errors) dans la fenêtre -> ignoré, pas une baisse d\'audience', () => {
+  // TikTok en échec les 3 derniers jours : sa part tombe à 0 dans total,
+  // ce qui ressemblerait à un effondrement sans ce garde-fou.
+  const deltas = [1000, 1000, 1000, 1000, 1000, 1000, 1000, 0, 0, 0];
+  const history = historyFromDeltas(deltas);
+  for (const entry of history.slice(-3)) {
+    entry.accounts[0].errors = [{ platform: 'TT', message: 'cookie expiré' }];
+  }
+
+  assert.equal(detectDecliningAccounts(history, 7, 3).length, 0);
 });

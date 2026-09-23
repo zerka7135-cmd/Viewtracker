@@ -198,3 +198,80 @@ export function detectStuckAccounts(history, minDays = 3) {
 
   return stuck;
 }
+
+// Fenêtres de la détection de tendance déclinante ci-dessous — "rythme
+// habituel" (baseline) puis "en ce moment" (recent), comparés l'un à
+// l'autre plutôt qu'à un seuil fixe : un compte à 5K vues/jour et un à
+// 500K n'ont pas la même échelle, seule leur propre évolution compte.
+const DECLINE_BASELINE_DAYS = 7;
+const DECLINE_RECENT_DAYS = 3;
+// Le rythme récent doit être tombé sous 30% du rythme habituel pour
+// déclencher — une simple fluctuation (un jour plus calme, un post qui met
+// du temps à décoller) ne suffit pas, il faut une vraie rupture de tendance
+// sur plusieurs jours d'affilée.
+const DECLINE_RATIO_THRESHOLD = 0.3;
+
+/**
+ * Détecte les comptes dont la progression récente s'est nettement
+ * essoufflée par rapport à leur propre rythme habituel — un vrai déclin
+ * d'audience, à distinguer de detectStuckAccounts ci-dessus qui ne repère
+ * qu'une panne de scraping (0 vue par échec technique, pas par
+ * désintérêt de l'audience réelle). Sert à alerter tôt, pendant qu'il est
+ * encore temps d'ajuster (fréquence, format), plutôt que de laisser
+ * quelqu'un découvrir la baisse des semaines plus tard noyée dans le
+ * bruit des variations quotidiennes.
+ *
+ * Compare deux fenêtres consécutives du gain total quotidien (même calcul
+ * simplifié — diff brut de `total`, pas le détail par vidéo de
+ * computeGrowth24h, suffisant pour un signal de tendance) : la moyenne
+ * "récente" (recentDays derniers jours) contre la moyenne "habituelle"
+ * (baselineDays juste avant). Un compte qui ne progressait déjà pas avant
+ * (baseline nulle ou négative) est ignoré — rien à "décliner" de plus, ce
+ * n'est pas ce signal-là qui s'applique.
+ * @param {Array} history Historique complet (plus ancien -> plus récent), incluant la collecte du jour
+ * @param {number} baselineDays Fenêtre de rythme habituel, juste avant la fenêtre récente
+ * @param {number} recentDays Fenêtre récente comparée à la précédente
+ * @returns {Array<{account: string, avgBaseline: number, avgRecent: number, ratio: number}>}
+ */
+export function detectDecliningAccounts(history, baselineDays = DECLINE_BASELINE_DAYS, recentDays = DECLINE_RECENT_DAYS) {
+  const declining = [];
+  // +1 : il faut un jour de référence avant le tout premier delta de la fenêtre.
+  const daysNeeded = baselineDays + recentDays + 1;
+  if (history.length < daysNeeded) return declining;
+
+  const window = history.slice(-daysNeeded);
+  const accounts = window[window.length - 1].accounts.map(a => a.account);
+
+  for (const account of accounts) {
+    const dailyTotals = window.map(entry => entry.accounts.find(a => a.account === account)?.total ?? null);
+    // Compte ajouté en cours de fenêtre (pas encore d'historique complet) :
+    // pas assez de recul pour juger d'une tendance, on l'ignore plutôt que
+    // de risquer un faux signal sur des données partielles.
+    if (dailyTotals.some(t => t === null)) continue;
+    // Une plateforme en échec compte pour 0 dans `total` (voir
+    // instagram.js#scrapeWithRetry) : sans ce garde-fou, une panne de
+    // scraping ressemblerait à un effondrement d'audience et doublerait
+    // l'alerte de detectStuckAccounts. On ne juge la tendance que sur des
+    // collectes complètes.
+    const hasErrors = window.some(entry => (entry.accounts.find(a => a.account === account)?.errors || []).length > 0);
+    if (hasErrors) continue;
+
+    const deltas = [];
+    for (let i = 1; i < dailyTotals.length; i++) {
+      deltas.push(Math.max(0, dailyTotals[i] - dailyTotals[i - 1]));
+    }
+    const baselineDeltas = deltas.slice(0, baselineDays);
+    const recentDeltas = deltas.slice(baselineDays);
+
+    const avgBaseline = baselineDeltas.reduce((sum, d) => sum + d, 0) / baselineDeltas.length;
+    const avgRecent = recentDeltas.reduce((sum, d) => sum + d, 0) / recentDeltas.length;
+    if (avgBaseline <= 0) continue;
+
+    const ratio = avgRecent / avgBaseline;
+    if (ratio < DECLINE_RATIO_THRESHOLD) {
+      declining.push({ account, avgBaseline: Math.round(avgBaseline), avgRecent: Math.round(avgRecent), ratio });
+    }
+  }
+
+  return declining;
+}

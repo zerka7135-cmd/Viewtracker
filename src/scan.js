@@ -1,6 +1,6 @@
 import { buildViewsSummary } from './instagram.js';
 import { acquireLock, releaseLock } from './cache.js';
-import { loadHistory, appendToday, computeGrowth24h, detectStuckAccounts } from './history.js';
+import { loadHistory, appendToday, computeGrowth24h, detectStuckAccounts, detectDecliningAccounts } from './history.js';
 import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from './cumulativeViews.js';
 import { loadAccounts } from './accountsStore.js';
 import { loadSettings } from './settingsStore.js';
@@ -64,6 +64,14 @@ import { loadSettings } from './settingsStore.js';
       console.log('\n🔴 Comptes bloqués depuis plusieurs collectes consécutives :');
       for (const s of stuckAccounts) {
         console.log(`- ${s.account} (${s.platform}) : ${s.days} collectes en échec — ${s.lastMessage}`);
+      }
+    }
+
+    const decliningAccounts = detectDecliningAccounts(historyAfter);
+    if (decliningAccounts.length > 0) {
+      console.log('\n📉 Baisse d\'audience détectée :');
+      for (const d of decliningAccounts) {
+        console.log(`- ${d.account} : ${d.avgRecent} vues/jour récemment, contre ${d.avgBaseline} habituellement (${Math.round(d.ratio * 100)}%)`);
       }
     }
   } finally {
