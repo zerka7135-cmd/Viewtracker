@@ -2,6 +2,7 @@ import fs from 'fs';
 import { chromium } from 'playwright-extra';
 import stealth from 'puppeteer-extra-plugin-stealth';
 import { config } from './config.js';
+import { fetchTikTokPosts } from './tiktok.js';
 
 chromium.use(stealth());
 
@@ -431,62 +432,22 @@ export async function buildViewsSummary(accounts = config.accounts, postsLimit =
         // --- TIKTOK ---
         else if (url.includes('tiktok.com')) {
           const { total, posts, error } = await scrapeWithRetry('TikTok', async () => {
-            // TikTok bloque désormais Playwright derrière un captcha slider
-            // ("Drag the slider to fit the puzzle"), reproductible même avec
-            // IP résidentielle, navigateur non-headless, cookies frais et
-            // patch anti-détection CDP (rebrowser-playwright) — testé le
-            // 08/08/2026, les 4 pistes ont échoué. On passe donc par l'API
-            // tierce tiktokapi.store (scraping fait côté fournisseur), qui
-            // évite complètement le navigateur pour cette plateforme.
+            // TikTok bloque Playwright derrière un captcha slider (testé le
+            // 08/08/2026), et l'ancien fournisseur d'API tiers (tiktokapi.store)
+            // a disparu en septembre 2026 : yt-dlp liste les dernières vidéos
+            // du compte avec leurs vues, sans navigateur (voir src/tiktok.js).
             //
-            // Court délai avant chaque appel, contrairement à avant : sans lui,
-            // les ~20 comptes tapaient l'API en rafale (aucune pause entre eux),
-            // ce qui a probablement aggravé la panne du 12/08 où 14 comptes sur
-            // 20 ont échoué en "fetch failed" d'un coup — un vrai down côté
-            // fournisseur, mais une rafale de requêtes simultanées ne l'aide pas.
-            await randomDelay(500, 1500);
+            // Même rythme que YouTube (autre plateforme scrapée sans session
+            // connectée) : une vingtaine de comptes enchaînés sans pause
+            // ressemblent à une rafale automatisée.
+            await randomDelay(3000, 8000);
 
-            const username = new URL(url).pathname.replace(/^\/@?/, '').replace(/\/$/, '');
+            const result = await fetchTikTokPosts(url, postsLimit);
 
-            const apiUrl = new URL('https://tiktokapi.store/api/v1/user/posts');
-            apiUrl.searchParams.set('unique_id', `@${username}`);
-            apiUrl.searchParams.set('count', String(Math.max(10, postsLimit * 2))); // marge au-delà de postsLimit pour compenser les vidéos épinglées exclues
-            apiUrl.searchParams.set('cursor', '0');
+            if (DEBUG_SCRAPE) console.log(`[TikTok debug] ${url} → total=${result.total} :`, JSON.stringify(result.posts));
 
-            // AbortSignal.timeout : sans lui, un fournisseur qui reste
-            // silencieux (ni réponse ni erreur HTTP, contrairement au cas
-            // `!res.ok` géré juste en dessous) bloquerait ce fetch
-            // indéfiniment — et donc toute la collecte de ce compte, comme
-            // lors de la panne du 12/08 où plusieurs comptes ont échoué
-            // d'un coup (voir le commentaire du randomDelay ci-dessus).
-            const res = await fetch(apiUrl, {
-              headers: { Authorization: `Bearer ${process.env.TIKTOK_API_KEY}` },
-              signal: AbortSignal.timeout(15000)
-            });
-            if (!res.ok) {
-              throw new Error(`tiktokapi.store a répondu ${res.status} pour @${username}`);
-            }
-            const body = await res.json();
-            if (body.code !== 0) {
-              throw new Error(`tiktokapi.store: ${body.msg || 'erreur inconnue'} (@${username})`);
-            }
-
-            // Les vidéos épinglées (is_top === 1) sont ignorées, comme pour
-            // IG/l'ancien scraping TikTok, pour ne pas fausser la mesure
-            // d'activité récente.
-            const videos = (body.data?.videos || []).filter(v => v.is_top !== 1);
-            const counted = videos.slice(0, postsLimit).map(v => ({ id: v.video_id, title: v.title, val: v.play_count || 0 }));
-            const sum = counted.reduce((acc, v) => acc + v.val, 0);
-
-            if (DEBUG_SCRAPE) console.log(`[TikTok debug] ${url} → total=${sum} :`, JSON.stringify(counted));
-
-            const posts = counted.filter(c => c.id).map(c => ({ id: c.id, views: c.val }));
-            return { total: sum, posts };
-          // 3 tentatives au lieu des 2 par défaut : la panne du 12/08 était un
-          // "fetch failed" réseau côté fournisseur, pas un problème de contenu —
-          // une tentative de plus, avec le backoff exponentiel déjà en place,
-          // laisse plus de chances à un simple hoquet de passer tout seul.
-          }, 3);
+            return result;
+          });
 
           ttTotal = total;
           ttPosts = posts;

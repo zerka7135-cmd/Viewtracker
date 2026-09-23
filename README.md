@@ -21,11 +21,19 @@ ils partent en MP à un admin désigné (voir `DISCORD_OWNER_ID`).
   Instagram change la structure de ses pages, ou si la session tombe sur
   l'écran de consentement publicitaire européen ("pay or consent", voir
   plus bas), le scraping peut échouer sans prévenir.
-- **TikTok** : passe par l'API tierce [tiktokapi.store](https://tiktokapi.store)
-  plutôt que par un navigateur. TikTok bloque désormais Playwright derrière
-  un captcha slider infranchissable (testé le 08/08/2026 avec IP
-  résidentielle, navigateur non-headless et patchs anti-détection CDP —
-  aucune piste n'a fonctionné), d'où ce choix.
+- **TikTok** : passe par [yt-dlp](https://github.com/yt-dlp/yt-dlp) (voir
+  `src/tiktok.js`) plutôt que par un navigateur. TikTok bloque désormais
+  Playwright derrière un captcha slider infranchissable (testé le 08/08/2026
+  avec IP résidentielle, navigateur non-headless et patchs anti-détection CDP
+  — aucune piste n'a fonctionné), d'où ce choix. yt-dlp liste les dernières
+  vidéos du compte avec leurs vues, sans clé d'API ni abonnement, et suit les
+  changements de TikTok : le binaire est retéléchargé à chaque build de
+  l'image (voir `Dockerfile`). Même rythme et mêmes règles que les autres
+  plateformes (délai entre comptes, une reprise en cas d'échec, mêmes
+  `IG_POSTS_LIMIT` vidéos les plus récentes). Les vidéos épinglées sont
+  écartées en ne gardant que les plus récentes par date de publication.
+  L'ancien fournisseur d'API tiers (tiktokapi.store) a disparu en septembre
+  2026.
 - **YouTube** : navigateur headless comme Instagram, mais sans session (les
   Shorts d'une chaîne sont publics) — juste un cookie de consentement
   générique injecté automatiquement.
@@ -129,12 +137,13 @@ Sur un hébergeur dont le système de fichiers n'est pas persistant,
 contenu de ce fichier dans la variable d'environnement `IG_COOKIES_JSON`
 (prioritaire sur le fichier, voir `src/instagram.js`).
 
-## 3. Prérequis côté TikTok (clé API)
+## 3. Prérequis côté TikTok (yt-dlp)
 
-Le scraping TikTok passe par l'API tierce
-[tiktokapi.store](https://tiktokapi.store) plutôt que par un navigateur (voir
-plus haut). Créez un compte sur ce service, récupérez une clé d'API, et
-renseignez-la dans `TIKTOK_API_KEY`.
+Aucune clé ni compte : le scraping TikTok passe par
+[yt-dlp](https://github.com/yt-dlp/yt-dlp) (voir plus haut). Dans l'image
+Docker il est installé automatiquement. En local (hors Docker), installez-le
+(`brew install yt-dlp` ou `pip install yt-dlp`), ou indiquez son chemin dans
+`YTDLP_PATH`.
 
 ## 4. Installation
 
@@ -153,7 +162,6 @@ le détail de chaque variable. Les indispensables pour démarrer :
   3 emplacements `[Instagram, TikTok, YouTube]`. Laissez une chaîne vide
   `""` pour une plateforme non suivie sur ce compte (affichée `Ban`).
 - `IG_COOKIES_JSON` ou le fichier `src/ig-cookies.json` (section 2)
-- `TIKTOK_API_KEY` (section 3)
 
 Le reste (`DISCORD_OWNER_ID`, `CRON_SCHEDULE`, `TIMEZONE`,
 `IG_POSTS_LIMIT`, `STUCK_ALERT_MIN_DAYS`, les chemins `*_PATH`) a des
@@ -348,6 +356,6 @@ d'un plan d'hébergement modeste et faire crasher le container en plein scan.
   probablement devenus obsolètes et doivent être mis à jour dans
   `src/instagram.js`.
 - `scripts/export-tiktok-cookies.js` (et `npm run export-tiktok-cookies`)
-  ne sont plus utilisés depuis le passage de TikTok sur l'API
-  `tiktokapi.store` (voir section "Comment ça marche") — conservés dans le
-  repo mais aucun cookie TikTok n'est lu par `src/instagram.js`.
+  ne sont plus utilisés depuis que TikTok ne passe plus par un navigateur
+  (voir section "Comment ça marche") — conservés dans le repo mais aucun
+  cookie TikTok n'est lu par `src/instagram.js`.
