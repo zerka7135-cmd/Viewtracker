@@ -10,17 +10,23 @@
    conservés pour ne pas toucher chaque composant — seules les valeurs
    changent, plus quelques tokens propres à ce dashboard que le design
    system source, un portfolio, ne couvre pas : --ig/--tt/--yt (identité des
-   plateformes suivies), --orange (alerte compte bloqué) et --on-accent*
-   (texte posé SUR l'accent ou le rouge : l'accent sombre est clair, le
-   blanc n'y serait plus lisible — un texte quasi noir tient plus de 7:1). */
+   plateformes suivies), --orange (alerte compte bloqué), --accent-fill /
+   --danger-fill (bleu et rouge PROFONDS pour les surfaces pleines : boutons,
+   onglet actif, pastilles) et --on-accent* (texte blanc posé dessus). Le
+   bleu clair --accent reste réservé au texte, aux liens et aux traits sur
+   fond sombre ; le bleu de marque du design system (#0071E3) porte le blanc
+   à 4,7:1, le rouge #C0362B à 5,5:1. */
 :root {
   color-scheme: dark;
   --accent: #4da3ff;
   --accent-hover: #7dbbff;
-  --on-accent: #0a0c0f;
-  --on-accent-muted: rgba(10, 12, 15, 0.72);
-  --on-accent-soft: rgba(10, 12, 15, 0.16);
-  --on-accent-track: rgba(10, 12, 15, 0.35);
+  --accent-fill: #0071e3;
+  --accent-fill-hover: #0063c7;
+  --danger-fill: #c0362b;
+  --on-accent: #ffffff;
+  --on-accent-muted: rgba(255, 255, 255, 0.78);
+  --on-accent-soft: rgba(255, 255, 255, 0.18);
+  --on-accent-track: rgba(255, 255, 255, 0.4);
   --bg: #0f1114;
   --card: #14171c;
   --card-alt: #16191e;
@@ -142,7 +148,7 @@ select:focus-visible,
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background: var(--accent);
+  background: var(--accent-fill);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -214,7 +220,7 @@ select:focus-visible,
      sombre au blanc avec le thème) : un mélange avec du blanc s'éclaircit
      jusqu'à devenir trop pâle pour porter un texte/icône blancs — l'accent
      plein reste lisible quel que soit --bg. */
-  background: var(--accent);
+  background: var(--accent-fill);
 }
 .nav-item:hover:not(.active) {
   background: var(--card-hover);
@@ -420,7 +426,7 @@ select:focus-visible,
   border-radius: 980px;
 }
 .btn-accent {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--on-accent);
   font-size: 13px;
   padding: 9px 18px;
@@ -429,7 +435,7 @@ select:focus-visible,
   gap: 8px;
 }
 .btn-accent:hover {
-  opacity: 0.88;
+  background: var(--accent-fill-hover);
 }
 /* Bouton secondaire : contour + libellé en accent plutôt qu'en gris neutre
    — le distingue clairement d'un simple bouton désactivé/inerte tout en
@@ -987,7 +993,7 @@ select:focus-visible,
   width: 84px;
   height: 84px;
   border-radius: 22px;
-  background: var(--accent);
+  background: var(--accent-fill);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1149,7 +1155,7 @@ select:focus-visible,
   flex-direction: column;
   justify-content: flex-end;
   gap: 10px;
-  background: linear-gradient(155deg, var(--accent), color-mix(in oklab, var(--accent) 55%, var(--text)));
+  background: linear-gradient(155deg, var(--accent-fill), color-mix(in oklab, var(--accent-fill) 62%, #00142e));
   color: var(--on-accent);
   overflow: hidden;
 }
@@ -1653,8 +1659,8 @@ select:focus-visible,
   color: var(--accent);
 }
 .period-pill.is-active {
-  border-color: var(--accent);
-  background: var(--accent);
+  border-color: var(--accent-fill);
+  background: var(--accent-fill);
   color: var(--on-accent);
 }
 .clippers-table .table-header,
@@ -1700,7 +1706,7 @@ select:focus-visible,
   cursor: pointer;
 }
 .view-toggle-option.is-active {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--on-accent);
 }
 

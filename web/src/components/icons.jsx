@@ -183,7 +183,7 @@ export function IconCopy(props) {
 }
 
 // Logo de l'app (marque "sidebar-brand-mark") — un petit robot, toujours
-// affiché sur le carré bleu var(--accent) (sidebar, écrans de connexion,
+// affiché sur le carré bleu var(--accent-fill) (sidebar, écrans de connexion,
 // écran de chargement) : les yeux sont donc remplis de la même couleur
 // que ce fond plutôt que de currentColor, pour créer l'effet "découpe".
 export function IconLogo(props) {
@@ -194,8 +194,8 @@ export function IconLogo(props) {
       <rect x="2.7" y="10" width="2.6" height="6" rx="1.3" fill="var(--on-accent)" />
       <rect x="18.7" y="10" width="2.6" height="6" rx="1.3" fill="var(--on-accent)" />
       <rect x="5" y="7.3" width="14" height="11.7" rx="5.2" fill="var(--on-accent)" />
-      <rect x="8.9" y="11.8" width="2.2" height="3.2" rx="1.1" fill="var(--accent)" />
-      <rect x="12.9" y="11.8" width="2.2" height="3.2" rx="1.1" fill="var(--accent)" />
+      <rect x="8.9" y="11.8" width="2.2" height="3.2" rx="1.1" fill="var(--accent-fill)" />
+      <rect x="12.9" y="11.8" width="2.2" height="3.2" rx="1.1" fill="var(--accent-fill)" />
     </svg>
   );
 }

@@ -42,7 +42,7 @@ function AccountHistoryChart({ days, onDaysChange, platform, onPlatformChange, l
               style={{
                 padding: '5px 10px', borderRadius: 980, fontSize: 11, fontWeight: 600,
                 border: `1px solid ${d === days ? 'var(--accent)' : 'color-mix(in oklab, var(--accent) 55%, transparent)'}`,
-                background: d === days ? 'var(--accent)' : 'transparent',
+                background: d === days ? 'var(--accent-fill)' : 'transparent',
                 color: d === days ? 'var(--on-accent)' : 'var(--accent)'
               }}
             >

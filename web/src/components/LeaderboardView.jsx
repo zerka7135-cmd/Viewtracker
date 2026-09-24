@@ -63,7 +63,7 @@ export default function LeaderboardView({ role, account, onToast }) {
                   style={{
                     height: PODIUM_HEIGHTS[rank], display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 12,
                     borderRadius: '12px 12px 0 0', border: '1px solid var(--border)', borderBottom: 0,
-                    background: rank === 0 ? 'var(--accent)' : 'var(--card)', color: rank === 0 ? 'var(--on-accent)' : 'var(--text)'
+                    background: rank === 0 ? 'var(--accent-fill)' : 'var(--card)', color: rank === 0 ? 'var(--on-accent)' : 'var(--text)'
                   }}
                 >
                   <span className="mono" style={{ fontSize: 30, fontWeight: 800 }}>{rank + 1}</span>

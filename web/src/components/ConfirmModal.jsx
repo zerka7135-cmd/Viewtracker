@@ -47,7 +47,7 @@ export default function ConfirmModal({ title, message, confirmLabel = 'Confirmer
               className="btn"
               onClick={handleConfirm}
               disabled={pending}
-              style={{ borderRadius: 980, padding: '9px 18px', fontSize: 13, fontWeight: 600, color: 'var(--on-accent)', background: 'var(--red)' }}
+              style={{ borderRadius: 980, padding: '9px 18px', fontSize: 13, fontWeight: 600, color: 'var(--on-accent)', background: 'var(--danger-fill)' }}
             >
               {pending ? 'Suppression…' : confirmLabel}
             </button>
