@@ -1,4 +1,5 @@
-import { loadHistory, computeGrowth24h } from './history.js';
+import fs from 'fs';
+import { loadHistory, computeGrowth24h, HISTORY_PATH } from './history.js';
 import { loadCumulativeViews } from './cumulativeViews.js';
 
 // Envoi des vues vers l'app Lovable (Clipper HQ). Sans accès direct à sa base
@@ -61,8 +62,7 @@ export function buildDailyViewsRows(history) {
 }
 
 /** Lignes account_views : cumul all-time par compte. */
-export function buildAccountViewsRows(cumulative) {
-  const updatedAt = new Date().toISOString();
+export function buildAccountViewsRows(cumulative, updatedAt = new Date().toISOString()) {
   return Object.entries(cumulative).map(([account, v]) => ({
     account_name: account,
     total: v.total || 0,
@@ -82,7 +82,9 @@ export async function pushViewsToSupabase() {
   if (!isViewsPushConfigured()) return { ok: false, message: 'Envoi des vues non configuré (VIEWS_INGEST_URL / VIEWS_INGEST_SECRET)' };
   try {
     const daily = buildDailyViewsRows(loadHistory());
-    const totals = buildAccountViewsRows(loadCumulativeViews());
+    // updated_at = heure de la dernière collecte (écriture de history.json),
+    // pas celle de l'envoi : un redémarrage renvoie les données sans les rajeunir.
+    const totals = buildAccountViewsRows(loadCumulativeViews(), fs.statSync(HISTORY_PATH).mtime.toISOString());
     await send('daily_views', daily);
     await send('account_views', totals);
 

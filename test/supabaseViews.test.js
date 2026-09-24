@@ -58,6 +58,7 @@ test('envoi : les deux tables passent par la fonction ingest-views', async () =>
   assert.equal(posts.daily_views.length, 4);
   assert.deepEqual(Object.keys(posts.daily_views[0]).sort(), ['account_name', 'day', 'views', 'views_ig', 'views_tt', 'views_yt']);
   assert.equal(posts.account_views.find((r) => r.account_name === 'Protow').total, 1000);
+  assert.equal(posts.account_views[0].updated_at, fs.statSync(process.env.HISTORY_PATH).mtime.toISOString());
 });
 
 test('secret refusé : échec propre, sans exception', async () => {
