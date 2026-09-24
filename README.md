@@ -332,7 +332,7 @@ Function `ingest-views` de l'app Lovable (`SUPABASE_URL/functions/v1/ingest-view
 en-tête `x-ingest-secret` = `VIEWS_INGEST_SECRET`), qui remplit `daily_views`
 (vues gagnées par compte et par jour, par plateforme) et `account_views`
 (cumul all-time) et relie chaque compte à son clipper par `discord_name`.
-Tables, code de la fonction et écrans : [`supabase/lovable-prompt.md`](supabase/lovable-prompt.md).
+Tables et code de la fonction : [`supabase/lovable-prompt.md`](supabase/lovable-prompt.md).
 Tout l'historique est renvoyé à chaque fois (upsert) : un envoi raté est
 rattrapé au suivant, et un échec ne bloque jamais Discord.
 

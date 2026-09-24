@@ -1,4 +1,4 @@
-Un bot externe (ViewTracker) va envoyer les vues Instagram / TikTok / YouTube de chaque clipper. Mets en place la réception et l'affichage, en trois étapes.
+Un bot externe (ViewTracker) va envoyer les vues Instagram / TikTok / YouTube de chaque clipper. Mets en place uniquement la réception des données, en deux étapes. Ne crée ni ne modifie aucun écran ni aucun composant de l'interface pour l'instant.
 
 ## 1. Tables (migration)
 
@@ -103,13 +103,5 @@ Deno.serve(async (req) => {
   return json({ ok: true, count: clean.length });
 });
 ```
-
-## 3. Affichage
-
-1. Dashboard admin et manager : colonne « Vues » (somme de daily_views.views sur la période sélectionnée) dans le tableau des clippers, et un KPI « Vues » en haut. Le sélecteur de période existant s'applique.
-2. Page d'un clipper (et dashboard clipper, uniquement ses propres données) : KPI « Vues » sur la période + « Vues all-time » (account_views.total), et une courbe « Vues par jour » à côté de celle des clics, avec le détail Instagram / TikTok / YouTube.
-3. Nouvelle page « Vues » (admin et manager) : classement des comptes par vues sur la période, avec IG / TT / YT et le total all-time.
-4. Relier par clipper_id ; si clipper_id est null, afficher la ligne avec account_name.
-5. Garde le style, les couleurs et les polices actuels de l'app.
 
 Donne-moi ensuite l'URL de la fonction ingest-views.
