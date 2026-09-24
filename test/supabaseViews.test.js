@@ -8,7 +8,6 @@ import path from 'node:path';
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vt-views-'));
 process.env.HISTORY_PATH = path.join(dir, 'history.json');
 process.env.CUMULATIVE_VIEWS_PATH = path.join(dir, 'cumulative.json');
-process.env.SYNC_STATUS_PATH = path.join(dir, 'sync-status.json');
 process.env.DISCORD_TOKEN ||= 'test';
 process.env.DISCORD_CHANNEL_ID ||= 'test';
 process.env.ACCOUNTS ||= '[]';
@@ -26,26 +25,22 @@ fs.writeFileSync(process.env.CUMULATIVE_VIEWS_PATH, JSON.stringify({
 }));
 
 const posts = {};
-let acceptedKey = 'cle-test';
+let acceptedSecret = 'secret-test';
 const server = http.createServer((req, res) => {
-  const url = new URL(req.url, 'http://x');
-  const table = url.pathname.replace('/rest/v1/', '');
-  if (req.headers.apikey !== acceptedKey) { res.writeHead(401); return res.end('{"message":"Invalid API key"}'); }
-  if (req.method === 'GET' && table === 'clippers') {
-    res.writeHead(200, { 'content-type': 'application/json' });
-    return res.end(JSON.stringify([{ id: 'uuid-protow', discord_name: 'protow' }]));
-  }
+  if (req.url !== '/functions/v1/ingest-views' || req.method !== 'POST') { res.writeHead(404); return res.end(); }
+  if (req.headers['x-ingest-secret'] !== acceptedSecret) { res.writeHead(401); return res.end('{"error":"unauthorized"}'); }
   let body = '';
   req.on('data', (c) => { body += c; });
   req.on('end', () => {
-    (posts[table] ||= []).push({ onConflict: url.searchParams.get('on_conflict'), prefer: req.headers.prefer, rows: JSON.parse(body) });
-    res.writeHead(201);
-    res.end();
+    const { table, rows } = JSON.parse(body);
+    (posts[table] ||= []).push(...rows);
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, count: rows.length }));
   });
 });
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 process.env.SUPABASE_URL = `http://127.0.0.1:${server.address().port}`;
-process.env.SUPABASE_KEY = 'cle-test';
+process.env.VIEWS_INGEST_SECRET = 'secret-test';
 
 const { pushViewsToSupabase, buildDailyViewsRows } = await import('../src/supabaseViews.js');
 
@@ -57,27 +52,18 @@ test('gains quotidiens : un jour par collecte après la première, par plateform
   assert.equal(rows.find((r) => r.account_name === 'dj3b04' && r.day === '2026-09-03').views, 5);
 });
 
-test('envoi : upsert des deux tables, clipper relié par le nom (sans la casse)', async () => {
+test('envoi : les deux tables passent par la fonction ingest-views', async () => {
   const result = await pushViewsToSupabase();
   assert.equal(result.ok, true, result.message);
-
-  const daily = posts.daily_views[0];
-  assert.equal(daily.onConflict, 'account_name,day');
-  assert.match(daily.prefer, /resolution=merge-duplicates/);
-  assert.equal(daily.rows.length, 4);
-  assert.ok(daily.rows.filter((r) => r.account_name === 'Protow').every((r) => r.clipper_id === 'uuid-protow'));
-  assert.ok(daily.rows.filter((r) => r.account_name === 'dj3b04').every((r) => r.clipper_id === null));
-
-  const totals = posts.account_views[0];
-  assert.equal(totals.onConflict, 'account_name');
-  assert.deepEqual(totals.rows.find((r) => r.account_name === 'Protow').total, 1000);
+  assert.equal(posts.daily_views.length, 4);
+  assert.deepEqual(Object.keys(posts.daily_views[0]).sort(), ['account_name', 'day', 'views', 'views_ig', 'views_tt', 'views_yt']);
+  assert.equal(posts.account_views.find((r) => r.account_name === 'Protow').total, 1000);
 });
 
-test('clé refusée : échec propre, sans exception', async () => {
-  acceptedKey = 'autre';
+test('secret refusé : échec propre, sans exception', async () => {
+  acceptedSecret = 'autre';
   const result = await pushViewsToSupabase();
   assert.equal(result.ok, false);
   assert.match(result.message, /401/);
-  acceptedKey = 'cle-test';
   server.close();
 });

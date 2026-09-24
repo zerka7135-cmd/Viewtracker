@@ -13,7 +13,7 @@ import { loadSettings } from './settingsStore.js';
 import { markScanStarted, markScanFinished } from './scanStatus.js';
 import { startServer } from './server.js';
 import { syncFromSupabase, isSyncConfigured } from './supabaseSync.js';
-import { pushViewsToSupabase } from './supabaseViews.js';
+import { pushViewsToSupabase, isViewsPushConfigured } from './supabaseViews.js';
 
 validateConfig();
 
@@ -206,6 +206,9 @@ client.once('clientReady', () => {
 
   console.log(`Planification active : "${cronSchedule}" (${timezone})`);
 
+  // Rattrape au démarrage les vues pas encore envoyées à l'app Lovable (première mise en place, panne).
+  if (isViewsPushConfigured()) pushViewsToSupabase();
+
   // Synchronisation des clics/cash depuis Supabase : une fois au démarrage
   // (7 jours), puis toutes les SUPABASE_SYNC_MINUTES (10 par défaut) — les
   // clics changent toute la journée, contrairement aux vues (une collecte
@@ -217,8 +220,6 @@ client.once('clientReady', () => {
     });
     run();
     setInterval(run, minutes * 60 * 1000);
-    // Rattrape au démarrage les vues pas encore envoyées (première mise en place, panne).
-    pushViewsToSupabase();
     console.log(`Synchronisation Supabase active (toutes les ${minutes} min).`);
   }
 });

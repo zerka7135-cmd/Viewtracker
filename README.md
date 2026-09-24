@@ -325,14 +325,14 @@ curl -X POST https://<ton-dashboard>/api/ingest/clicks \
 - Stockage : SQLite (`CLICKS_DB_PATH`, à mettre sur le volume, ex.
   `/data/clicks.db`), incluse dans la sauvegarde quotidienne en MP.
 
-### Vues envoyées vers Supabase (app Lovable)
+### Vues envoyées vers l'app Lovable
 
-Après chaque collecte (et au démarrage), le bot recopie les vues dans Supabase
-pour l'app Lovable : table `daily_views` (vues gagnées par compte et par jour,
-par plateforme) et `account_views` (cumul all-time). Le clipper est relié par
-son nom (`clippers.discord_name` = nom du compte). Mise en place : exécuter
-une fois [`supabase/views.sql`](supabase/views.sql) dans le SQL Editor, avec
-`SUPABASE_KEY` = clé secrète `service_role` (l'écriture lui est réservée).
+Après chaque collecte (et au démarrage), le bot envoie les vues à l'Edge
+Function `ingest-views` de l'app Lovable (`SUPABASE_URL/functions/v1/ingest-views`,
+en-tête `x-ingest-secret` = `VIEWS_INGEST_SECRET`), qui remplit `daily_views`
+(vues gagnées par compte et par jour, par plateforme) et `account_views`
+(cumul all-time) et relie chaque compte à son clipper par `discord_name`.
+Tables, code de la fonction et écrans : [`supabase/lovable-prompt.md`](supabase/lovable-prompt.md).
 Tout l'historique est renvoyé à chaque fois (upsert) : un envoi raté est
 rattrapé au suivant, et un échec ne bloque jamais Discord.
 

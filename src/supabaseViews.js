@@ -1,72 +1,67 @@
 import { loadHistory, computeGrowth24h } from './history.js';
 import { loadCumulativeViews } from './cumulativeViews.js';
-import { isSyncConfigured, baseUrl, fetchAll } from './supabaseSync.js';
 
-// Envoi des vues vers Supabase, pour que l'app Lovable (Clipper HQ) les
-// affiche. Deux tables, créées par supabase/views.sql :
+// Envoi des vues vers l'app Lovable (Clipper HQ). Sans accès direct à sa base
+// Supabase (Lovable Cloud ne donne pas la clé secrète), le bot passe par une
+// Edge Function de l'app, `ingest-views` (code dans supabase/lovable-prompt.md),
+// qui écrit dans deux tables :
 //
 //   daily_views    (account_name, day) -> vues gagnées ce jour-là, par plateforme
 //   account_views  (account_name)      -> cumul all-time (celui du classement ♾️ Discord)
 //
-// Tout l'historique est renvoyé à chaque fois : les lignes sont remplacées
-// (upsert), jamais additionnées, donc un envoi raté est rattrapé au suivant.
-// Il faut la clé secrète (service_role) : les tables n'autorisent l'écriture
-// qu'à elle.
+// La fonction relie elle-même chaque compte à son clipper (discord_name).
+// Configuration : SUPABASE_URL (projet de l'app) et VIEWS_INGEST_SECRET (même
+// valeur que le secret de la fonction). Tout l'historique est renvoyé à chaque
+// fois et les lignes sont remplacées, jamais additionnées : un envoi raté est
+// rattrapé au suivant.
 
 const BATCH_SIZE = 500;
 const REQUEST_TIMEOUT_MS = 30_000;
 
-const nameKey = (name) => String(name ?? '').trim().toLowerCase();
+export function isViewsPushConfigured() {
+  return Boolean(process.env.SUPABASE_URL && process.env.VIEWS_INGEST_SECRET);
+}
 
-async function upsert(table, onConflict, rows) {
+function functionUrl() {
+  const url = new URL('/functions/v1/ingest-views', process.env.SUPABASE_URL);
+  const local = ['localhost', '127.0.0.1'].includes(url.hostname);
+  if (url.protocol !== 'https:' && !local) throw new Error('SUPABASE_URL doit être en https');
+  return url;
+}
+
+async function send(table, rows) {
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-    const endpoint = new URL(`/rest/v1/${table}`, baseUrl());
-    endpoint.searchParams.set('on_conflict', onConflict);
-    const res = await fetch(endpoint, {
+    const res = await fetch(functionUrl(), {
       method: 'POST',
-      headers: {
-        apikey: process.env.SUPABASE_KEY,
-        Authorization: `Bearer ${process.env.SUPABASE_KEY}`,
-        'Content-Type': 'application/json',
-        Prefer: 'resolution=merge-duplicates,return=minimal'
-      },
-      body: JSON.stringify(rows.slice(i, i + BATCH_SIZE)),
+      headers: { 'Content-Type': 'application/json', 'x-ingest-secret': process.env.VIEWS_INGEST_SECRET },
+      body: JSON.stringify({ table, rows: rows.slice(i, i + BATCH_SIZE) }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     });
     if (!res.ok) {
       const detail = (await res.text()).slice(0, 200);
-      throw new Error(`Supabase ${table} : HTTP ${res.status} ${detail}`);
+      throw new Error(`${table} : HTTP ${res.status} ${detail}`);
     }
   }
 }
 
 /** Lignes daily_views : gain de chaque collecte par rapport à la précédente. */
-export function buildDailyViewsRows(history, clipperIdByName = new Map()) {
+export function buildDailyViewsRows(history) {
   const rows = [];
   history.forEach((entry, index) => {
     if (index === 0) return; // pas de référence pour la toute première collecte
     const growth = computeGrowth24h(history.slice(0, index), entry.accounts);
     for (const [account, g] of growth) {
-      rows.push({
-        account_name: account,
-        clipper_id: clipperIdByName.get(nameKey(account)) ?? null,
-        day: entry.date,
-        views: g.total,
-        views_ig: g.ig,
-        views_tt: g.tt,
-        views_yt: g.yt
-      });
+      rows.push({ account_name: account, day: entry.date, views: g.total, views_ig: g.ig, views_tt: g.tt, views_yt: g.yt });
     }
   });
   return rows;
 }
 
 /** Lignes account_views : cumul all-time par compte. */
-export function buildAccountViewsRows(cumulative, clipperIdByName = new Map()) {
+export function buildAccountViewsRows(cumulative) {
   const updatedAt = new Date().toISOString();
   return Object.entries(cumulative).map(([account, v]) => ({
     account_name: account,
-    clipper_id: clipperIdByName.get(nameKey(account)) ?? null,
     total: v.total || 0,
     ig: v.ig || 0,
     tt: v.tt || 0,
@@ -76,27 +71,24 @@ export function buildAccountViewsRows(cumulative, clipperIdByName = new Map()) {
 }
 
 /**
- * Envoie tout l'historique des vues vers Supabase. Ne lève jamais : une
- * panne Supabase ne doit pas bloquer la collecte ni Discord.
+ * Envoie tout l'historique des vues à l'app Lovable. Ne lève jamais : une
+ * panne de l'app ne doit bloquer ni la collecte ni Discord.
  * @returns {Promise<{ok: boolean, message: string}>}
  */
 export async function pushViewsToSupabase() {
-  if (!isSyncConfigured()) return { ok: false, message: 'Supabase non configuré' };
+  if (!isViewsPushConfigured()) return { ok: false, message: 'Envoi des vues non configuré (SUPABASE_URL / VIEWS_INGEST_SECRET)' };
   try {
-    const clippers = await fetchAll('clippers', { select: 'id,discord_name', order: 'id.asc' });
-    const clipperIdByName = new Map(clippers.map((c) => [nameKey(c.discord_name), c.id]));
+    const daily = buildDailyViewsRows(loadHistory());
+    const totals = buildAccountViewsRows(loadCumulativeViews());
+    await send('daily_views', daily);
+    await send('account_views', totals);
 
-    const daily = buildDailyViewsRows(loadHistory(), clipperIdByName);
-    const totals = buildAccountViewsRows(loadCumulativeViews(), clipperIdByName);
-    await upsert('daily_views', 'account_name,day', daily);
-    await upsert('account_views', 'account_name', totals);
-
-    const message = `${daily.length} ligne(s) de vues et ${totals.length} cumul(s) envoyés à Supabase`;
+    const message = `${daily.length} ligne(s) de vues et ${totals.length} cumul(s) envoyés à l'app Lovable`;
     console.log(message);
     return { ok: true, message };
   } catch (error) {
-    const message = error.name === 'TimeoutError' ? 'Supabase ne répond pas (délai dépassé)' : error.message;
-    console.error('Envoi des vues vers Supabase en échec :', message);
+    const message = error.name === 'TimeoutError' ? 'L\'app Lovable ne répond pas (délai dépassé)' : error.message;
+    console.error('Envoi des vues vers l\'app Lovable en échec :', message);
     return { ok: false, message };
   }
 }
