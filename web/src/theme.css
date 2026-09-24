@@ -394,6 +394,15 @@ select:focus-visible,
   color: var(--text-muted);
   margin-top: 4px;
 }
+/* Surtitre des écrans clippers (« DASHBOARD MANAGER » au-dessus du titre). */
+.topbar-eyebrow {
+  margin-bottom: 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
 .topbar-actions {
   display: flex;
   align-items: center;
@@ -1680,6 +1689,7 @@ select:focus-visible,
   background: var(--card);
 }
 .view-toggle-option {
+  white-space: nowrap;
   padding: 5px 16px;
   border-radius: 980px;
   border: 0;
@@ -1692,4 +1702,73 @@ select:focus-visible,
 .view-toggle-option.is-active {
   background: var(--accent);
   color: var(--on-accent);
+}
+
+/* --- Améliorations d'interface (écrans clippers) --- */
+
+/* Nom du clipper cliquable : se lit comme un lien au survol et au clavier. */
+.clipper-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.clipper-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Ligne de tableau survolable (clipper ouvrable). */
+.clippers-table .table-row:hover {
+  background: var(--card-hover);
+}
+
+/* Bandeau d'information (ex. aucun clic sur la période). */
+.info-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 14px 18px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--card-alt);
+}
+
+@media (max-width: 640px) {
+  /* Les cartes de chiffres passent sur deux colonnes (au lieu d'une pile de
+     sept écrans) ; une dernière carte seule occupe toute la largeur. */
+  .kpi-grid-auto {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .kpi-grid-auto .kpi-card {
+    padding: 14px;
+  }
+  .kpi-grid-auto .kpi-card:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+  .kpi-grid-auto .kpi-value {
+    font-size: 17px !important;
+  }
+  /* Sélecteurs segmentés : jamais de libellé coupé sur deux lignes, défilement
+     horizontal si la rangée est trop large. */
+  .view-toggle {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .view-toggle-option {
+    padding: 5px 12px;
+    flex: 0 0 auto;
+  }
 }

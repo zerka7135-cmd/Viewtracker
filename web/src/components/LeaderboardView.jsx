@@ -3,6 +3,7 @@ import { fmt, eur } from '../format.js';
 import { getLeaderboard } from '../api.js';
 import { usePeriod } from '../usePeriod.js';
 import PeriodSelector from './PeriodSelector.jsx';
+import Bone from './Bone.jsx';
 
 // Classement aux clics, ouvert aux trois profils : podium des trois premiers,
 // puis la liste avec une barre relative au premier. Un clipper voit « Ta
@@ -89,7 +90,11 @@ export default function LeaderboardView({ role, account, onToast }) {
           );
         })}
         {rows && list.length === 0 && <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)' }}>Aucun clic sur cette période.</div>}
-        {!rows && <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)' }}>Chargement…</div>}
+        {!rows && Array.from({ length: 5 }, (_, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 18px', borderBottom: '1px solid var(--table-row-border)' }} aria-hidden="true">
+            <Bone w={28} h={12} /><Bone w="35%" h={14} /><span style={{ flex: 1 }} /><Bone w={60} h={12} />
+          </div>
+        ))}
       </div>
     </div>
   );

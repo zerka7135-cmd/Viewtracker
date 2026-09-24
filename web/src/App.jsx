@@ -215,9 +215,9 @@ export default function App() {
   // l'app de référence : « Dashboard admin » / « Dashboard manager » / clipper).
   let topMeta = null;
   if (view === 'dashboard') {
-    if (role === 'clipper') topMeta = [ownAccount || 'Mon compte', 'Dashboard clipper'];
-    else if (selectedClipper) topMeta = [selectedClipper, 'Dashboard clipper'];
-    else if (dashboardMode === 'clicks') topMeta = ['Tous les clippers', `Dashboard ${roleLabel}`];
+    if (role === 'clipper') topMeta = [ownAccount || 'Mon compte', '', 'Dashboard clipper'];
+    else if (selectedClipper) topMeta = [selectedClipper, '', 'Dashboard clipper'];
+    else if (dashboardMode === 'clicks') topMeta = ['Tous les clippers', '', `Dashboard ${roleLabel}`];
   }
   if (view === 'settings' && !isAdmin) topMeta = ['Compte', 'Mot de passe et déconnexion'];
 
@@ -254,7 +254,7 @@ export default function App() {
           <ClipperView account={selectedClipper} onBack={() => setSelectedClipper(null)} onToast={showToast} />
         )}
         {view === 'dashboard' && canSeeAll && !selectedClipper && dashboardMode === 'clicks' && (
-          <ClippersView role={role} onOpenClipper={openClipper} onToast={showToast} />
+          <ClippersView role={role} onOpenClipper={openClipper} onOpenManagement={isAdmin ? () => setView('management') : null} onToast={showToast} />
         )}
         {view === 'dashboard' && canSeeAll && !selectedClipper && dashboardMode === 'views' && (
           loaded && kpis ? (

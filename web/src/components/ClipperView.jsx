@@ -4,6 +4,7 @@ import { getClipperDetail } from '../api.js';
 import { usePeriod } from '../usePeriod.js';
 import PeriodSelector from './PeriodSelector.jsx';
 import AreaChart from './AreaChart.jsx';
+import Bone from './Bone.jsx';
 
 // Page d'un clipper — c'est le Dashboard d'un profil clipper (son propre
 // compte), et le détail qu'ouvrent l'admin et le manager depuis « Tous les
@@ -11,11 +12,11 @@ import AreaChart from './AreaChart.jsx';
 // jour au survol) et détail par lien. Le serveur ne renvoie à un clipper que
 // son propre compte (voir /api/clipper dans src/server.js).
 
-function Kpi({ label, value, accent }) {
+function Kpi({ label, value, accent, loading }) {
   return (
     <div className="card kpi-card">
       <div className="kpi-label">{label}</div>
-      <div className="kpi-value" style={{ fontSize: 20, color: accent ? 'var(--accent)' : undefined }}>{value}</div>
+      {loading ? <Bone w={84} h={22} style={{ marginTop: 2 }} /> : <div className="kpi-value" style={{ fontSize: 20, color: accent ? 'var(--accent)' : undefined }}>{value}</div>}
     </div>
   );
 }
@@ -47,6 +48,7 @@ export default function ClipperView({ account, onBack, onToast }) {
   }
 
   const k = detail?.kpis;
+  const pending = !detail;
   const chart = detail?.series.map((p) => ({ date: p.date, value: p.clicks, gains: p.gains })) ?? [];
   const links = detail?.links ?? [];
 
@@ -58,17 +60,19 @@ export default function ClipperView({ account, onBack, onToast }) {
       </div>
 
       <div className="kpi-grid kpi-grid-auto">
-        <Kpi label="Vues" value={k ? (k.views === null ? '—' : fmt(k.views)) : '—'} />
-        <Kpi label="Clics" value={k ? fmt(k.clicks) : '—'} />
-        <Kpi label="Forms remplis" value={k ? fmt(k.forms) : '—'} />
-        <Kpi label="Taux d’opt-in" value={k ? pct(k.optInRate) : '—'} />
-        <Kpi label="€ / trafic" value={k ? eur(k.eurPerTraffic) : '—'} />
-        <Kpi label="Gains" value={k ? eur(k.gains) : '—'} accent />
+        <Kpi loading={pending} label="Vues" value={k && (k.views === null ? '—' : fmt(k.views))} />
+        <Kpi loading={pending} label="Clics" value={k && fmt(k.clicks)} />
+        <Kpi loading={pending} label="Forms remplis" value={k && fmt(k.forms)} />
+        <Kpi loading={pending} label="Taux d’opt-in" value={k && pct(k.optInRate)} />
+        <Kpi loading={pending} label="€ / trafic" value={k && eur(k.eurPerTraffic)} />
+        <Kpi loading={pending} label="Gains" value={k && eur(k.gains)} accent />
       </div>
 
       <div className="card" style={{ padding: 20 }}>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>Clics par jour</div>
-        {chart.length > 1 ? (
+        {pending ? (
+          <Bone h={220} />
+        ) : chart.length > 1 ? (
           <AreaChart data={chart} color="var(--accent)" height={220} fluid unit="clics" renderExtra={(p) => eur(p.gains)} />
         ) : (
           <div style={{ padding: '32px 0', textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>

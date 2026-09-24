@@ -3,6 +3,7 @@ import { fmt, fmtShort } from '../format.js';
 import { getDaily } from '../api.js';
 import { usePeriod } from '../usePeriod.js';
 import PeriodSelector from './PeriodSelector.jsx';
+import Bone from './Bone.jsx';
 
 // « Jour par jour » (admin et manager) : clics totaux par jour en barres, puis
 // un tableau de chaleur clipper × jour dont l'intensité suit le nombre de
@@ -75,7 +76,11 @@ export default function DailyView({ onOpenClipper, onToast }) {
             </tr>
           </tbody>
         </table>
-        {!data && <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>Chargement…</div>}
+        {!data && (
+          <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }} aria-hidden="true">
+            {Array.from({ length: 6 }, (_, i) => <Bone key={i} h={16} />)}
+          </div>
+        )}
       </div>
     </div>
   );

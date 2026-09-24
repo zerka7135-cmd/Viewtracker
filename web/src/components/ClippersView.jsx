@@ -3,6 +3,7 @@ import { fmt, eur, pct, roasLabel } from '../format.js';
 import { getClippers } from '../api.js';
 import { usePeriod } from '../usePeriod.js';
 import PeriodSelector from './PeriodSelector.jsx';
+import Bone from './Bone.jsx';
 
 // Mode « Clics » du Dashboard (toggle Vues/Clics, voir App.jsx) : « Tous les
 // clippers » — pour chaque compte suivi et une période, les vues gagnées
@@ -29,16 +30,16 @@ const ADMIN_COLUMNS = [
   { key: 'profit', label: 'Bénéfice', width: '102px', value: (r) => r.profit, render: (r) => eur(r.profit), color: (r) => profitColor(r.profit), bold: true }
 ];
 
-function Kpi({ label, value, color, delay, className }) {
+function Kpi({ label, value, color, delay, className, loading }) {
   return (
     <div className={`card kpi-card enter-stagger ${className || ''}`} style={{ '--enter-delay': `${delay}ms` }}>
       <div className="kpi-label">{label}</div>
-      <div className="kpi-value" style={{ fontSize: 20, color: color || undefined }}>{value}</div>
+      {loading ? <Bone w={84} h={22} style={{ marginTop: 2 }} /> : <div className="kpi-value" style={{ fontSize: 20, color: color || undefined }}>{value}</div>}
     </div>
   );
 }
 
-export default function ClippersView({ role, onOpenClipper, onToast }) {
+export default function ClippersView({ role, onOpenClipper, onOpenManagement, onToast }) {
   const isAdmin = role === 'admin';
   // Périodes par défaut des écrans de référence : admin sur « Aujourd'hui », manager sur 7 j.
   const period = usePeriod(isAdmin ? 'today' : '7');
@@ -93,6 +94,7 @@ export default function ClippersView({ role, onOpenClipper, onToast }) {
   });
 
   const k = report?.kpis;
+  const pending = !report; // premier chargement : formes grises à la place des chiffres
   const noClicks = report && (isAdmin ? k.clicks === 0 : rows.every((r) => r.clicks === 0));
 
   return (
@@ -102,24 +104,31 @@ export default function ClippersView({ role, onOpenClipper, onToast }) {
       <div className="kpi-grid kpi-grid-auto">
         {isAdmin ? (
           <>
-            <Kpi delay={0} label="Clics" value={k ? fmt(k.clicks) : '—'} />
-            <Kpi delay={40} label="Taux d’opt-in" value={k ? pct(k.optInRate) : '—'} />
-            <Kpi delay={80} label="€ / trafic" value={k ? eur(k.eurPerTraffic) : '—'} />
-            <Kpi delay={120} label="À payer" value={k ? eur(k.toPay) : '—'} color="var(--accent)" />
-            <Kpi delay={160} label="Cash collecté" value={k ? eur(k.cash) : '—'} />
-            <Kpi delay={200} label="Bénéfice" value={k ? eur(k.profit) : '—'} color={k ? profitColor(k.profit) : undefined} />
-            <Kpi delay={240} label="ROAS" value={k ? roasLabel(k.roas) : '—'} color={k && k.roas !== null && k.roas < 1 ? 'var(--red)' : undefined} />
+            <Kpi loading={pending} delay={0} label="Clics" value={k && fmt(k.clicks)} />
+            <Kpi loading={pending} delay={40} label="Taux d’opt-in" value={k && pct(k.optInRate)} />
+            <Kpi loading={pending} delay={80} label="€ / trafic" value={k && eur(k.eurPerTraffic)} />
+            <Kpi loading={pending} delay={120} label="À payer" value={k && eur(k.toPay)} color="var(--accent)" />
+            <Kpi loading={pending} delay={160} label="Cash collecté" value={k && eur(k.cash)} />
+            <Kpi loading={pending} delay={200} label="Bénéfice" value={k && eur(k.profit)} color={k ? profitColor(k.profit) : undefined} />
+            <Kpi loading={pending} delay={240} label="ROAS" value={k && roasLabel(k.roas)} color={k && k.roas !== null && k.roas < 1 ? 'var(--red)' : undefined} />
           </>
         ) : (
           <>
-            <Kpi delay={0} label="Clippers" value={k ? fmt(k.clippers) : '—'} />
-            <Kpi delay={40} label="Clics" value={k ? fmt(k.clicks) : '—'} />
-            <Kpi delay={80} label="Taux d’opt-in" value={k ? pct(k.optInRate) : '—'} />
-            <Kpi delay={120} label="€ / trafic" value={k ? eur(k.eurPerTraffic) : '—'} />
-            <Kpi delay={160} label="Commissions" value={k ? eur(k.commissions) : '—'} color="var(--accent)" />
+            <Kpi loading={pending} delay={0} label="Clippers" value={k && fmt(k.clippers)} />
+            <Kpi loading={pending} delay={40} label="Clics" value={k && fmt(k.clicks)} />
+            <Kpi loading={pending} delay={80} label="Taux d’opt-in" value={k && pct(k.optInRate)} />
+            <Kpi loading={pending} delay={120} label="€ / trafic" value={k && eur(k.eurPerTraffic)} />
+            <Kpi loading={pending} delay={160} label="Commissions" value={k && eur(k.commissions)} color="var(--accent)" />
           </>
         )}
       </div>
+
+      {noClicks && (
+        <div className="info-banner" role="status">
+          <span>Aucun clic sur cette période. Les clics, formulaires et le cash arrivent par la synchronisation Supabase.</span>
+          {onOpenManagement && <button type="button" className="btn btn-ghost" style={{ borderRadius: 980 }} onClick={onOpenManagement}>Vérifier la synchronisation</button>}
+        </div>
+      )}
 
       <div className="card clippers-table" style={{ padding: 8, opacity: loading && report ? 0.6 : 1, transition: 'opacity 0.15s' }}>
         <div className="table-scroll">
@@ -135,7 +144,13 @@ export default function ClippersView({ role, onOpenClipper, onToast }) {
             ))}
           </div>
 
-          {!report && loading && <div className="table-empty"><div className="table-empty-sub">Chargement…</div></div>}
+          {pending && Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className="table-row" style={{ gridTemplateColumns: grid, cursor: 'default' }} aria-hidden="true">
+              <Bone w={14} h={12} />
+              <Bone w="60%" h={14} />
+              {columns.map((c) => <Bone key={c.key} w={48} h={12} style={{ justifySelf: 'end' }} />)}
+            </div>
+          ))}
           {report && rows.length === 0 && (
             <div className="table-empty">
               <div className="table-empty-title">Aucun clipper pour l'instant</div>
@@ -146,7 +161,7 @@ export default function ClippersView({ role, onOpenClipper, onToast }) {
             <div key={r.name} className="table-row" style={{ gridTemplateColumns: grid }}>
               <div className="table-cell-hide-mobile" style={{ fontWeight: 600, color: 'var(--text-muted)', fontSize: 13 }}>{i + 1}</div>
               <div className="table-cell-title ellipsis" style={{ fontSize: 13.5 }}>
-                <button type="button" className="btn-link" style={{ fontWeight: 600, fontSize: 13.5, color: 'inherit', padding: 0, textAlign: 'left' }} onClick={() => onOpenClipper(r.name)}>
+                <button type="button" className="clipper-link" style={{ fontSize: 13.5 }} onClick={() => onOpenClipper(r.name)}>
                   {r.name}
                 </button>
               </div>
@@ -164,7 +179,6 @@ export default function ClippersView({ role, onOpenClipper, onToast }) {
         <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
           Commission = clics × tarif par clic de chaque clipper (par défaut {eur(report.commissionPerClick)}). Opt-in = formulaires remplis ÷ clics.
           {isAdmin && ` Cash converti en euros (× ${report.cashConversionRate.toLocaleString('fr-FR')}). Bénéfice = cash collecté − commission ; ROAS = cash collecté ÷ commission.`}
-          {noClicks && ' Aucun clic sur cette période : les clics, formulaires et le cash viennent de la synchronisation Supabase (voir Gestion).'}
         </div>
       )}
     </div>

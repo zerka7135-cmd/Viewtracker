@@ -21,14 +21,16 @@ const VIEW_META = {
 // la Sidebar le porte déjà (voir aussi Paramètres > Compte sur mobile, où
 // la Sidebar est masquée — voir SettingsView.jsx).
 export default function TopBar({ view, actions, meta }) {
-  // `meta` [titre, sous-titre] remplace le texte de la vue (écrans clippers, propres à chaque profil).
-  const [title, subtitle] = meta || VIEW_META[view];
+  // `meta` [titre, sous-titre, surtitre] remplace le texte de la vue (écrans
+  // clippers, propres à chaque profil) ; sous-titre et surtitre sont facultatifs.
+  const [title, subtitle, eyebrow] = meta || VIEW_META[view];
 
   return (
     <div className="topbar">
       <div>
+        {eyebrow && <div className="topbar-eyebrow">{eyebrow}</div>}
         <div className="topbar-title">{title}</div>
-        <div className="topbar-subtitle">{subtitle}</div>
+        {subtitle && <div className="topbar-subtitle">{subtitle}</div>}
       </div>
       {actions && <div className="topbar-actions">{actions}</div>}
     </div>
