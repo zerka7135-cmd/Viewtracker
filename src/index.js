@@ -12,6 +12,7 @@ import { loadAccounts } from './accountsStore.js';
 import { loadSettings } from './settingsStore.js';
 import { markScanStarted, markScanFinished } from './scanStatus.js';
 import { startServer } from './server.js';
+import { syncFromSupabase, isSyncConfigured } from './supabaseSync.js';
 
 validateConfig();
 
@@ -202,6 +203,20 @@ client.once('clientReady', () => {
   );
 
   console.log(`Planification active : "${cronSchedule}" (${timezone})`);
+
+  // Synchronisation des clics/cash depuis Supabase : une fois au démarrage
+  // (7 jours), puis toutes les SUPABASE_SYNC_MINUTES (10 par défaut) — les
+  // clics changent toute la journée, contrairement aux vues (une collecte
+  // par jour). Sans SUPABASE_URL/SUPABASE_KEY, rien ne tourne.
+  if (isSyncConfigured()) {
+    const minutes = Math.max(1, Number(process.env.SUPABASE_SYNC_MINUTES) || 10);
+    const run = () => syncFromSupabase({ days: 7 }).then((r) => {
+      if (!r.ok) console.error('Synchronisation Supabase en échec :', r.message);
+    });
+    run();
+    setInterval(run, minutes * 60 * 1000);
+    console.log(`Synchronisation Supabase active (toutes les ${minutes} min).`);
+  }
 });
 
 client.login(config.discordToken);

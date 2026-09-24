@@ -1,4 +1,4 @@
-import { NAV_ITEMS } from './Sidebar.jsx';
+import { navItemsFor } from './Sidebar.jsx';
 
 // Barre d'onglets fixée en bas de l'écran — remplace la Sidebar (repliée en
 // barre horizontale d'icônes) sous 700px (voir theme.css) : plus proche des
@@ -12,10 +12,10 @@ import { NAV_ITEMS } from './Sidebar.jsx';
 // 2 destinations aurait été plus dense que lisible au pouce — la
 // déconnexion reste accessible via Paramètres > Compte (voir
 // SettingsView.jsx), y compris sur mobile où la Sidebar est masquée.
-export default function MobileTabBar({ view, onNavigate }) {
+export default function MobileTabBar({ role, view, onNavigate }) {
   return (
     <nav className="mobile-tabbar" aria-label="Navigation principale">
-      {NAV_ITEMS.map(([key, label, Icon]) => (
+      {navItemsFor(role).map(([key, label, Icon]) => (
         <button
           key={key}
           type="button"

@@ -40,7 +40,7 @@ export const changePassword = (currentPassword, newPassword) => request('/accoun
 // Comptes autorisés à se connecter (voir auth.js) — n'importe quel compte
 // déjà connecté peut en ajouter/retirer d'autres, pas de rôle admin distinct.
 export const getUsers = () => request('/users');
-export const addUser = (email, password) => request('/users', { method: 'POST', body: JSON.stringify({ email, password }) });
+export const addUser = (email, password, role = 'admin', account = null) => request('/users', { method: 'POST', body: JSON.stringify({ email, password, role, account }) });
 export const removeUser = (email) => request(`/users/${encodeURIComponent(email)}`, { method: 'DELETE' });
 
 export const getDashboard = () => request('/dashboard');
@@ -63,6 +63,29 @@ export const getClippers = ({ from, to } = {}) => {
   const qs = params.toString();
   return request(`/clippers${qs ? `?${qs}` : ''}`);
 };
+
+const periodQuery = ({ from, to } = {}) => {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  return params;
+};
+
+// Page d'un clipper : `account` est ignoré pour un profil clipper (le serveur
+// renvoie toujours son propre compte).
+export const getClipperDetail = (range, account) => {
+  const params = periodQuery(range);
+  if (account) params.set('account', account);
+  return request(`/clipper?${params}`);
+};
+export const getLeaderboard = (range) => request(`/leaderboard?${periodQuery(range)}`);
+export const getDaily = (range) => request(`/daily?${periodQuery(range)}`);
+
+// Gestion (admin) : rôle/compte lié d'un utilisateur, tarif par clic, synchro Supabase.
+export const updateUserAccess = (email, role, account) => request(`/users/${encodeURIComponent(email)}`, { method: 'PATCH', body: JSON.stringify({ role, account }) });
+export const setAccountRate = (name, ratePer1000) => request(`/accounts/${encodeURIComponent(name)}/rate`, { method: 'PATCH', body: JSON.stringify({ ratePer1000 }) });
+export const getSyncStatus = () => request('/admin/sync');
+export const runSync = (days) => request('/admin/sync', { method: 'POST', body: JSON.stringify({ days }) });
 
 export const getSettings = () => request('/settings');
 export const updateSettings = (patch) => request('/settings', { method: 'PATCH', body: JSON.stringify(patch) });

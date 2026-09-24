@@ -6,6 +6,9 @@ const VIEW_META = {
   // Mode Clics du Dashboard (toggle Vues/Clics, voir App.jsx) : même titre,
   // sous-titre propre à cette vue.
   clippers: ['Dashboard', 'Clics, formulaires remplis, cash et bénéfice par compte — par clipper'],
+  leaderboard: ['Leaderboard', 'Classement aux clics'],
+  daily: ['Jour par jour', 'Clics par clipper et par jour'],
+  management: ['Gestion', 'Membres, rôles, tarifs et synchronisation'],
   settings: ['Paramètres', 'Discord, collecte et comptes du dashboard']
 };
 
@@ -17,8 +20,9 @@ const VIEW_META = {
 // App.jsx) — vide sur les autres pages. Pas de bouton de déconnexion ici :
 // la Sidebar le porte déjà (voir aussi Paramètres > Compte sur mobile, où
 // la Sidebar est masquée — voir SettingsView.jsx).
-export default function TopBar({ view, actions }) {
-  const [title, subtitle] = VIEW_META[view];
+export default function TopBar({ view, actions, meta }) {
+  // `meta` [titre, sous-titre] remplace le texte de la vue (écrans clippers, propres à chaque profil).
+  const [title, subtitle] = meta || VIEW_META[view];
 
   return (
     <div className="topbar">

@@ -74,7 +74,7 @@ function AccountHistoryChart({ days, onDaysChange, platform, onPlatformChange, l
 // route de suppression que le tableau de comptes de Dashboard (DashboardView.jsx)
 // — le tiroir de détail est un autre point d'entrée vers le même compte,
 // pas une fonctionnalité séparée.
-export default function AccountDrawer({ account, onClose, onAccountsChanged, onToast }) {
+export default function AccountDrawer({ account, readOnly = false, onClose, onAccountsChanged, onToast }) {
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   // `account` passe à null dès la demande de fermeture (voir App.jsx) —
@@ -188,12 +188,16 @@ export default function AccountDrawer({ account, onClose, onAccountsChanged, onT
             <button type="button" className="icon-btn" title="Exporter en PDF" aria-label="Exporter l'évolution en PDF" onClick={exportPdf} disabled={!hasData || exporting}>
               {exporting ? <span className="login-spinner" /> : <IconDownload size={15} />}
             </button>
-            <button type="button" className="icon-btn" title="Modifier" aria-label="Modifier le compte" onClick={() => setEditing(true)}>
-              <IconEdit size={15} />
-            </button>
-            <button type="button" className="icon-btn icon-btn-danger" title="Supprimer" aria-label="Supprimer le compte" onClick={() => setDeleting(true)}>
-              <IconTrash size={15} />
-            </button>
+            {!readOnly && (
+              <>
+                <button type="button" className="icon-btn" title="Modifier" aria-label="Modifier le compte" onClick={() => setEditing(true)}>
+                  <IconEdit size={15} />
+                </button>
+                <button type="button" className="icon-btn icon-btn-danger" title="Supprimer" aria-label="Supprimer le compte" onClick={() => setDeleting(true)}>
+                  <IconTrash size={15} />
+                </button>
+              </>
+            )}
             <CloseButton onClick={onClose} size={22} style={{ marginLeft: 4 }} />
           </div>
         </div>

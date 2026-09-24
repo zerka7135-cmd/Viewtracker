@@ -1,20 +1,21 @@
 import path from 'path';
 import express from 'express';
 import { getAccountsWithStats, getKpis, getHistorySeries, getAccountHistorySeries } from './dashboardData.js';
-import { addAccount, updateAccount, deleteAccount, loadAccounts } from './accountsStore.js';
+import { addAccount, updateAccount, deleteAccount, loadAccounts, setAccountRate } from './accountsStore.js';
 import { loadSettings, updateSettings } from './settingsStore.js';
 import { getBotConfigStatus, updateBotConfig } from './botConfig.js';
 import { getScanStatus } from './scanStatus.js';
 import {
   isPasswordSet, setInitialPassword, checkPassword, changePassword,
-  addUser, removeUser, listEmails, getSessionEmail,
-  setSessionCookie, clearSessionCookie, isAuthenticated,
+  addUser, removeUser, listEmails, listUsers, updateUserAccess, getSessionEmail, getSessionUser,
+  setSessionCookie, clearSessionCookie,
   recordLoginFailure, recordLoginSuccess, loginDelayMs, shouldAlertOwner
 } from './auth.js';
 import { apiRateLimit } from './rateLimit.js';
 import { todayKey } from './history.js';
 import { upsertClicks, getClicksSeries } from './clicksStore.js';
-import { getClippersReport } from './clippersData.js';
+import { getClippersReport, getClipperDetail, getLeaderboard, getDailyMatrix } from './clippersData.js';
+import { syncFromSupabase, getSyncStatus } from './supabaseSync.js';
 import { isValidApiKey, parseClickEntries } from './clickIngest.js';
 
 const WEB_DIST = path.resolve('./web/dist');
@@ -81,7 +82,14 @@ export async function startServer(client) {
   // --- Auth (routes publiques, avant le middleware requireAuth ci-dessous) ---
 
   app.get('/api/me', (req, res) => {
-    res.json({ passwordSet: isPasswordSet(), authenticated: isAuthenticated(req), email: getSessionEmail(req) });
+    const user = getSessionUser(req);
+    res.json({
+      passwordSet: isPasswordSet(),
+      authenticated: user !== null,
+      email: user?.email ?? null,
+      role: user?.role ?? null,
+      account: user?.account ?? null
+    });
   });
 
   // Uniquement tant qu'aucun compte n'existe — passé ce point,
@@ -153,9 +161,22 @@ export async function startServer(client) {
 
   // --- À partir d'ici, tout /api/* exige une session valide. ---
   app.use('/api', (req, res, next) => {
-    if (isAuthenticated(req)) return next();
-    res.status(401).json({ error: 'Non authentifié' });
+    const user = getSessionUser(req);
+    if (!user) return res.status(401).json({ error: 'Non authentifié' });
+    req.user = user;
+    next();
   });
+
+  // Droits par rôle, appliqués ici côté serveur (masquer un bouton dans
+  // l'interface ne protège rien). admin : tout ; manager : vues et clics de
+  // tous les clippers, sans finances ni réglages ; clipper : uniquement son
+  // propre compte. Voir auth.js et clippersData.js.
+  const requireRole = (...roles) => (req, res, next) => {
+    if (roles.includes(req.user.role)) return next();
+    res.status(403).json({ error: 'Accès refusé pour ce profil' });
+  };
+  const adminOnly = requireRole('admin');
+  const adminOrManager = requireRole('admin', 'manager');
 
   // Rate-limit générique par IP (voir rateLimit.js) — jusqu'ici seul le
   // login en avait un ; les routes authentifiées ci-dessous n'avaient
@@ -178,39 +199,61 @@ export async function startServer(client) {
   // Comptes autorisés à se connecter au dashboard (voir auth.js) — pas de
   // rôles, n'importe quel compte déjà connecté peut en ajouter/retirer
   // d'autres.
-  app.get('/api/users', (req, res) => {
-    res.json({ emails: listEmails(), currentEmail: getSessionEmail(req) });
+  app.get('/api/users', adminOnly, (req, res) => {
+    res.json({ emails: listEmails(), users: listUsers(), currentEmail: req.user.email });
   });
 
-  app.post('/api/users', async (req, res, next) => {
+  app.post('/api/users', adminOnly, async (req, res, next) => {
     try {
-      await addUser(req.body?.email || '', req.body?.password || '');
-      res.status(201).json({ emails: listEmails() });
+      const { email, password, role, account } = req.body || {};
+      // Un clipper est lié à un compte suivi qui doit exister.
+      if (role === 'clipper' && !loadAccounts().some((a) => a.name === account)) {
+        return res.status(400).json({ error: 'Un clipper doit être lié à un compte suivi existant' });
+      }
+      await addUser(email || '', password || '', { role: role || 'admin', account: account || null });
+      res.status(201).json({ emails: listEmails(), users: listUsers() });
     } catch (error) {
-      if (error.message.includes('caractères') || error.message.includes('déjà utilisée') || error.message.includes('invalide')) {
+      if (error.message.includes('caractères') || error.message.includes('déjà utilisée') || error.message.includes('invalide') || error.message.includes('lié à un compte')) {
         return res.status(400).json({ error: error.message });
       }
       next(error);
     }
   });
 
-  app.delete('/api/users/:email', (req, res, next) => {
+  app.patch('/api/users/:email', adminOnly, (req, res, next) => {
+    try {
+      const { role, account } = req.body || {};
+      if (role === 'clipper' && !loadAccounts().some((a) => a.name === account)) {
+        return res.status(400).json({ error: 'Un clipper doit être lié à un compte suivi existant' });
+      }
+      updateUserAccess(req.params.email, { role, account: account || null });
+      res.json({ emails: listEmails(), users: listUsers() });
+    } catch (error) {
+      if (error.message.includes('introuvable')) return res.status(404).json({ error: error.message });
+      if (error.message.includes('dernier admin') || error.message.includes('invalide') || error.message.includes('lié à un compte')) {
+        return res.status(400).json({ error: error.message });
+      }
+      next(error);
+    }
+  });
+
+  app.delete('/api/users/:email', adminOnly, (req, res, next) => {
     try {
       removeUser(req.params.email);
-      res.json({ emails: listEmails() });
+      res.json({ emails: listEmails(), users: listUsers() });
     } catch (error) {
-      if (error.message.includes('dernier compte') || error.message.includes('introuvable')) {
+      if (error.message.includes('dernier compte') || error.message.includes('dernier admin') || error.message.includes('introuvable')) {
         return res.status(400).json({ error: error.message });
       }
       next(error);
     }
   });
 
-  app.get('/api/dashboard', (req, res) => {
+  app.get('/api/dashboard', adminOrManager, (req, res) => {
     res.json({ kpis: getKpis(), accounts: getAccountsWithStats(), scan: getScanStatus() });
   });
 
-  app.post('/api/accounts', (req, res, next) => {
+  app.post('/api/accounts', adminOnly, (req, res, next) => {
     try {
       const { name, urls } = req.body || {};
       const trimmed = (name || '').trim();
@@ -223,7 +266,7 @@ export async function startServer(client) {
     }
   });
 
-  app.patch('/api/accounts/:name', (req, res, next) => {
+  app.patch('/api/accounts/:name', adminOnly, (req, res, next) => {
     try {
       const { name, urls } = req.body || {};
       const trimmed = (name || '').trim();
@@ -237,7 +280,7 @@ export async function startServer(client) {
     }
   });
 
-  app.delete('/api/accounts/:name', (req, res, next) => {
+  app.delete('/api/accounts/:name', adminOnly, (req, res, next) => {
     try {
       deleteAccount(req.params.name);
       res.json({ accounts: getAccountsWithStats() });
@@ -253,57 +296,122 @@ export async function startServer(client) {
   // résolution "24h" (23 points à 0 + un pic à l'heure du scan) induirait
   // en erreur plutôt que d'informer. Le filtre "24h" du dashboard demande
   // simplement days=2 (les deux dernières collectes, avant/après).
-  app.get('/api/history', (req, res) => {
+  app.get('/api/history', adminOrManager, (req, res) => {
     const platform = req.query.platform || 'all';
     const series = getHistorySeries(Number(req.query.days) || 14, platform);
     res.json({ series });
   });
 
-  // Page Clippers : vues, clics, formulaires, cash et bénéfice par compte
-  // sur une période (?from=YYYY-MM-DD&to=YYYY-MM-DD, l'une ou l'autre
-  // facultative — sans bornes, tout l'historique).
-  app.get('/api/clippers', (req, res) => {
+  // --- Pages clippers ---------------------------------------------------
+  // Période : ?from=YYYY-MM-DD&to=YYYY-MM-DD (l'une ou l'autre facultative ;
+  // sans bornes = tout l'historique).
+  const parsePeriod = (req, res) => {
     const isDate = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
     const { from, to } = req.query;
     if ((from && !isDate(from)) || (to && !isDate(to))) {
-      return res.status(400).json({ error: 'Dates invalides (YYYY-MM-DD attendu)' });
+      res.status(400).json({ error: 'Dates invalides (YYYY-MM-DD attendu)' });
+      return null;
     }
-    if (from && to && from > to) return res.status(400).json({ error: 'La date de début dépasse la date de fin' });
-    res.json(getClippersReport({ from: from || null, to: to || null }));
+    if (from && to && from > to) {
+      res.status(400).json({ error: 'La date de début dépasse la date de fin' });
+      return null;
+    }
+    return { from: from || null, to: to || null };
+  };
+
+  // Tableau « Tous les clippers » : admin (avec cash, bénéfice, ROAS) et
+  // manager (sans finances) — le filtrage se fait dans getClippersReport.
+  app.get('/api/clippers', adminOrManager, (req, res) => {
+    const period = parsePeriod(req, res);
+    if (period) res.json(getClippersReport(period, { role: req.user.role }));
+  });
+
+  // Page d'un clipper. Un clipper ne peut demander que son propre compte
+  // (le paramètre est ignoré pour lui) ; admin et manager, n'importe lequel.
+  app.get('/api/clipper', (req, res) => {
+    const period = parsePeriod(req, res);
+    if (!period) return;
+    const account = req.user.role === 'clipper' ? req.user.account : req.query.account;
+    const detail = account ? getClipperDetail(period, account) : null;
+    if (!detail) return res.status(404).json({ error: 'Compte introuvable ou non relié à ton profil' });
+    res.json(detail);
+  });
+
+  // Classement aux clics : ouvert aux trois profils ; les gains de chacun ne
+  // sont renvoyés qu'à l'admin.
+  app.get('/api/leaderboard', (req, res) => {
+    const period = parsePeriod(req, res);
+    if (period) res.json(getLeaderboard(period, { role: req.user.role }));
+  });
+
+  // Clics par clipper et par jour (courbe + tableau de chaleur).
+  app.get('/api/daily', adminOrManager, (req, res) => {
+    const period = parsePeriod(req, res);
+    if (!period) return;
+    if (!period.from || !period.to) return res.status(400).json({ error: 'from et to sont requis' });
+    res.json(getDailyMatrix(period));
+  });
+
+  // --- Gestion (admin) : tarif par clic et synchronisation Supabase ---
+  app.patch('/api/accounts/:name/rate', adminOnly, (req, res, next) => {
+    try {
+      // Saisie en € pour 1 000 clics, comme dans l'app de référence ; stockée par clic.
+      const per1000 = req.body?.ratePer1000;
+      setAccountRate(req.params.name, per1000 === null || per1000 === '' || per1000 === undefined ? null : Number(per1000) / 1000);
+      res.json({ accounts: getAccountsWithStats() });
+    } catch (error) {
+      if (error.message.includes('introuvable')) return res.status(404).json({ error: error.message });
+      if (error.message.includes('invalide')) return res.status(400).json({ error: error.message });
+      next(error);
+    }
+  });
+
+  app.get('/api/admin/sync', adminOnly, (req, res) => {
+    res.json(getSyncStatus());
+  });
+
+  app.post('/api/admin/sync', adminOnly, async (req, res, next) => {
+    try {
+      const days = Math.min(Math.max(Number(req.body?.days) || 7, 1), 400);
+      const result = await syncFromSupabase({ days });
+      res.status(result.ok ? 200 : 502).json(result);
+    } catch (error) {
+      next(error);
+    }
   });
 
   // Série quotidienne des clics (tous comptes, ou ?account=nom) — mêmes
   // jours que les vues, 0 les jours sans clic (voir clicksStore.js).
-  app.get('/api/clicks/history', (req, res) => {
+  app.get('/api/clicks/history', adminOrManager, (req, res) => {
     const days = Math.min(Math.max(Number(req.query.days) || 14, 1), 90);
     res.json({ series: getClicksSeries(days, req.query.account || null) });
   });
 
-  app.get('/api/accounts/:name/history', (req, res) => {
+  app.get('/api/accounts/:name/history', adminOrManager, (req, res) => {
     const days = Number(req.query.days) || 14;
     const platform = req.query.platform || 'all';
     res.json({ series: getAccountHistorySeries(req.params.name, days, platform) });
   });
 
-  app.get('/api/settings', (req, res) => {
+  app.get('/api/settings', adminOnly, (req, res) => {
     res.json(loadSettings());
   });
 
-  app.patch('/api/settings', (req, res) => {
+  app.patch('/api/settings', adminOnly, (req, res) => {
     res.json(updateSettings(req.body || {}));
   });
 
   // Le token n'est jamais renvoyé en clair (voir botConfig.js) — seulement
   // un aperçu masqué.
-  app.get('/api/bot-config', (req, res) => {
+  app.get('/api/bot-config', adminOnly, (req, res) => {
     res.json(getBotConfigStatus());
   });
 
-  app.patch('/api/bot-config', (req, res) => {
+  app.patch('/api/bot-config', adminOnly, (req, res) => {
     res.json(updateBotConfig(req.body || {}));
   });
 
-  app.get('/api/scan/status', (req, res) => {
+  app.get('/api/scan/status', adminOrManager, (req, res) => {
     res.json(getScanStatus());
   });
 

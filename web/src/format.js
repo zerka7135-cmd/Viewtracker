@@ -64,3 +64,21 @@ export function fmtRelativeTimeWithClock(isoString) {
   const clock = new Date(isoString).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   return `${relative} (${clock})`;
 }
+
+/**
+ * Montant en euros : sans décimales dès 1 000 € ("1 385 €"), avec deux
+ * dessous ("0,50 €") — même règle que l'app de référence.
+ */
+export function eur(n) {
+  const digits = Math.abs(n) >= 1000 ? 0 : 2;
+  return n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+/** Pourcentage à une décimale ("5,5 %"), « — » quand il n'y a rien à diviser. */
+export function pct(n) {
+  return n === null || n === undefined ? '—' : `${n.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`;
+}
+
+export function roasLabel(n) {
+  return n === null || n === undefined ? '—' : `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×`;
+}

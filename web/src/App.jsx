@@ -7,6 +7,10 @@ import ScanStatusIndicator from './components/ScanStatusIndicator.jsx';
 import DashboardView from './components/DashboardView.jsx';
 import ClippersView from './components/ClippersView.jsx';
 import ViewsClicksToggle from './components/ViewsClicksToggle.jsx';
+import ClipperView from './components/ClipperView.jsx';
+import LeaderboardView from './components/LeaderboardView.jsx';
+import DailyView from './components/DailyView.jsx';
+import ManagementView from './components/ManagementView.jsx';
 import SettingsView from './components/SettingsView.jsx';
 import AccountDrawer from './components/AccountDrawer.jsx';
 import LoadingScreen from './components/LoadingScreen.jsx';
@@ -31,6 +35,13 @@ export default function App() {
   const [passwordSet, setPasswordSet] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [currentEmail, setCurrentEmail] = useState(null);
+  // Profil de la session (admin, manager ou clipper) et, pour un clipper, son
+  // compte suivi — renvoyés par /api/me. Les droits réels sont contrôlés par
+  // le serveur ; ils ne servent ici qu'à choisir les écrans à afficher.
+  const [role, setRole] = useState(null);
+  const [ownAccount, setOwnAccount] = useState(null);
+  const isAdmin = role === 'admin';
+  const canSeeAll = role === 'admin' || role === 'manager';
 
   // Écran de bienvenue affiché une fois par onglet (pas à chaque
   // rechargement/reconnexion dans la même session navigateur) avant
@@ -53,6 +64,8 @@ export default function App() {
       setPasswordSet(res.passwordSet);
       setAuthenticated(res.authenticated);
       setCurrentEmail(res.email);
+      setRole(res.role);
+      setOwnAccount(res.account);
       setAuthChecked(true);
     });
   }, []);
@@ -76,6 +89,7 @@ export default function App() {
       // stockage indisponible (navigation privée...) : le mode reste valable pour la session
     }
   };
+  const [selectedClipper, setSelectedClipper] = useState(null);
   const [kpis, setKpis] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [scan, setScan] = useState({ scanning: false, lastScanAt: null });
@@ -113,30 +127,37 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!authenticated) return;
+    if (!authenticated || !role) return;
     const start = Date.now();
-    Promise.all([api.getDashboard(), api.getSettings()]).then(([dash, s]) => {
+    // Le clipper n'a rien à charger ici (sa page se charge seule) ; le manager
+    // n'a pas accès aux réglages ; l'admin charge tout.
+    Promise.all([
+      canSeeAll ? api.getDashboard() : Promise.resolve(null),
+      isAdmin ? api.getSettings() : Promise.resolve(null)
+    ]).then(([dash, s]) => {
       // Délai minimum avant de masquer le loader (voir LoadingScreen.jsx) :
       // sans lui, l'animation ne fait qu'un flash imperceptible dès que les
       // données viennent de fichiers JSON locaux plutôt que d'une vraie
       // requête réseau — repris tel quel de l'ancien MIN_LOADING_MS.
       const remaining = Math.max(0, MIN_LOADING_MS - (Date.now() - start));
       setTimeout(() => {
-        setKpis(dash.kpis);
-        setAccounts(dash.accounts);
-        setScan(dash.scan);
-        setSettings(s);
+        if (dash) {
+          setKpis(dash.kpis);
+          setAccounts(dash.accounts);
+          setScan(dash.scan);
+        }
+        if (s) setSettings(s);
         setLoaded(true);
       }, remaining);
     }).catch(handleApiError);
-  }, [authenticated]);
+  }, [authenticated, role]);
 
   // Pas de déclenchement de scan depuis le dashboard : la collecte reste
   // pilotée uniquement par le cron planifié (voir src/index.js) ou les
   // scripts CLI (npm run scan / run-once). On interroge périodiquement le
   // statut pour refléter les collectes en cours côté serveur.
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || !canSeeAll) return;
     pollTimer.current = setInterval(() => {
       api.getScanStatus().then((status) => {
         setScan(status);
@@ -148,7 +169,7 @@ export default function App() {
       }).catch(handleApiError);
     }, SCAN_POLL_MS);
     return () => clearInterval(pollTimer.current);
-  }, [loaded]);
+  }, [loaded, canSeeAll]);
 
   const handleUpdateSettings = async (patch) => {
     setSettings((s) => ({ ...s, ...patch }));
@@ -166,12 +187,15 @@ export default function App() {
     await api.logout().catch(() => {});
     setAuthenticated(false);
     setCurrentEmail(null);
+    setRole(null);
+    setOwnAccount(null);
+    setView('dashboard');
     setLoaded(false);
   };
 
   const handleLoginSuccess = () => {
     setAuthenticated(true);
-    api.me().then((res) => setCurrentEmail(res.email)).catch(() => {});
+    api.me().then((res) => { setCurrentEmail(res.email); setRole(res.role); setOwnAccount(res.account); }).catch(() => {});
   };
 
   if (!authChecked) return <LoadingScreen />;
@@ -180,35 +204,64 @@ export default function App() {
 
   const drawerAccount = accounts.find((a) => a.name === drawerAccountName) || null;
 
+  // Écran d'attente tant que le profil n'est pas connu (juste après la connexion).
+  if (!role) return <LoadingScreen />;
+
+  // « Tous les clippers » : ouvre la page d'un clipper (admin et manager).
+  const openClipper = (name) => { setSelectedClipper(name); setView('dashboard'); setDashboardMode('clicks'); };
+  const roleLabel = { admin: 'admin', manager: 'manager', clipper: 'clipper' }[role];
+
+  // Titre de l'écran Dashboard selon le profil et le mode (mêmes intitulés que
+  // l'app de référence : « Dashboard admin » / « Dashboard manager » / clipper).
+  let topMeta = null;
+  if (view === 'dashboard') {
+    if (role === 'clipper') topMeta = [ownAccount || 'Mon compte', 'Dashboard clipper'];
+    else if (selectedClipper) topMeta = [selectedClipper, 'Dashboard clipper'];
+    else if (dashboardMode === 'clicks') topMeta = ['Tous les clippers', `Dashboard ${roleLabel}`];
+  }
+  if (view === 'settings' && !isAdmin) topMeta = ['Compte', 'Mot de passe et déconnexion'];
+
   return (
     <div className="app">
       <Sidebar
+        role={role}
         view={view}
-        onNavigate={setView}
+        onNavigate={(next) => { setSelectedClipper(null); setView(next); }}
         onLogout={handleLogout}
       />
       {/* Barre d'onglets du bas — même destinations que Sidebar, visible
           uniquement sous 700px (voir .mobile-tabbar dans theme.css), les
           deux navs restant montées en permanence plutôt que démontées/
           remontées au resize. */}
-      <MobileTabBar view={view} onNavigate={setView} />
+      <MobileTabBar role={role} view={view} onNavigate={(next) => { setSelectedClipper(null); setView(next); }} />
       <div className="main">
         <TopBar
-          view={view === 'dashboard' && dashboardMode === 'clicks' ? 'clippers' : view}
-          actions={view === 'dashboard' ? (
+          view={view}
+          meta={topMeta}
+          actions={view === 'dashboard' && canSeeAll ? (
             <>
-              <ViewsClicksToggle mode={dashboardMode} onChange={changeDashboardMode} />
-              {dashboardMode === 'views' && <ScanStatusIndicator scan={scan} />}
+              <ViewsClicksToggle mode={dashboardMode} onChange={(mode) => { setSelectedClipper(null); changeDashboardMode(mode); }} />
+              {dashboardMode === 'views' && !selectedClipper && <ScanStatusIndicator scan={scan} />}
             </>
           ) : null}
         />
 
-        {view === 'dashboard' && dashboardMode === 'clicks' && <ClippersView onToast={showToast} />}
-        {view === 'dashboard' && dashboardMode === 'views' && (
+        {/* Dashboard d'un clipper : uniquement son propre compte. */}
+        {view === 'dashboard' && role === 'clipper' && <ClipperView account={null} onToast={showToast} />}
+
+        {/* Admin et manager : page d'un clipper (depuis « Tous les clippers »), sinon Vues ou Clics. */}
+        {view === 'dashboard' && canSeeAll && selectedClipper && (
+          <ClipperView account={selectedClipper} onBack={() => setSelectedClipper(null)} onToast={showToast} />
+        )}
+        {view === 'dashboard' && canSeeAll && !selectedClipper && dashboardMode === 'clicks' && (
+          <ClippersView role={role} onOpenClipper={openClipper} onToast={showToast} />
+        )}
+        {view === 'dashboard' && canSeeAll && !selectedClipper && dashboardMode === 'views' && (
           loaded && kpis ? (
             <DashboardView
               kpis={kpis}
               accounts={accounts}
+              readOnly={!isAdmin}
               onOpenDrawer={setDrawerAccountName}
               onAccountsChanged={setAccounts}
               onToast={showToast}
@@ -217,25 +270,42 @@ export default function App() {
             <DashboardSkeleton />
           )
         )}
+
+        {view === 'leaderboard' && <LeaderboardView role={role} account={ownAccount} onToast={showToast} />}
+        {view === 'daily' && canSeeAll && <DailyView onOpenClipper={openClipper} onToast={showToast} />}
+        {view === 'management' && isAdmin && (
+          loaded ? (
+            <ManagementView
+              accounts={accounts}
+              defaultRatePer1000={+((settings.commissionPerClick ?? 0.18) * 1000).toFixed(4)}
+              currentEmail={currentEmail}
+              onAccountsChanged={setAccounts}
+              onToast={showToast}
+            />
+          ) : <DashboardSkeleton />
+        )}
         {view === 'settings' && (
           <SettingsView
+            role={role}
             settings={settings}
             onToggle={(key, value) => handleUpdateSettings({ [key]: value })}
             onUpdateSettings={handleUpdateSettings}
             onToast={showToast}
-            currentEmail={currentEmail}
             onLogout={handleLogout}
           />
         )}
       </div>
 
       <Toast message={toastMessage} />
-      <AccountDrawer
-        account={drawerAccount}
-        onClose={() => setDrawerAccountName(null)}
-        onAccountsChanged={setAccounts}
-        onToast={showToast}
-      />
+      {canSeeAll && (
+        <AccountDrawer
+          account={drawerAccount}
+          readOnly={!isAdmin}
+          onClose={() => setDrawerAccountName(null)}
+          onAccountsChanged={setAccounts}
+          onToast={showToast}
+        />
+      )}
     </div>
   );
 }

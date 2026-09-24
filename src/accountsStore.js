@@ -33,13 +33,40 @@ function saveAccounts(accounts) {
   writeJsonAtomic(ACCOUNTS_PATH, accounts);
 }
 
-/** @param {string[]} urls [igUrl, ttUrl, ytUrl] — chaîne vide = plateforme non suivie. */
-export function addAccount(name, urls) {
+/**
+ * Tarif par clic (€) d'un compte : le sien s'il en a un, sinon `undefined`
+ * (le tarif par défaut des réglages s'applique, voir clippersData.js).
+ */
+function normalizeRate(rateClick) {
+  if (rateClick === undefined || rateClick === null || rateClick === '') return undefined;
+  const value = Number(rateClick);
+  if (!Number.isFinite(value) || value < 0 || value > 1000) throw new Error('Tarif par clic invalide');
+  return value;
+}
+
+/**
+ * @param {string[]} urls [igUrl, ttUrl, ytUrl] — chaîne vide = plateforme non suivie.
+ * @param {{rateClick?: number}} [extra] tarif par clic propre au compte (€), facultatif
+ */
+export function addAccount(name, urls, { rateClick } = {}) {
   const accounts = loadAccounts();
   if (accounts.some(a => a.name === name)) {
     throw new Error(`Le compte "${name}" existe déjà`);
   }
-  accounts.push({ name, urls });
+  const rate = normalizeRate(rateClick);
+  accounts.push(rate === undefined ? { name, urls } : { name, urls, rateClick: rate });
+  saveAccounts(accounts);
+  return accounts;
+}
+
+/** Fixe (ou efface avec `null`) le tarif par clic propre à un compte. */
+export function setAccountRate(name, rateClick) {
+  const accounts = loadAccounts();
+  const account = accounts.find(a => a.name === name);
+  if (!account) throw new Error(`Compte "${name}" introuvable`);
+  const rate = normalizeRate(rateClick);
+  if (rate === undefined) delete account.rateClick;
+  else account.rateClick = rate;
   saveAccounts(accounts);
   return accounts;
 }
@@ -54,7 +81,7 @@ export function updateAccount(currentName, name, urls) {
     throw new Error(`Le compte "${name}" existe déjà`);
   }
   if (name === currentName) {
-    accounts[index] = { name, urls };
+    accounts[index] = { ...accounts[index], name, urls };
     saveAccounts(accounts);
     return accounts;
   }
@@ -70,7 +97,7 @@ export function updateAccount(currentName, name, urls) {
     renameAccountInHistory(currentName, name);
     renameAccountInCumulative(currentName, name);
     renameAccountInClicks(currentName, name);
-    accounts[index] = { name, urls };
+    accounts[index] = { ...accounts[index], name, urls };
     saveAccounts(accounts);
   } finally {
     releaseLock();

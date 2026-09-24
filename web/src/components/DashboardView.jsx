@@ -50,7 +50,9 @@ function rangeShortLabel(range) {
 // sous le graphique porte maintenant aussi les actions de gestion
 // (ajouter/modifier/supprimer un compte) — plus de page séparée qui
 // dupliquait presque le même tableau.
-export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccountsChanged, onToast }) {
+// `readOnly` (manager) : ni ajout, ni modification, ni suppression de compte —
+// le serveur refuse ces actions à ce profil de toute façon (voir server.js#adminOnly).
+export default function DashboardView({ kpis, accounts, readOnly = false, onOpenDrawer, onAccountsChanged, onToast }) {
   const [chartRange, setChartRange] = useState(CHART_RANGES[2]); // 14j par défaut
   const [platformSeries, setPlatformSeries] = useState({ ig: [], tt: [], yt: [] });
   const [showAddModal, setShowAddModal] = useState(false);
@@ -235,9 +237,11 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
                 <button type="button" className="btn btn-ghost" onClick={() => setShowCompareModal(true)} disabled={accounts.length < 2} title={accounts.length < 2 ? 'Ajoute au moins 2 comptes pour comparer' : undefined}>
                   <IconCompare size={14} /> Comparer
                 </button>
-                <button type="button" className="btn btn-accent" onClick={() => setShowAddModal(true)}>
-                  <IconPlus size={14} /> Ajouter
-                </button>
+                {!readOnly && (
+                  <button type="button" className="btn btn-accent" onClick={() => setShowAddModal(true)}>
+                    <IconPlus size={14} /> Ajouter
+                  </button>
+                )}
               </div>
             </div>
             <div className="filters-row" style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
@@ -282,9 +286,11 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
                     <>
                       <div className="table-empty-title">Aucun compte suivi</div>
                       <div className="table-empty-sub">Ajoute un compte Instagram, TikTok ou YouTube pour démarrer le suivi.</div>
-                      <button type="button" className="btn btn-accent" onClick={() => setShowAddModal(true)} style={{ marginTop: 12 }}>
-                        <IconPlus size={14} /> Ajouter un compte
-                      </button>
+                      {!readOnly && (
+                        <button type="button" className="btn btn-accent" onClick={() => setShowAddModal(true)} style={{ marginTop: 12 }}>
+                          <IconPlus size={14} /> Ajouter un compte
+                        </button>
+                      )}
                     </>
                   ) : (
                     <>
@@ -324,22 +330,26 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
                     <Sparkline values={a.spark} color={a.growth24h >= 0 ? 'var(--green)' : 'var(--red)'} />
                   </div>
                   <div className="table-cell-actions" style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      title="Modifier" aria-label="Modifier le compte"
-                      onClick={(e) => { e.stopPropagation(); setEditingAccount(a); }}
-                    >
-                      <IconEdit size={15} />
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-btn icon-btn-danger"
-                      title="Supprimer" aria-label="Supprimer le compte"
-                      onClick={(e) => { e.stopPropagation(); setDeletingAccount(a); }}
-                    >
-                      <IconTrash size={15} />
-                    </button>
+                    {!readOnly && (
+                      <>
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          title="Modifier" aria-label="Modifier le compte"
+                          onClick={(e) => { e.stopPropagation(); setEditingAccount(a); }}
+                        >
+                          <IconEdit size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-btn icon-btn-danger"
+                          title="Supprimer" aria-label="Supprimer le compte"
+                          onClick={(e) => { e.stopPropagation(); setDeletingAccount(a); }}
+                        >
+                          <IconTrash size={15} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}

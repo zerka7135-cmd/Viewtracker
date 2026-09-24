@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
-import { getBotConfig, updateBotConfig, changePassword, getUsers, addUser as addUserApi, removeUser as removeUserApi } from '../api.js';
-import { IconTrash, IconLogout } from './icons.jsx';
+import { getBotConfig, updateBotConfig, changePassword } from '../api.js';
+import { IconLogout } from './icons.jsx';
 
 // Version sans multi-organisation (voir backup/dashboard-rewrite-27-08
 // pour cette version-là, qui a besoin de Postgres) : pas d'onglet
 // "Organisation" (renommage/suppression), qui n'a pas de sens ici — un
-// seul bot. "Compte" existe en revanche : mot de passe + gestion des
-// comptes autorisés à se connecter (voir auth.js), plusieurs personnes
-// peuvent avoir leur propre e-mail/mot de passe. Pas d'onglet "Général" :
+// seul bot. "Compte" existe en revanche : mot de passe (la gestion des
+// membres et de leurs rôles vit dans la page Gestion, voir ManagementView.jsx). Pas d'onglet "Général" :
 // il ne portait que le choix de thème clair/sombre, retiré (l'app ne
 // propose plus que le thème sombre, voir theme.css/theme.js).
 const TABS = [
@@ -302,109 +301,22 @@ function LogoutSection({ onLogout }) {
   );
 }
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Comptes autorisés à se connecter au dashboard (voir auth.js) — pas de
 // rôle admin distinct, n'importe quel compte déjà connecté peut en
 // ajouter/retirer d'autres.
-function UsersSection({ currentEmail, onToast }) {
-  const [emails, setEmails] = useState(null);
-  const [newEmail, setNewEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [adding, setAdding] = useState(false);
-  const [removingEmail, setRemovingEmail] = useState(null);
 
-  const refresh = () => getUsers().then((res) => setEmails(res.emails)).catch(() => {});
-  useEffect(() => { refresh(); }, []);
-
-  const submitAdd = async (e) => {
-    e.preventDefault();
-    if (!EMAIL_RE.test(newEmail.trim())) {
-      onToast('Erreur : adresse e-mail invalide');
-      return;
-    }
-    setAdding(true);
-    try {
-      await addUserApi(newEmail.trim().toLowerCase(), newPassword);
-      onToast(`Compte "${newEmail.trim()}" ajouté`);
-      setNewEmail('');
-      setNewPassword('');
-      refresh();
-    } catch (err) {
-      onToast(`Erreur : ${err.message}`);
-    } finally {
-      setAdding(false);
-    }
-  };
-
-  const remove = async (email) => {
-    setRemovingEmail(email);
-    try {
-      await removeUserApi(email);
-      onToast(`Compte "${email}" supprimé`);
-      refresh();
-    } catch (err) {
-      onToast(`Erreur : ${err.message}`);
-    } finally {
-      setRemovingEmail(null);
-    }
-  };
-
-  if (!emails) return null;
-
-  return (
-    <div className="card" style={{ padding: '18px 22px' }}>
-      <div className="card-title" style={{ marginBottom: 4 }}>Comptes autorisés</div>
-      <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
-        Toute personne avec un compte a le même accès complet (comptes suivis, réglages, identifiants du bot) — pas de rôle limité pour l'instant.
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 16 }}>
-        {emails.map((email) => (
-          <div key={email} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderRadius: 8, background: 'var(--card-alt)' }}>
-            <div style={{ fontSize: 13, fontWeight: 500 }}>
-              {email}
-              {email === currentEmail && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}> — toi</span>}
-            </div>
-            <button
-              type="button"
-              className="icon-btn icon-btn-danger"
-              title="Supprimer ce compte"
-              aria-label={`Supprimer le compte ${email}`}
-              disabled={emails.length <= 1 || removingEmail === email}
-              onClick={() => remove(email)}
-            >
-              <IconTrash size={14} />
-            </button>
-          </div>
-        ))}
-      </div>
-
-      <SubsectionLabel>Ajouter un compte</SubsectionLabel>
-      <form onSubmit={submitAdd} className="settings-table">
-        <Row label="E-mail">
-          <input className="input" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="collegue@exemple.com" style={{ width: '100%', maxWidth: 220 }} />
-        </Row>
-        <Row label="Mot de passe" description="Au moins 8 caractères — à communiquer à la personne concernée.">
-          <input className="input" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={{ width: '100%', maxWidth: 220 }} />
-        </Row>
-        <Row label="">
-          <button type="submit" className="btn btn-ghost" disabled={adding || !newEmail.trim() || newPassword.length < 8} style={{ borderRadius: 8 }}>
-            {adding ? 'Ajout…' : 'Ajouter'}
-          </button>
-        </Row>
-      </form>
-    </div>
-  );
-}
-
-export default function SettingsView({ settings, onToggle, onUpdateSettings, onToast, currentEmail, onLogout }) {
-  const [activeTab, setActiveTab] = useState('discord');
+export default function SettingsView({ role, settings, onToggle, onUpdateSettings, onToast, onLogout }) {
+  // Seul l'admin règle le bot, la collecte et les membres (ces derniers sont
+  // dans Gestion) ; manager et clipper n'ont que leur compte (mot de passe).
+  const isAdmin = role === 'admin';
+  const [activeTab, setActiveTab] = useState(isAdmin ? 'discord' : 'compte');
 
   const [cronSchedule, setCronSchedule] = useState(settings.cronSchedule || '');
   const [timezone, setTimezone] = useState(settings.timezone || '');
   const [postsLimit, setPostsLimit] = useState(settings.postsLimit || 2);
   const [commissionPerClick, setCommissionPerClick] = useState(settings.commissionPerClick ?? 0.18);
+  const [cashConversionRate, setCashConversionRate] = useState(settings.cashConversionRate ?? 0.8732);
   const [savingCollecte, setSavingCollecte] = useState(false);
 
   const saveCollecteSettings = async (e) => {
@@ -415,7 +327,8 @@ export default function SettingsView({ settings, onToggle, onUpdateSettings, onT
         cronSchedule: cronSchedule.trim(),
         timezone: timezone.trim(),
         postsLimit: Number(postsLimit),
-        commissionPerClick: Number(commissionPerClick)
+        commissionPerClick: Number(commissionPerClick),
+        cashConversionRate: Number(cashConversionRate)
       });
       onToast('Réglages de collecte mis à jour — posts par plateforme dès la prochaine collecte, heure/fuseau au prochain redémarrage du bot');
     } catch {
@@ -435,9 +348,9 @@ export default function SettingsView({ settings, onToggle, onUpdateSettings, onT
   // la navigation clavier (comme display:none) sans perdre son état React.
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 720 }}>
-      <SettingsTabs active={activeTab} onChange={setActiveTab} />
+      {isAdmin && <SettingsTabs active={activeTab} onChange={setActiveTab} />}
 
-      <div style={{ display: activeTab !== 'discord' ? 'none' : 'flex', flexDirection: 'column', gap: 20 }}>
+      {isAdmin && <div style={{ display: activeTab !== 'discord' ? 'none' : 'flex', flexDirection: 'column', gap: 20 }}>
         <div className="card" style={{ padding: '18px 22px' }}>
           <div className="card-title" style={{ marginBottom: 4 }}>Discord</div>
 
@@ -461,9 +374,9 @@ export default function SettingsView({ settings, onToggle, onUpdateSettings, onT
 
           <BotIdentitySection onToast={onToast} />
         </div>
-      </div>
+      </div>}
 
-      <div className="card" style={{ padding: '18px 22px' }} hidden={activeTab !== 'collecte'}>
+      {isAdmin && <div className="card" style={{ padding: '18px 22px' }} hidden={activeTab !== 'collecte'}>
         <div className="card-title" style={{ marginBottom: 4 }}>Collecte</div>
         <form onSubmit={saveCollecteSettings} className="settings-table">
           <Row label="Heure de collecte (cron)" description="Format cron, ex. 30 22 * * *. Effectif au prochain redémarrage du bot.">
@@ -475,8 +388,11 @@ export default function SettingsView({ settings, onToggle, onUpdateSettings, onT
           <Row label="Posts par plateforme" description="Nombre de publications récentes prises en compte. Effectif dès la prochaine collecte.">
             <input className="input" type="number" min="1" max="20" value={postsLimit} onChange={(e) => setPostsLimit(e.target.value)} style={{ width: '100%', maxWidth: 100 }} />
           </Row>
-          <Row label="Commission par clic (€)" description="Montant versé au clipper pour chaque clic, utilisé pour « À payer », le bénéfice et le ROAS de la page Clippers. Effectif immédiatement.">
+          <Row label="Tarif par clic par défaut (€)" description="Montant versé pour chaque clic à un clipper qui n'a pas de tarif propre (réglable par clipper dans Gestion). Sert à « À payer », au bénéfice et au ROAS. Effectif immédiatement.">
             <input className="input" type="number" min="0" step="0.01" value={commissionPerClick} onChange={(e) => setCommissionPerClick(e.target.value)} style={{ width: '100%', maxWidth: 100 }} />
+          </Row>
+          <Row label="Coefficient cash → €" description="Le cash de la source (en dollars) est multiplié par ce coefficient pour l'afficher en euros. 1 = aucune conversion. Effectif immédiatement.">
+            <input className="input" type="number" min="0.0001" step="0.0001" value={cashConversionRate} onChange={(e) => setCashConversionRate(e.target.value)} style={{ width: '100%', maxWidth: 120 }} />
           </Row>
           <Row label="">
             <button type="submit" className="btn btn-ghost" disabled={savingCollecte} style={{ borderRadius: 8 }}>
@@ -484,10 +400,9 @@ export default function SettingsView({ settings, onToggle, onUpdateSettings, onT
             </button>
           </Row>
         </form>
-      </div>
+      </div>}
 
       <div style={{ display: activeTab !== 'compte' ? 'none' : 'flex', flexDirection: 'column', gap: 20 }}>
-        <UsersSection currentEmail={currentEmail} onToast={onToast} />
         <ChangePasswordSection onToast={onToast} />
         <LogoutSection onLogout={onLogout} />
       </div>

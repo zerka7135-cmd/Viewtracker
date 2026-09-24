@@ -38,6 +38,16 @@ function open() {
       PRIMARY KEY (account, date, source)
     );
     CREATE INDEX IF NOT EXISTS idx_clicks_daily_date ON clicks_daily (date);
+    -- Clics par lien de suivi (détail affiché sur la page d'un clipper).
+    CREATE TABLE IF NOT EXISTS link_daily (
+      account    TEXT NOT NULL,
+      date       TEXT NOT NULL,
+      link       TEXT NOT NULL,
+      clicks     INTEGER NOT NULL DEFAULT 0 CHECK (clicks >= 0),
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (account, date, link)
+    );
+    CREATE INDEX IF NOT EXISTS idx_link_daily_date ON link_daily (date);
   `);
   // Base créée avant l'ajout des formulaires et du cash : on complète la table.
   const columns = db.prepare('PRAGMA table_info(clicks_daily)').all().map(c => c.name);
@@ -154,6 +164,68 @@ export function getPeriodTotals(from = null, to = null) {
   }]));
 }
 
+/**
+ * Enregistre (ou remplace) les clics par lien et par jour.
+ * @param {Array<{account: string, date: string, link: string, clicks: number}>} rows
+ */
+export function upsertLinkClicks(rows) {
+  if (rows.length === 0) return 0;
+  const database = open();
+  const stmt = database.prepare(`
+    INSERT INTO link_daily (account, date, link, clicks, updated_at)
+    VALUES ($account, $date, $link, $clicks, $now)
+    ON CONFLICT (account, date, link) DO UPDATE SET clicks = excluded.clicks, updated_at = excluded.updated_at
+  `);
+  const now = new Date().toISOString();
+
+  database.exec('BEGIN');
+  try {
+    for (const r of rows) stmt.run({ account: r.account, date: r.date, link: r.link, clicks: r.clicks, now });
+    database.exec('COMMIT');
+  } catch (error) {
+    database.exec('ROLLBACK');
+    throw error;
+  }
+  return rows.length;
+}
+
+/**
+ * Clics par lien d'un compte sur une période, du plus cliqué au moins cliqué.
+ * @returns {Array<{link: string, clicks: number}>}
+ */
+export function getLinkTotals(account, from = null, to = null) {
+  if (!fs.existsSync(CLICKS_DB_PATH)) return [];
+  const rows = open().prepare(`
+    SELECT link, SUM(clicks) AS clicks
+    FROM link_daily
+    WHERE account = $account AND ($from IS NULL OR date >= $from) AND ($to IS NULL OR date <= $to)
+    GROUP BY link
+    ORDER BY clicks DESC, link ASC
+  `).all({ account, from, to });
+  return rows.map(r => ({ link: r.link, clicks: Number(r.clicks) }));
+}
+
+/**
+ * Une ligne par (compte, jour) sur la période — toutes sources additionnées :
+ * sert à la courbe d'un clipper et au tableau « jour par jour ».
+ * @returns {Array<{account: string, date: string, clicks: number, forms: number, cashCents: number}>}
+ */
+export function getDailyRows(from = null, to = null, account = null) {
+  if (!fs.existsSync(CLICKS_DB_PATH)) return [];
+  const rows = open().prepare(`
+    SELECT account, date, SUM(clicks) AS clicks, SUM(forms) AS forms, SUM(cash_cents) AS cashCents
+    FROM clicks_daily
+    WHERE ($from IS NULL OR date >= $from) AND ($to IS NULL OR date <= $to)
+      AND ($account IS NULL OR account = $account)
+    GROUP BY account, date
+    ORDER BY date ASC
+  `).all({ from, to, account });
+  return rows.map(r => ({
+    account: r.account, date: r.date,
+    clicks: Number(r.clicks), forms: Number(r.forms), cashCents: Number(r.cashCents)
+  }));
+}
+
 /** Vrai dès qu'au moins une ligne de clics a été reçue. */
 export function hasClicks() {
   if (!fs.existsSync(CLICKS_DB_PATH)) return false;
@@ -168,5 +240,7 @@ export function hasClicks() {
  */
 export function renameAccountInClicks(oldName, newName) {
   if (!fs.existsSync(CLICKS_DB_PATH)) return;
-  open().prepare('UPDATE OR REPLACE clicks_daily SET account = ? WHERE account = ?').run(newName, oldName);
+  const database = open();
+  database.prepare('UPDATE OR REPLACE clicks_daily SET account = ? WHERE account = ?').run(newName, oldName);
+  database.prepare('UPDATE OR REPLACE link_daily SET account = ? WHERE account = ?').run(newName, oldName);
 }

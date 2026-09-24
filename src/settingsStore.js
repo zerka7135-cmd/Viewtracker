@@ -12,6 +12,10 @@ import { readJson, writeJsonAtomic } from './jsonStore.js';
 export const SETTINGS_PATH = process.env.SETTINGS_PATH || path.resolve('./data/settings.json');
 
 export const DEFAULT_COMMISSION_PER_CLICK = 0.18;
+// Le cash arrive dans la devise de la source (dollars) : converti en euros à
+// l'affichage avec ce coefficient — même valeur que l'app de référence
+// (Clipper HQ, `NP = cash × 0.8732`). Réglable ; 1 = aucun changement.
+export const DEFAULT_CASH_CONVERSION_RATE = 0.8732;
 
 const DEFAULTS = {
   notifDaily: true, // envoi/édition des embeds dans le salon Discord public
@@ -22,7 +26,8 @@ const DEFAULTS = {
   timezone: null,
   postsLimit: null,
   stuckAlertMinDays: null,
-  commissionPerClick: null // € versés au clipper par clic (page Clippers)
+  commissionPerClick: null, // € versés au clipper par clic quand il n'a pas de tarif propre
+  cashConversionRate: null // cash brut de la source -> €
 };
 
 function readStored() {
@@ -43,7 +48,8 @@ export function loadSettings() {
     timezone: stored.timezone || config.timezone,
     postsLimit: stored.postsLimit || config.postsLimit,
     stuckAlertMinDays: stored.stuckAlertMinDays || config.stuckAlertMinDays,
-    commissionPerClick: Number.isFinite(stored.commissionPerClick) && stored.commissionPerClick >= 0 ? stored.commissionPerClick : DEFAULT_COMMISSION_PER_CLICK
+    commissionPerClick: Number.isFinite(stored.commissionPerClick) && stored.commissionPerClick >= 0 ? stored.commissionPerClick : DEFAULT_COMMISSION_PER_CLICK,
+    cashConversionRate: Number.isFinite(stored.cashConversionRate) && stored.cashConversionRate > 0 ? stored.cashConversionRate : DEFAULT_CASH_CONVERSION_RATE
   };
 }
 

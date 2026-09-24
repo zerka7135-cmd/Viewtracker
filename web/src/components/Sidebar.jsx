@@ -1,22 +1,31 @@
-import { IconDashboard, IconSettings, IconLogo, IconLogout } from './icons.jsx';
+import { IconDashboard, IconSettings, IconLogo, IconLogout, IconTrophy, IconCalendar, IconUsers } from './icons.jsx';
 
 // "Historique" et "Comptes" ont été fusionnés dans Dashboard (graphique de
 // tendance + répartition par plateforme + gestion des comptes suivis —
 // voir DashboardView.jsx) : plus d'entrées dédiées, un seul tableau qui
 // fait les deux plutôt que deux pages qui affichaient presque la même chose.
-// Exporté : réutilisé tel quel par MobileTabBar.jsx, une seule liste de
-// destinations pour les deux navigations (desktop et mobile).
-export const NAV_ITEMS = [
-  ['dashboard', 'Dashboard', IconDashboard],
-  ['settings', 'Paramètres', IconSettings]
-];
+// Destinations selon le profil (voir auth.js) : l'admin a tout, le manager
+// n'a ni Gestion ni les réglages du bot, le clipper n'a que son Dashboard, le
+// Leaderboard et son compte. Exporté : réutilisé par MobileTabBar.jsx, une
+// seule liste pour les deux navigations (desktop et mobile).
+const DASHBOARD = ['dashboard', 'Dashboard', IconDashboard];
+const LEADERBOARD = ['leaderboard', 'Leaderboard', IconTrophy];
+const DAILY = ['daily', 'Jour par jour', IconCalendar];
+const MANAGEMENT = ['management', 'Gestion', IconUsers];
+const SETTINGS = ['settings', 'Paramètres', IconSettings];
+
+export function navItemsFor(role) {
+  if (role === 'admin') return [DASHBOARD, LEADERBOARD, DAILY, MANAGEMENT, SETTINGS];
+  if (role === 'manager') return [DASHBOARD, LEADERBOARD, DAILY, ['settings', 'Compte', IconSettings]];
+  return [DASHBOARD, LEADERBOARD, ['settings', 'Compte', IconSettings]];
+}
 
 // Toujours dépliée — plus de bouton de repli (retiré, voir App.jsx : la
 // préférence localStorage et le state `collapsed` ont disparu avec lui).
 //
 // Pas de bloc "Organisation" (version sans multi-organisation, voir
 // App.jsx) — juste la déconnexion, un seul mot de passe pour tout le monde.
-export default function Sidebar({ view, onNavigate, onLogout }) {
+export default function Sidebar({ role, view, onNavigate, onLogout }) {
   return (
     <div className="sidebar">
       <div className="sidebar-brand">
@@ -28,7 +37,7 @@ export default function Sidebar({ view, onNavigate, onLogout }) {
           focusable au clavier ni activable par Entrée/Espace — c'était le
           cas ici (nav principale entièrement hors de portée du clavier). */}
       <div className="nav">
-        {NAV_ITEMS.map(([key, label, Icon]) => (
+        {navItemsFor(role).map(([key, label, Icon]) => (
           <div
             key={key}
             role="button"

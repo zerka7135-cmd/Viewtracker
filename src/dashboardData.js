@@ -81,6 +81,7 @@ export function getAccountsWithStats() {
     return {
       name: user.name,
       urls: user.urls, // pour l'édition depuis le dashboard (voir AccountsView.jsx)
+      rateClick: Number.isFinite(user.rateClick) ? user.rateClick : null, // tarif par clic propre (€), sinon le tarif par défaut
       ig: cumulOrNull('ig'),
       tt: cumulOrNull('tt'),
       yt: cumulOrNull('yt'),

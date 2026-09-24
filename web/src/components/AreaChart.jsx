@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fmt, fmtDate } from '../format.js';
 
 // Graphe SVG à aire pleine + ligne, même principe que la maquette
@@ -10,8 +10,21 @@ import { fmt, fmtDate } from '../format.js';
 // pouvoir afficher la date dans le tooltip. `values` (ancien prop, juste
 // des nombres) reste accepté pour compatibilité : dans ce cas le tooltip
 // n'affiche que la valeur, sans date.
-export default function AreaChart({ data, values, color, width = 560, height = 150 }) {
+export default function AreaChart({ data, values, color, width: fixedWidth = 560, height = 150, unit = 'vues', renderExtra = null, fluid = false }) {
   const [hoverIndex, setHoverIndex] = useState(null);
+
+  // `fluid` : le graphique prend la largeur réelle de son conteneur (au lieu
+  // d'un repère fixe de 560 px qui, dans une carte large, n'en occupe que la
+  // moitié) et se redessine quand cette largeur change.
+  const wrapRef = useRef(null);
+  const [measured, setMeasured] = useState(0);
+  useEffect(() => {
+    if (!fluid || !wrapRef.current) return undefined;
+    const observer = new ResizeObserver(([entry]) => setMeasured(Math.round(entry.contentRect.width)));
+    observer.observe(wrapRef.current);
+    return () => observer.disconnect();
+  }, [fluid]);
+  const width = fluid && measured > 0 ? measured : fixedWidth;
 
   const points = data || (values || []).map((value) => ({ date: null, value }));
   const safe = points.length > 1 ? points : [{ date: null, value: 0 }, { date: null, value: 0 }];
@@ -24,7 +37,8 @@ export default function AreaChart({ data, values, color, width = 560, height = 1
     x: (i / (safe.length - 1)) * width,
     y: height - (((p.value ?? 0) - min) / range) * (height - 10),
     date: p.date,
-    value: p.value ?? 0
+    value: p.value ?? 0,
+    raw: p
   }));
   const line = dots.map((d) => `${d.x},${d.y}`).join(' ');
   const area = `0,${height} ${line} ${width},${height}`;
@@ -51,7 +65,7 @@ export default function AreaChart({ data, values, color, width = 560, height = 1
   const datasetKey = `${safe.length}-${safe[0]?.date || ''}-${safe[safe.length - 1]?.date || ''}`;
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div ref={wrapRef} style={{ position: 'relative' }}>
       <svg
         viewBox={`0 0 ${width} ${height}`}
         style={{ width: '100%', height, display: 'block', overflow: 'visible', cursor: dots.length > 1 ? 'crosshair' : 'default' }}
@@ -88,7 +102,8 @@ export default function AreaChart({ data, values, color, width = 560, height = 1
           }}
         >
           {hovered.date && <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>{fmtDate(hovered.date)}</div>}
-          <div className="mono" style={{ fontWeight: 700 }}>{fmt(hovered.value)} vues</div>
+          <div className="mono" style={{ fontWeight: 700 }}>{fmt(hovered.value)} {unit}</div>
+          {renderExtra && <div className="mono" style={{ color: 'var(--accent)', fontWeight: 600 }}>{renderExtra(hovered.raw)}</div>}
         </div>
       )}
     </div>

@@ -4,10 +4,13 @@ import { readJson, writeJsonAtomic } from './jsonStore.js';
 
 // Authentification multi-utilisateur — une adresse e-mail + mot de passe
 // par personne (voir data/auth.json : { users: [{ email, passwordHash,
-// createdAt }] }), pas de rôles/permissions différenciés (tout utilisateur
-// authentifié a accès à tout, y compris changer les identifiants du bot) :
-// la distinction utile ici est "peut se connecter" / "ne peut pas", pas
-// "admin" vs "membre". L'e-mail sert uniquement d'identifiant de
+// createdAt, role, account }] }), avec trois rôles (voir ROLES) : admin (tout,
+// y compris les identifiants du bot), manager (vues et clics de tous les
+// clippers, finances comprises, sans réglages ni gestion des comptes) et
+// clipper (uniquement son propre compte suivi). Les droits sont appliqués
+// côté serveur (voir server.js#requireRole), pas seulement masqués dans
+// l'interface. Un utilisateur sans rôle enregistré (comptes créés avant les
+// rôles) est admin. L'e-mail sert uniquement d'identifiant de
 // connexion — aucun mail n'est jamais envoyé (pas de vérification
 // d'adresse, pas de réinitialisation par e-mail). Le tout premier compte
 // est créé au tout premier accès au dashboard (voir
@@ -29,6 +32,32 @@ const COOKIE_NAME = 'vt_session';
 // un peu inhabituelle. Aucun mail de confirmation n'est envoyé — l'adresse
 // sert d'identifiant de connexion, pas de canal de vérification.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export const ROLES = ['admin', 'manager', 'clipper'];
+
+/** Les comptes créés avant l'existence des rôles n'en ont pas : ce sont des admins. */
+function roleOf(user) {
+  return ROLES.includes(user?.role) ? user.role : 'admin';
+}
+
+/** Vue publique d'un utilisateur (jamais le hash) : e-mail, rôle, compte suivi (clippers). */
+function publicUser(user) {
+  const role = roleOf(user);
+  return { email: user.email, role, account: role === 'clipper' ? (user.account || null) : null };
+}
+
+/**
+ * Valide et normalise rôle + compte suivi rattaché. Un clipper doit être lié
+ * à exactement un compte suivi ; pour les autres rôles le compte est ignoré.
+ * @throws si le rôle est inconnu ou si un clipper n'a pas de compte
+ */
+function normalizeRole(role = 'admin', account = null) {
+  if (!ROLES.includes(role)) throw new Error('Rôle invalide');
+  if (role !== 'clipper') return { role, account: null };
+  const trimmed = typeof account === 'string' ? account.trim() : '';
+  if (!trimmed) throw new Error('Un clipper doit être lié à un compte suivi');
+  return { role, account: trimmed };
+}
 
 const KEY_LENGTH = 64;
 function scrypt(password, salt) {
@@ -84,6 +113,15 @@ export function listEmails() {
   return readAuth().users.map((u) => u.email).sort((a, b) => a.localeCompare(b));
 }
 
+/** @returns {Array<{email: string, role: string, account: string|null}>} trié par e-mail */
+export function listUsers() {
+  return readAuth().users.map(publicUser).sort((a, b) => a.email.localeCompare(b.email));
+}
+
+function countAdmins(auth) {
+  return auth.users.filter((u) => roleOf(u) === 'admin').length;
+}
+
 function validateCredentials(email, plain) {
   if (!EMAIL_RE.test(email || '')) {
     throw new Error('Adresse e-mail invalide');
@@ -96,16 +134,40 @@ export async function setInitialPassword(email, plain) {
   if (isPasswordSet()) throw new Error('Un compte est déjà configuré');
   validateCredentials(email, plain);
   const passwordHash = await hashPassword(plain);
-  writeAuth({ users: [{ email: email.trim().toLowerCase(), passwordHash, createdAt: new Date().toISOString() }] });
+  writeAuth({ users: [{ email: email.trim().toLowerCase(), passwordHash, createdAt: new Date().toISOString(), role: 'admin' }] });
 }
 
-/** @throws si l'adresse est déjà prise ou les identifiants invalides. Appelant déjà authentifié (voir server.js). */
-export async function addUser(email, plain) {
+/**
+ * @param {{role?: string, account?: string|null}} [access] rôle (admin par défaut) et,
+ *   pour un clipper, le compte suivi auquel il est lié
+ * @throws si l'adresse est déjà prise, les identifiants ou le rôle invalides. Appelant déjà authentifié (voir server.js).
+ */
+export async function addUser(email, plain, { role = 'admin', account = null } = {}) {
   const auth = readAuth();
   validateCredentials(email, plain);
+  const access = normalizeRole(role, account);
   if (findUser(auth, email)) throw new Error('Cette adresse e-mail est déjà utilisée');
   const passwordHash = await hashPassword(plain);
-  auth.users.push({ email: email.trim().toLowerCase(), passwordHash, createdAt: new Date().toISOString() });
+  auth.users.push({ email: email.trim().toLowerCase(), passwordHash, createdAt: new Date().toISOString(), ...access });
+  writeAuth(auth);
+}
+
+/**
+ * Change le rôle (et le compte lié) d'un utilisateur existant.
+ * @throws si le compte n'existe pas, le rôle est invalide, ou si ce
+ *   changement retirerait le tout dernier admin (plus personne ne pourrait
+ *   gérer le dashboard).
+ */
+export function updateUserAccess(email, { role, account = null }) {
+  const auth = readAuth();
+  const user = findUser(auth, email);
+  if (!user) throw new Error('Compte introuvable');
+  const access = normalizeRole(role, account);
+  if (roleOf(user) === 'admin' && access.role !== 'admin' && countAdmins(auth) <= 1) {
+    throw new Error('Impossible de retirer le dernier admin');
+  }
+  user.role = access.role;
+  user.account = access.account;
   writeAuth(auth);
 }
 
@@ -116,7 +178,9 @@ export async function addUser(email, plain) {
 export function removeUser(email) {
   const auth = readAuth();
   if (auth.users.length <= 1) throw new Error('Impossible de supprimer le dernier compte restant');
-  if (!findUser(auth, email)) throw new Error('Compte introuvable');
+  const user = findUser(auth, email);
+  if (!user) throw new Error('Compte introuvable');
+  if (roleOf(user) === 'admin' && countAdmins(auth) <= 1) throw new Error('Impossible de supprimer le dernier admin');
   auth.users = auth.users.filter((u) => u.email.toLowerCase() !== email.toLowerCase());
   writeAuth(auth);
 }
@@ -214,6 +278,13 @@ export function getSessionEmail(req) {
   // valide.
   if (!user || fingerprint !== userFingerprint(user)) return null;
   return user.email;
+}
+
+/** @returns {{email: string, role: string, account: string|null}|null} l'utilisateur de la session valide, ou null. */
+export function getSessionUser(req) {
+  const email = getSessionEmail(req);
+  const user = email ? findUser(readAuth(), email) : null;
+  return user ? publicUser(user) : null;
 }
 
 export function isAuthenticated(req) {

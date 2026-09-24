@@ -208,3 +208,32 @@ export function IconClick(props) {
     </Svg>
   );
 }
+
+export function IconTrophy(props) {
+  return (
+    <Svg {...props}>
+      <path d="M8 4h8v5a4 4 0 0 1-8 0V4z" />
+      <path d="M8 6H5a2 2 0 0 0 2 4.5M16 6h3a2 2 0 0 1-2 4.5" />
+      <path d="M12 13v4M8.5 20h7M9.5 17h5" />
+    </Svg>
+  );
+}
+
+export function IconCalendar(props) {
+  return (
+    <Svg {...props}>
+      <rect x="4" y="5.5" width="16" height="14" rx="2.5" />
+      <path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" />
+    </Svg>
+  );
+}
+
+export function IconUsers(props) {
+  return (
+    <Svg {...props}>
+      <circle cx="9" cy="8.5" r="3" />
+      <path d="M3.5 19c.6-3 2.9-4.7 5.5-4.7s4.9 1.7 5.5 4.7" />
+      <path d="M16 6a3 3 0 0 1 0 5.6M17.5 14.6c1.7.5 2.7 2 3 4.4" />
+    </Svg>
+  );
+}
