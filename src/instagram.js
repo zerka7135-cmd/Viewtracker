@@ -3,6 +3,7 @@ import { chromium } from 'playwright-extra';
 import stealth from 'puppeteer-extra-plugin-stealth';
 import { config } from './config.js';
 import { fetchTikTokPosts } from './tiktok.js';
+import { extractInstagramViews, extractYouTubeViews } from './parseViews.js';
 
 chromium.use(stealth());
 
@@ -305,43 +306,23 @@ export async function buildViewsSummary(accounts = config.accounts, postsLimit =
 
               await simulateHumanBehavior(page);
 
-              const result = await page.evaluate((postsLimit) => {
-                function parseCount(raw) {
-                  let val = raw.trim();
-                  let mult = 1;
-                  if (/k/i.test(val)) { mult = 1000; val = val.replace(/k/i, ''); }
-                  if (/m/i.test(val)) { mult = 1000000; val = val.replace(/m/i, ''); }
-
-                  // Sans suffixe K/M, la virgule est un séparateur de milliers
-                  // (ex. "2,479" = 2479 vues) : la retirer plutôt que la
-                  // convertir en point, sinon "2,479" devient 2.479 ≈ 2.
-                  val = mult === 1 ? val.replace(/,/g, '') : val.replace(',', '.');
-
-                  const parsed = parseFloat(val);
-                  return isNaN(parsed) ? 0 : Math.round(parsed * mult);
-                }
-
-                let total = 0;
-                let count = 0;
-                const counted = []; // Détail des reels comptés, pour diagnostic en cas de chiffre suspect.
-
+              // Le navigateur ne fait que relever les textes bruts ; la
+              // conversion en nombres se fait côté Node (voir parseViews.js),
+              // où elle est testée — elle gère notamment les formats
+              // français ("1,2 M", "12,3 k", "1 234").
+              const raw = await page.evaluate(() => {
                 // 1. Grille des reels : chaque vignette est un <a href=".../reel/..."> dont
-                // le innerText est directement le nombre de vues (ex. "277K"). C'est la
-                // structure actuelle de la page (remplace l'ancien affichage "277K vues").
+                // le innerText est directement le nombre de vues (ex. "277K").
                 // Les reels épinglés (badge "Pinned post icon") sont ignorés : ils ne
                 // reflètent pas l'activité récente et fausseraient la moyenne des derniers posts.
                 //
                 // Attention : le conteneur "div._ac7v" regroupe toute une LIGNE de la
                 // grille (3 reels), pas une vignette individuelle — s'y fier directement
-                // marque à tort les 2 voisins d'un reel épinglé comme épinglés eux aussi,
-                // décalant le calcul vers des reels plus loin dans la grille (bug identifié
-                // le 5 août : un compte affichait un total anormalement élevé pour cette
-                // raison exacte). À la place, on associe chaque badge "Pinned" au plus
-                // petit ancêtre contenant exactement UN lien de reel : c'est ce lien-là,
-                // et lui seul, qui est réellement épinglé.
+                // marque à tort les 2 voisins d'un reel épinglé comme épinglés eux aussi
+                // (bug identifié le 5 août). À la place, on associe chaque badge "Pinned"
+                // au plus petit ancêtre contenant exactement UN lien de reel.
                 const pinnedLinks = new Set();
-                const pinnedIcons = Array.from(document.querySelectorAll('svg[aria-label="Pinned post icon"]'));
-                for (const icon of pinnedIcons) {
+                for (const icon of document.querySelectorAll('svg[aria-label="Pinned post icon"]')) {
                   let el = icon.parentElement;
                   while (el) {
                     const linksInside = el.querySelectorAll('a[href*="/reel/"]');
@@ -354,58 +335,22 @@ export async function buildViewsSummary(accounts = config.accounts, postsLimit =
                   }
                 }
 
-                const reelLinks = Array.from(document.querySelectorAll('a[href*="/reel/"]'));
-                for (const link of reelLinks) {
-                  if (pinnedLinks.has(link)) continue;
+                const grid = Array.from(document.querySelectorAll('a[href*="/reel/"]'))
+                  .filter(link => !pinnedLinks.has(link))
+                  .map(link => ({ href: link.getAttribute('href'), text: link.innerText.trim() }));
 
-                  const text = link.innerText.trim();
-                  if (/^[\d.,]+[kKmM]?$/.test(text)) {
-                    const val = parseCount(text);
-                    total += val;
-                    count++;
-                    counted.push({ href: link.getAttribute('href'), text, val });
-                    if (count === postsLimit) break;
-                  }
+                // 2. Ancien format JSON GraphQL avec play_count.
+                const playCounts = [];
+                for (const script of document.querySelectorAll('script[type="application/json"]')) {
+                  const matches = (script.textContent || '').match(/"play_count":\s*(\d+)/g) || [];
+                  for (const m of matches) playCounts.push(parseInt(m.split(':')[1].trim(), 10));
                 }
 
-                // 2. Fallback : ancien format JSON GraphQL avec play_count.
-                if (total === 0) {
-                  const scripts = Array.from(document.querySelectorAll('script[type="application/json"]'));
-                  for (const script of scripts) {
-                    if (script.textContent && script.textContent.includes('play_count')) {
-                      const matches = script.textContent.match(/"play_count":\s*(\d+)/g);
-                      if (matches) {
-                        for (const m of matches) {
-                          const val = parseInt(m.split(':')[1].trim(), 10);
-                          if (!isNaN(val) && val > 0) {
-                            total += val;
-                            count++;
-                            counted.push({ source: 'play_count', val });
-                            if (count === postsLimit) break;
-                          }
-                        }
-                      }
-                    }
-                    if (count === postsLimit) break;
-                  }
-                }
+                // 3. Texte global de la page ("277K vues" / "1,2 M de vues").
+                return { grid, playCounts, bodyText: document.body.innerText };
+              });
 
-                // 3. Fallback : recherche textuelle globale ("277K vues" / "277K views").
-                if (total === 0) {
-                  const bodyText = document.body.innerText;
-                  const matches = bodyText.match(/([\d.,]+[kKmM]?)\s*(?:vues|views|plays)/g);
-                  if (matches) {
-                    for (const m of matches.slice(0, postsLimit)) {
-                      const raw = m.replace(/vues|views|plays|\s/g, '');
-                      const val = parseCount(raw);
-                      total += val;
-                      counted.push({ source: 'texte global', text: m, val });
-                    }
-                  }
-                }
-
-                return { total, counted };
-              }, postsLimit);
+              const result = extractInstagramViews(raw, postsLimit);
 
               if (DEBUG_SCRAPE) console.log(`[IG debug] ${url} → total=${result.total} :`, JSON.stringify(result.counted));
 
@@ -510,60 +455,31 @@ export async function buildViewsSummary(accounts = config.accounts, postsLimit =
               await randomDelay(1000, 2000);
               await simulateHumanBehavior(page);
 
-              const result = await page.evaluate((postsLimit) => {
-                function parseViews(txt) {
-                  const match = txt.match(/([\d.,]+)\s*([kKmM]?)\s*(?:vues|views)/i);
-                  if (!match) return 0;
-                  let val = match[1];
-                  let mult = 1;
-                  if (/k/i.test(match[2])) mult = 1000;
-                  if (/m/i.test(match[2])) mult = 1000000;
-                  // Sans suffixe K/M, la virgule est un séparateur de milliers
-                  // (ex. "12,595" = 12595), pas un séparateur décimal.
-                  val = mult === 1 ? val.replace(/,/g, '') : val.replace(',', '.');
-                  const parsed = parseFloat(val);
-                  return isNaN(parsed) ? 0 : Math.round(parsed * mult);
-                }
-
-                let sum = 0;
-                let count = 0;
-                const counted = []; // Détail par short, avec ID quand dispo (voie 1 seulement).
-
+              // Comme pour Instagram : relevé brut dans le navigateur,
+              // conversion côté Node (voir parseViews.js). Sur YouTube en
+              // français, un Short au-delà du million affiche "1,2 M de
+              // vues" — format qui n'était pas reconnu avant, et faisait
+              // sauter le Short le plus viral du compte.
+              const raw = await page.evaluate(() => {
                 // 1. Grille des shorts : chaque item est un
                 // <ytm-shorts-lockup-view-model> dont le texte contient
-                // "X views" (ex. "Check out my business...\n11K views"), et
-                // dont un lien interne pointe vers "/shorts/VIDEO_ID" — c'est
-                // cet ID qui sert au suivi par vidéo (voir extractIdFromHref).
-                const items = Array.from(document.querySelectorAll('ytm-shorts-lockup-view-model'));
-                for (const item of items) {
-                  const val = parseViews(item.innerText);
-                  if (val > 0) {
-                    const link = item.querySelector('a[href*="/shorts/"]');
-                    counted.push({ href: link ? link.getAttribute('href') : null, val });
-                    sum += val;
-                    count++;
-                    if (count === postsLimit) break;
-                  }
-                }
+                // "X vues", et dont un lien interne pointe vers
+                // "/shorts/VIDEO_ID" — cet ID sert au suivi par vidéo.
+                const items = Array.from(document.querySelectorAll('ytm-shorts-lockup-view-model')).map(item => {
+                  const link = item.querySelector('a[href*="/shorts/"]');
+                  return { href: link ? link.getAttribute('href') : null, text: item.innerText };
+                });
 
-                // 2. Fallback : ancienne structure générique par span, au cas où
-                // la chaîne n'a pas de Shorts ou que la page rend différemment.
-                // Aucun lien fiable vers la vidéo dans ce cas, donc pas d'ID.
-                if (count === 0) {
-                  const spans = Array.from(document.querySelectorAll('span')).filter(s => s.innerText && /vue|views/i.test(s.innerText));
-                  for (const el of spans) {
-                    const val = parseViews(el.innerText.trim());
-                    if (val > 0) {
-                      counted.push({ href: null, val });
-                      sum += val;
-                      count++;
-                      if (count === postsLimit) break;
-                    }
-                  }
-                }
+                // 2. Fallback : ancienne structure générique par span (aucun
+                // lien fiable vers la vidéo dans ce cas, donc pas d'ID).
+                const spans = Array.from(document.querySelectorAll('span'))
+                  .map(s => s.innerText)
+                  .filter(t => t && /vue|views/i.test(t));
 
-                return { total: sum, counted };
-              }, postsLimit);
+                return { items, spans };
+              });
+
+              const result = extractYouTubeViews(raw, postsLimit);
 
               if (DEBUG_SCRAPE) console.log(`[YT debug] ${url} → total=${result.total} :`, JSON.stringify(result.counted));
 

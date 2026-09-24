@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
-const LOCK_PATH = path.resolve('data/.scrape.lock');
+const LOCK_PATH = process.env.LOCK_PATH || path.resolve('data/.scrape.lock');
 const LOCK_MAX_AGE_MS = 30 * 60 * 1000; // 30 min : au-delà, on considère le lock comme périmé (process planté)
 
 /**

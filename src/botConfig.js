@@ -1,5 +1,5 @@
-import fs from 'fs';
 import path from 'path';
+import { readJson, writeJsonAtomic } from './jsonStore.js';
 
 // Identifiants du bot Discord (Token/Client ID/Guild ID) modifiables
 // depuis le dashboard, en plus de DISCORD_TOKEN/DISCORD_CLIENT_ID/
@@ -23,13 +23,7 @@ import path from 'path';
 export const BOT_CONFIG_PATH = process.env.BOT_CONFIG_PATH || path.resolve('./data/bot-config.json');
 
 function readOverrides() {
-  try {
-    if (!fs.existsSync(BOT_CONFIG_PATH)) return {};
-    return JSON.parse(fs.readFileSync(BOT_CONFIG_PATH, 'utf8')) || {};
-  } catch (e) {
-    console.error('Erreur de lecture des identifiants du bot, on repart des variables d\'env :', e.message);
-    return {};
-  }
+  return readJson(BOT_CONFIG_PATH, {}, 'Identifiants du bot') || {};
 }
 
 /**
@@ -77,7 +71,6 @@ export function updateBotConfig(patch) {
   for (const key of ['discordToken', 'discordClientId', 'discordGuildId']) {
     if (patch[key]) updated[key] = patch[key];
   }
-  fs.mkdirSync(path.dirname(BOT_CONFIG_PATH), { recursive: true });
-  fs.writeFileSync(BOT_CONFIG_PATH, JSON.stringify(updated, null, 2));
+  writeJsonAtomic(BOT_CONFIG_PATH, updated);
   return getBotConfigStatus();
 }

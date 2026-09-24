@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { HISTORY_PATH } from './history.js';
+import { readJson, writeJsonAtomic } from './jsonStore.js';
 
 // État de la dernière collecte. `scanning` reste en mémoire seule (ne doit
 // jamais survivre à un redémarrage — un process qui redémarre en pleine
@@ -55,8 +56,7 @@ export function markScanFinished(error = null) {
   scanning = false;
   const status = { lastScanAt: new Date().toISOString(), lastScanError: error };
   try {
-    fs.mkdirSync(path.dirname(SCAN_STATUS_PATH), { recursive: true });
-    fs.writeFileSync(SCAN_STATUS_PATH, JSON.stringify(status, null, 2));
+    writeJsonAtomic(SCAN_STATUS_PATH, status);
   } catch (e) {
     console.error('Erreur d\'écriture du statut de scan :', e.message);
   }

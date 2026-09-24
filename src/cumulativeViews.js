@@ -1,6 +1,6 @@
-import fs from 'fs';
 import path from 'path';
 import { todayKey } from './history.js';
+import { readJson, writeJsonAtomic } from './jsonStore.js';
 
 // Même logique de persistance que history.js/lastMessage.js : sur Railway,
 // CUMULATIVE_VIEWS_PATH pointe vers le volume monté sur /data pour survivre
@@ -13,19 +13,12 @@ export const CUMULATIVE_PATH = process.env.CUMULATIVE_VIEWS_PATH || path.resolve
  * encore été enregistré.
  */
 export function loadCumulativeViews() {
-  try {
-    if (!fs.existsSync(CUMULATIVE_PATH)) return {};
-    const parsed = JSON.parse(fs.readFileSync(CUMULATIVE_PATH, 'utf8'));
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch (e) {
-    console.error('Erreur de lecture du cumul de vues, on repart de zéro :', e.message);
-    return {};
-  }
+  const parsed = readJson(CUMULATIVE_PATH, {}, 'Cumul de vues');
+  return parsed && typeof parsed === 'object' ? parsed : {};
 }
 
 export function saveCumulativeViews(cumulative) {
-  fs.mkdirSync(path.dirname(CUMULATIVE_PATH), { recursive: true });
-  fs.writeFileSync(CUMULATIVE_PATH, JSON.stringify(cumulative, null, 2));
+  writeJsonAtomic(CUMULATIVE_PATH, cumulative);
 }
 
 /**
@@ -83,4 +76,17 @@ export function updateCumulativeViews(cumulative, growth24h, summary) {
   }
 
   return updated;
+}
+
+/**
+ * Renomme un compte dans le cumul all-time (voir
+ * history.js#renameAccountInHistory) — sans ça, le cumul repartait du total
+ * du jour sous le nouveau nom, et l'ancien restait orphelin dans le fichier.
+ */
+export function renameAccountInCumulative(oldName, newName) {
+  const cumulative = loadCumulativeViews();
+  if (!(oldName in cumulative)) return;
+  cumulative[newName] = cumulative[oldName];
+  delete cumulative[oldName];
+  saveCumulativeViews(cumulative);
 }

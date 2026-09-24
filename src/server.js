@@ -204,7 +204,7 @@ export async function startServer(client) {
       res.json({ accounts: getAccountsWithStats() });
     } catch (error) {
       if (error.message.includes('introuvable')) return res.status(404).json({ error: error.message });
-      if (error.message.includes('existe déjà')) return res.status(409).json({ error: error.message });
+      if (error.message.includes('existe déjà') || error.message.includes('Collecte en cours')) return res.status(409).json({ error: error.message });
       next(error);
     }
   });

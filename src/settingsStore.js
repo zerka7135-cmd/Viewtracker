@@ -1,6 +1,6 @@
-import fs from 'fs';
 import path from 'path';
 import { config } from './config.js';
+import { readJson, writeJsonAtomic } from './jsonStore.js';
 
 // Réglages modifiables depuis le dashboard (voir server.js), persistés à
 // part de la config .env. discordChannelId/discordOwnerId prennent effet
@@ -23,13 +23,7 @@ const DEFAULTS = {
 };
 
 function readStored() {
-  try {
-    if (!fs.existsSync(SETTINGS_PATH)) return {};
-    return JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8')) || {};
-  } catch (e) {
-    console.error('Erreur de lecture des réglages, on repart des défauts :', e.message);
-    return {};
-  }
+  return readJson(SETTINGS_PATH, {}, 'Réglages') || {};
 }
 
 /**
@@ -51,7 +45,6 @@ export function loadSettings() {
 
 export function updateSettings(patch) {
   const stored = { ...DEFAULTS, ...readStored(), ...patch };
-  fs.mkdirSync(path.dirname(SETTINGS_PATH), { recursive: true });
-  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(stored, null, 2));
+  writeJsonAtomic(SETTINGS_PATH, stored);
   return loadSettings();
 }

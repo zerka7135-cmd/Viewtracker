@@ -1,6 +1,6 @@
-import fs from 'fs';
 import path from 'path';
 import { config } from './config.js';
+import { readJson, writeJsonAtomic } from './jsonStore.js';
 
 // Sur Railway, HISTORY_PATH pointe vers le volume persistant monté sur
 // /data (sinon le fichier serait effacé à chaque redéploiement). En local,
@@ -22,17 +22,11 @@ export function todayKey(timezone = config.timezone) {
  * @returns {Array<{date: string, accounts: Array}>} trié du plus ancien au plus récent
  */
 export function loadHistory() {
-  try {
-    if (!fs.existsSync(HISTORY_PATH)) return [];
-    const raw = fs.readFileSync(HISTORY_PATH, 'utf8');
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    // Un historique corrompu ne doit jamais faire planter la collecte du
-    // jour : on repart d'un historique vide plutôt que de crasher.
-    console.error('Erreur de lecture de l\'historique, on repart de zéro :', e.message);
-    return [];
-  }
+  // Un historique corrompu ne doit jamais faire planter la collecte du
+  // jour : on repart d'un historique vide, mais le fichier corrompu est
+  // conservé à part (voir jsonStore.js#readJson) au lieu d'être écrasé.
+  const parsed = readJson(HISTORY_PATH, [], 'Historique');
+  return Array.isArray(parsed) ? parsed : [];
 }
 
 /**
@@ -66,8 +60,7 @@ export function appendToday(history, summary) {
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(-MAX_ENTRIES);
 
-  fs.mkdirSync(path.dirname(HISTORY_PATH), { recursive: true });
-  fs.writeFileSync(HISTORY_PATH, JSON.stringify(updated, null, 2));
+  writeJsonAtomic(HISTORY_PATH, updated);
 
   return updated;
 }
@@ -102,9 +95,33 @@ export function computeGrowth24h(history, summary) {
   yesterday.setDate(yesterday.getDate() - 1);
   const targetKey = yesterday.toLocaleDateString('en-CA', { timeZone: config.timezone });
 
+  // Collectes candidates comme référence, de la plus récente à la plus
+  // ancienne (la veille d'abord). Si l'historique ne contient que des
+  // collectes du jour même (relance manuelle), on garde l'ancien repli sur
+  // la toute première entrée.
   const candidates = history.filter(h => h.date <= targetKey);
-  const baseline = candidates.length > 0 ? candidates[candidates.length - 1] : history[0];
-  if (!baseline) return result;
+  const ordered = candidates.length > 0 ? [...candidates].reverse() : [history[0]];
+
+  // Référence choisie *par plateforme* : la collecte la plus récente où
+  // cette plateforme a réellement été scrapée pour ce compte. Avant, on
+  // prenait toujours la veille, même si le scraping y avait échoué
+  // (total 0, posts []) : le lendemain, aucune vidéo n'était reconnue et
+  // toutes étaient comptées comme "nouvelles", vues totales comprises —
+  // un compte à +2K réels s'affichait à +300K, et ce faux gain s'ajoutait
+  // définitivement au cumul all-time. Si la dernière réussite remonte à
+  // plusieurs jours, le delta couvre toute la période depuis : c'est le
+  // vrai gain accumulé, pas un pic fictif.
+  const findBaseline = (account, key, platformName) => {
+    for (const entry of ordered) {
+      const previous = entry.accounts.find(a => a.account === account);
+      if (!previous) continue;
+      if (typeof previous[key] !== 'number') continue; // "Ban"/non suivie ce jour-là
+      const failed = (previous.errors || []).some(e => e.platform === platformName);
+      if (failed) continue;
+      return previous;
+    }
+    return null;
+  };
 
   const diff = (curr, prev) => {
     if (typeof curr !== 'number' || typeof prev !== 'number') return 0;
@@ -114,7 +131,11 @@ export function computeGrowth24h(history, summary) {
   // Delta par plateforme pour un compte : suivi par vidéo si les deux
   // collectes ont pu extraire des IDs, sinon repli sur le total brut.
   const platformDelta = (currentPosts, previousPosts, currentTotal, previousTotal) => {
-    if (!Array.isArray(currentPosts) || currentPosts.length === 0) {
+    const hasPreviousIds = Array.isArray(previousPosts) && previousPosts.length > 0;
+    // Sans ID d'un côté ou de l'autre, impossible de savoir quelles vidéos
+    // sont nouvelles : on compare les totaux bruts plutôt que de compter
+    // toutes les vues du jour comme un gain.
+    if (!Array.isArray(currentPosts) || currentPosts.length === 0 || !hasPreviousIds) {
       return diff(currentTotal, previousTotal);
     }
 
@@ -131,12 +152,20 @@ export function computeGrowth24h(history, summary) {
   };
 
   for (const item of summary) {
-    const previous = baseline.accounts.find(a => a.account === item.account);
-    if (!previous) continue;
+    if (!history.some(h => h.accounts.some(a => a.account === item.account))) continue;
 
-    const ig = platformDelta(item.posts?.ig, previous.posts?.ig, item.ig, previous.ig);
-    const tt = platformDelta(item.posts?.tt, previous.posts?.tt, item.tt, previous.tt);
-    const yt = platformDelta(item.posts?.yt, previous.posts?.yt, item.yt, previous.yt);
+    // Pas de référence réussie pour cette plateforme (jamais scrapée avec
+    // succès, ou tout juste ajoutée au compte) : 0 plutôt que de créditer
+    // toutes ses vues existantes comme un gain du jour.
+    const delta = (key, platformName) => {
+      const previous = findBaseline(item.account, key, platformName);
+      if (!previous) return 0;
+      return platformDelta(item.posts?.[key], previous.posts?.[key], item[key], previous[key]);
+    };
+
+    const ig = delta('ig', 'Instagram');
+    const tt = delta('tt', 'TikTok');
+    const yt = delta('yt', 'YouTube');
 
     // total = somme des deltas par plateforme, pas un diff séparé sur
     // item.total/previous.total : sinon un compte qui passe banni (IG ou
@@ -274,4 +303,24 @@ export function detectDecliningAccounts(history, baselineDays = DECLINE_BASELINE
   }
 
   return declining;
+}
+
+/**
+ * Renomme un compte dans tout l'historique. Les collectes sont rangées par
+ * nom de compte : sans cette migration, renommer un compte depuis le
+ * dashboard lui faisait perdre son historique (plus de gain 24h, courbes
+ * vides) comme s'il venait d'être ajouté.
+ */
+export function renameAccountInHistory(oldName, newName) {
+  const history = loadHistory();
+  let changed = false;
+  for (const entry of history) {
+    for (const item of entry.accounts || []) {
+      if (item.account === oldName) {
+        item.account = newName;
+        changed = true;
+      }
+    }
+  }
+  if (changed) writeJsonAtomic(HISTORY_PATH, history);
 }

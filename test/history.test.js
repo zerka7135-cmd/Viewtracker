@@ -174,3 +174,62 @@ test('detectDecliningAccounts : panne de scraping (errors) dans la fenêtre -> i
 
   assert.equal(detectDecliningAccounts(history, 7, 3).length, 0);
 });
+
+// --- Référence de calcul après une collecte en échec ---
+
+test('computeGrowth24h : après un jour de scraping en échec, pas de faux pic (référence = dernière collecte réussie)', () => {
+  const history = [
+    {
+      date: dateKey(2),
+      accounts: [{
+        account: 'compteA', ig: 300000, tt: null, yt: null, errors: [],
+        posts: { ig: [{ id: 'r1', views: 150000 }, { id: 'r2', views: 150000 }], tt: null, yt: null }
+      }]
+    },
+    {
+      // Veille : Instagram en échec (total 0, aucun post relevé).
+      date: dateKey(1),
+      accounts: [{
+        account: 'compteA', ig: 0, tt: null, yt: null,
+        errors: [{ platform: 'Instagram', message: 'Aucune vue détectée' }],
+        posts: { ig: [], tt: null, yt: null }
+      }]
+    }
+  ];
+  const summary = [{
+    account: 'compteA', ig: 302000, tt: null, yt: null, errors: [],
+    posts: { ig: [{ id: 'r1', views: 151000 }, { id: 'r2', views: 151000 }], tt: null, yt: null }
+  }];
+
+  // Avant la correction : +302 000 (toutes les vues comptées comme "nouvelles").
+  assert.deepEqual(computeGrowth24h(history, summary).get('compteA'), { total: 2000, ig: 2000, tt: 0, yt: 0 });
+});
+
+test('computeGrowth24h : plateforme sans aucune collecte réussie auparavant -> 0, pas toutes ses vues', () => {
+  const history = [
+    {
+      date: dateKey(1),
+      accounts: [{ account: 'compteA', ig: 1000, tt: null, yt: null, errors: [], posts: { ig: [{ id: 'a', views: 1000 }], tt: null, yt: null } }]
+    }
+  ];
+  // TikTok vient d'être ajouté au compte : ses 50 000 vues existantes ne
+  // sont pas un gain du jour.
+  const summary = [{
+    account: 'compteA', ig: 1100, tt: 50000, yt: null, errors: [],
+    posts: { ig: [{ id: 'a', views: 1100 }], tt: [{ id: 't1', views: 50000 }], yt: null }
+  }];
+
+  assert.deepEqual(computeGrowth24h(history, summary).get('compteA'), { total: 100, ig: 100, tt: 0, yt: 0 });
+});
+
+test('computeGrowth24h : référence sans ID de vidéo (repli texte) -> diff des totaux, pas toutes les vues', () => {
+  const history = [
+    { date: dateKey(1), accounts: [{ account: 'compteA', ig: 5000, tt: null, yt: null, errors: [], posts: { ig: [], tt: null, yt: null } }] }
+  ];
+  const summary = [{
+    account: 'compteA', ig: 5400, tt: null, yt: null, errors: [],
+    posts: { ig: [{ id: 'x', views: 2700 }, { id: 'y', views: 2700 }], tt: null, yt: null }
+  }];
+
+  assert.deepEqual(computeGrowth24h(history, summary).get('compteA'), { total: 400, ig: 400, tt: 0, yt: 0 });
+});

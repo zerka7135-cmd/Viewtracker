@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { readJson, writeJsonAtomic } from './jsonStore.js';
 
 // Sur Railway, LAST_MESSAGE_PATH pointe vers le volume persistant monté sur
 // /data (même logique que HISTORY_PATH dans history.js), sinon l'ID du
@@ -38,5 +39,5 @@ export function saveLastMessage(key, channelId, messageId) {
   }
 
   all[key] = { channelId, messageId };
-  fs.writeFileSync(LAST_MESSAGE_PATH, JSON.stringify(all, null, 2));
+  writeJsonAtomic(LAST_MESSAGE_PATH, all);
 }

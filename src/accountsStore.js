@@ -1,6 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 import { config } from './config.js';
+import { readJson, writeJsonAtomic } from './jsonStore.js';
+import { acquireLock, releaseLock } from './cache.js';
+import { renameAccountInHistory } from './history.js';
+import { renameAccountInCumulative } from './cumulativeViews.js';
 
 // Comptes suivis, gérables depuis le dashboard (voir server.js) — persistés
 // dans un fichier JSON sur le volume, pas dans ACCOUNTS (.env) qui ne peut
@@ -15,23 +19,17 @@ function seedFromEnv() {
 
 /** @returns {Array<{name: string, urls: string[]}>} */
 export function loadAccounts() {
-  try {
-    if (!fs.existsSync(ACCOUNTS_PATH)) {
-      const seeded = seedFromEnv();
-      saveAccounts(seeded);
-      return seeded;
-    }
-    const parsed = JSON.parse(fs.readFileSync(ACCOUNTS_PATH, 'utf8'));
-    return Array.isArray(parsed) ? parsed : seedFromEnv();
-  } catch (e) {
-    console.error('Erreur de lecture des comptes, on repart de ACCOUNTS (.env) :', e.message);
-    return seedFromEnv();
+  if (!fs.existsSync(ACCOUNTS_PATH)) {
+    const seeded = seedFromEnv();
+    saveAccounts(seeded);
+    return seeded;
   }
+  const parsed = readJson(ACCOUNTS_PATH, null, 'Comptes suivis');
+  return Array.isArray(parsed) ? parsed : seedFromEnv();
 }
 
 function saveAccounts(accounts) {
-  fs.mkdirSync(path.dirname(ACCOUNTS_PATH), { recursive: true });
-  fs.writeFileSync(ACCOUNTS_PATH, JSON.stringify(accounts, null, 2));
+  writeJsonAtomic(ACCOUNTS_PATH, accounts);
 }
 
 /** @param {string[]} urls [igUrl, ttUrl, ytUrl] — chaîne vide = plateforme non suivie. */
@@ -54,8 +52,27 @@ export function updateAccount(currentName, name, urls) {
   if (name !== currentName && accounts.some(a => a.name === name)) {
     throw new Error(`Le compte "${name}" existe déjà`);
   }
-  accounts[index] = { name, urls };
-  saveAccounts(accounts);
+  if (name === currentName) {
+    accounts[index] = { name, urls };
+    saveAccounts(accounts);
+    return accounts;
+  }
+
+  // Renommage : l'historique et le cumul sont rangés par nom, on les migre
+  // avec le compte. Le verrou de collecte empêche un scan en cours (qui a
+  // déjà chargé l'historique en mémoire) de réécrire l'ancien nom par-dessus
+  // juste après la migration.
+  if (!acquireLock()) {
+    throw new Error('Collecte en cours : réessaie le renommage dans quelques minutes');
+  }
+  try {
+    renameAccountInHistory(currentName, name);
+    renameAccountInCumulative(currentName, name);
+    accounts[index] = { name, urls };
+    saveAccounts(accounts);
+  } finally {
+    releaseLock();
+  }
   return accounts;
 }
 

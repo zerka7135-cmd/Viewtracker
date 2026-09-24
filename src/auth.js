@@ -1,6 +1,6 @@
 import crypto from 'crypto';
-import fs from 'fs';
 import path from 'path';
+import { readJson, writeJsonAtomic } from './jsonStore.js';
 
 // Authentification multi-utilisateur — une adresse e-mail + mot de passe
 // par personne (voir data/auth.json : { users: [{ email, passwordHash,
@@ -63,19 +63,12 @@ async function verifyPassword(plain, stored) {
 }
 
 function readAuth() {
-  try {
-    if (!fs.existsSync(AUTH_PATH)) return { users: [] };
-    const data = JSON.parse(fs.readFileSync(AUTH_PATH, 'utf8'));
-    return { users: Array.isArray(data.users) ? data.users : [] };
-  } catch (e) {
-    console.error('Erreur de lecture des comptes du dashboard :', e.message);
-    return { users: [] };
-  }
+  const data = readJson(AUTH_PATH, { users: [] }, 'Comptes du dashboard');
+  return { users: Array.isArray(data?.users) ? data.users : [] };
 }
 
 function writeAuth(auth) {
-  fs.mkdirSync(path.dirname(AUTH_PATH), { recursive: true });
-  fs.writeFileSync(AUTH_PATH, JSON.stringify(auth, null, 2));
+  writeJsonAtomic(AUTH_PATH, auth);
 }
 
 function findUser(auth, email) {
