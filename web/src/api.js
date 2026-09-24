@@ -54,6 +54,16 @@ export const deleteAccount = (name) => request(`/accounts/${encodeURIComponent(n
 export const getHistory = (range, platform) => request(`/history?days=${range.days}&platform=${platform}`);
 export const getAccountHistory = (name, days, platform) => request(`/accounts/${encodeURIComponent(name)}/history?days=${days}&platform=${platform}`);
 
+// Page Clippers : `range` = { from, to } au format YYYY-MM-DD, l'un ou l'autre
+// facultatif (sans bornes = tout l'historique).
+export const getClippers = ({ from, to } = {}) => {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const qs = params.toString();
+  return request(`/clippers${qs ? `?${qs}` : ''}`);
+};
+
 export const getSettings = () => request('/settings');
 export const updateSettings = (patch) => request('/settings', { method: 'PATCH', body: JSON.stringify(patch) });
 

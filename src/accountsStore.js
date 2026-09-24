@@ -5,6 +5,7 @@ import { readJson, writeJsonAtomic } from './jsonStore.js';
 import { acquireLock, releaseLock } from './cache.js';
 import { renameAccountInHistory } from './history.js';
 import { renameAccountInCumulative } from './cumulativeViews.js';
+import { renameAccountInClicks } from './clicksStore.js';
 
 // Comptes suivis, gérables depuis le dashboard (voir server.js) — persistés
 // dans un fichier JSON sur le volume, pas dans ACCOUNTS (.env) qui ne peut
@@ -68,6 +69,7 @@ export function updateAccount(currentName, name, urls) {
   try {
     renameAccountInHistory(currentName, name);
     renameAccountInCumulative(currentName, name);
+    renameAccountInClicks(currentName, name);
     accounts[index] = { name, urls };
     saveAccounts(accounts);
   } finally {

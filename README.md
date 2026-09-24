@@ -281,6 +281,50 @@ masqué ; volontairement exclu de la sauvegarde quotidienne en MP (voir
 section 7). Voir l'avertissement plus haut : le mot de passe du dashboard
 protège aussi cette section.
 
+## 6ter. Clics, formulaires et cash (page « Clics » du Dashboard)
+
+Le toggle **Vues / Clics** en haut du Dashboard bascule sur un tableau par
+clipper : clics, formulaires remplis (opt-in), € / trafic, commission, cash
+collecté, bénéfice et ROAS, sur *Aujourd'hui / 7 j / 30 j / Tout /
+Personnalisé*. Les vues viennent du scraping ; **les clics, formulaires et le
+cash ne sont pas scrapés** : une source externe les envoie au bot.
+
+```
+commission = clics × commission par clic (Paramètres > Collecte, 0,18 € par défaut)
+opt-in     = formulaires remplis ÷ clics
+€ / trafic = cash collecté ÷ clics
+bénéfice   = cash collecté − commission
+ROAS       = cash collecté ÷ commission
+```
+
+### Envoyer les données : `POST /api/ingest/clicks`
+
+Protégé par la variable `CLICKS_API_KEY` (route fermée, 503, tant qu'elle
+n'est pas définie) :
+
+```bash
+curl -X POST https://<ton-dashboard>/api/ingest/clicks \
+  -H "Authorization: Bearer $CLICKS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "ma-source",
+    "entries": [
+      { "account": "protow", "date": "2026-09-24", "clicks": 132, "forms": 7, "cash": 49.9 }
+    ]
+  }'
+```
+
+- `account` doit être le nom exact d'un compte suivi ; `date` au format
+  `YYYY-MM-DD` (pas dans le futur) ; `cash` en euros (2 décimales max).
+- `clicks`, `forms`, `cash` sont facultatifs mais au moins un est requis. Ce
+  sont les **totaux du jour** : renvoyer la même date remplace la valeur (un
+  envoi rejoué ne double rien), et un champ absent laisse l'existant intact.
+- 500 entrées maximum par envoi. Réponse : `{ "accepted": n, "rejected": [...] }`
+  (les entrées invalides sont listées avec leur raison, les valides sont
+  enregistrées) ; `422` si aucune n'est valide.
+- Stockage : SQLite (`CLICKS_DB_PATH`, à mettre sur le volume, ex.
+  `/data/clicks.db`), incluse dans la sauvegarde quotidienne en MP.
+
 ## 7. Alertes et sauvegarde (MP à `DISCORD_OWNER_ID`)
 
 Si `DISCORD_OWNER_ID` est renseigné, l'admin reçoit en MP, après chaque

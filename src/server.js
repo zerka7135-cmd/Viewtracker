@@ -1,7 +1,7 @@
 import path from 'path';
 import express from 'express';
 import { getAccountsWithStats, getKpis, getHistorySeries, getAccountHistorySeries } from './dashboardData.js';
-import { addAccount, updateAccount, deleteAccount } from './accountsStore.js';
+import { addAccount, updateAccount, deleteAccount, loadAccounts } from './accountsStore.js';
 import { loadSettings, updateSettings } from './settingsStore.js';
 import { getBotConfigStatus, updateBotConfig } from './botConfig.js';
 import { getScanStatus } from './scanStatus.js';
@@ -12,6 +12,10 @@ import {
   recordLoginFailure, recordLoginSuccess, loginDelayMs, shouldAlertOwner
 } from './auth.js';
 import { apiRateLimit } from './rateLimit.js';
+import { todayKey } from './history.js';
+import { upsertClicks, getClicksSeries } from './clicksStore.js';
+import { getClippersReport } from './clippersData.js';
+import { isValidApiKey, parseClickEntries } from './clickIngest.js';
 
 const WEB_DIST = path.resolve('./web/dist');
 
@@ -123,6 +127,30 @@ export async function startServer(client) {
     res.json({ ok: true });
   });
 
+  // Réception des clics envoyés par une source externe (voir clickIngest.js).
+  // Publique côté session (pas de cookie : c'est un outil, pas une personne)
+  // mais protégée par une clé secrète, CLICKS_API_KEY — sans elle configurée,
+  // la route reste fermée (503) plutôt qu'ouverte à tous.
+  app.post('/api/ingest/clicks', apiRateLimit, (req, res, next) => {
+    try {
+      const expectedKey = process.env.CLICKS_API_KEY;
+      if (!expectedKey) return res.status(503).json({ error: 'Ingestion des clics non configurée (CLICKS_API_KEY absente)' });
+      if (!isValidApiKey(req.headers.authorization, expectedKey)) {
+        return res.status(401).json({ error: 'Clé d\'API invalide' });
+      }
+
+      const knownAccounts = loadAccounts().map(a => a.name);
+      const { error, valid, rejected } = parseClickEntries(req.body, knownAccounts, todayKey());
+      if (error) return res.status(400).json({ error });
+      if (valid.length === 0) return res.status(422).json({ error: 'Aucune entrée valide', accepted: 0, rejected });
+
+      upsertClicks(valid);
+      res.json({ accepted: valid.length, rejected });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // --- À partir d'ici, tout /api/* exige une session valide. ---
   app.use('/api', (req, res, next) => {
     if (isAuthenticated(req)) return next();
@@ -229,6 +257,26 @@ export async function startServer(client) {
     const platform = req.query.platform || 'all';
     const series = getHistorySeries(Number(req.query.days) || 14, platform);
     res.json({ series });
+  });
+
+  // Page Clippers : vues, clics, formulaires, cash et bénéfice par compte
+  // sur une période (?from=YYYY-MM-DD&to=YYYY-MM-DD, l'une ou l'autre
+  // facultative — sans bornes, tout l'historique).
+  app.get('/api/clippers', (req, res) => {
+    const isDate = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+    const { from, to } = req.query;
+    if ((from && !isDate(from)) || (to && !isDate(to))) {
+      return res.status(400).json({ error: 'Dates invalides (YYYY-MM-DD attendu)' });
+    }
+    if (from && to && from > to) return res.status(400).json({ error: 'La date de début dépasse la date de fin' });
+    res.json(getClippersReport({ from: from || null, to: to || null }));
+  });
+
+  // Série quotidienne des clics (tous comptes, ou ?account=nom) — mêmes
+  // jours que les vues, 0 les jours sans clic (voir clicksStore.js).
+  app.get('/api/clicks/history', (req, res) => {
+    const days = Math.min(Math.max(Number(req.query.days) || 14, 1), 90);
+    res.json({ series: getClicksSeries(days, req.query.account || null) });
   });
 
   app.get('/api/accounts/:name/history', (req, res) => {

@@ -3,6 +3,9 @@
 // 'settings' uniquement (voir Sidebar.jsx#NAV_ITEMS).
 const VIEW_META = {
   dashboard: ['Dashboard', 'Classement, tendance et répartition des vues — Instagram, TikTok, YouTube'],
+  // Mode Clics du Dashboard (toggle Vues/Clics, voir App.jsx) : même titre,
+  // sous-titre propre à cette vue.
+  clippers: ['Dashboard', 'Clics, formulaires remplis, cash et bénéfice par compte — par clipper'],
   settings: ['Paramètres', 'Discord, collecte et comptes du dashboard']
 };
 

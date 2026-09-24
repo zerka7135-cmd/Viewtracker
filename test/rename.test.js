@@ -11,6 +11,7 @@ process.env.HISTORY_PATH = path.join(dir, 'history.json');
 process.env.CUMULATIVE_VIEWS_PATH = path.join(dir, 'cumulative-views.json');
 process.env.ACCOUNTS_STORE_PATH = path.join(dir, 'accounts.json');
 process.env.LOCK_PATH = path.join(dir, '.scrape.lock');
+process.env.CLICKS_DB_PATH = path.join(dir, 'clicks.db');
 process.env.DISCORD_TOKEN ||= 'test';
 process.env.DISCORD_CHANNEL_ID ||= 'test';
 process.env.ACCOUNTS ||= '[]';

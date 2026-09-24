@@ -404,6 +404,7 @@ export default function SettingsView({ settings, onToggle, onUpdateSettings, onT
   const [cronSchedule, setCronSchedule] = useState(settings.cronSchedule || '');
   const [timezone, setTimezone] = useState(settings.timezone || '');
   const [postsLimit, setPostsLimit] = useState(settings.postsLimit || 2);
+  const [commissionPerClick, setCommissionPerClick] = useState(settings.commissionPerClick ?? 0.18);
   const [savingCollecte, setSavingCollecte] = useState(false);
 
   const saveCollecteSettings = async (e) => {
@@ -413,7 +414,8 @@ export default function SettingsView({ settings, onToggle, onUpdateSettings, onT
       await onUpdateSettings({
         cronSchedule: cronSchedule.trim(),
         timezone: timezone.trim(),
-        postsLimit: Number(postsLimit)
+        postsLimit: Number(postsLimit),
+        commissionPerClick: Number(commissionPerClick)
       });
       onToast('Réglages de collecte mis à jour — posts par plateforme dès la prochaine collecte, heure/fuseau au prochain redémarrage du bot');
     } catch {
@@ -472,6 +474,9 @@ export default function SettingsView({ settings, onToggle, onUpdateSettings, onT
           </Row>
           <Row label="Posts par plateforme" description="Nombre de publications récentes prises en compte. Effectif dès la prochaine collecte.">
             <input className="input" type="number" min="1" max="20" value={postsLimit} onChange={(e) => setPostsLimit(e.target.value)} style={{ width: '100%', maxWidth: 100 }} />
+          </Row>
+          <Row label="Commission par clic (€)" description="Montant versé au clipper pour chaque clic, utilisé pour « À payer », le bénéfice et le ROAS de la page Clippers. Effectif immédiatement.">
+            <input className="input" type="number" min="0" step="0.01" value={commissionPerClick} onChange={(e) => setCommissionPerClick(e.target.value)} style={{ width: '100%', maxWidth: 100 }} />
           </Row>
           <Row label="">
             <button type="submit" className="btn btn-ghost" disabled={savingCollecte} style={{ borderRadius: 8 }}>

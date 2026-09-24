@@ -483,6 +483,10 @@ select:focus-visible,
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
 }
+/* Page Clippers : 7 cartes qui passent à la ligne selon la largeur dispo. */
+.kpi-grid-auto {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
 .kpi-card {
   padding: 18px 20px;
   display: flex;
@@ -1617,4 +1621,73 @@ select:focus-visible,
 @keyframes sheetOut {
   from { transform: translateY(0); opacity: 1; }
   to { transform: translateY(100%); opacity: 0; }
+}
+
+
+/* --- Page Clippers (voir ClippersView.jsx) --- */
+.clippers-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  justify-content: flex-end;
+}
+.period-pill {
+  padding: 5px 12px;
+  border-radius: 980px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid color-mix(in oklab, var(--accent) 55%, transparent);
+  background: transparent;
+  color: var(--accent);
+}
+.period-pill.is-active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.clippers-table .table-header,
+.clippers-table .table-row {
+  min-width: 880px;
+}
+.clippers-table .table-row {
+  cursor: default;
+}
+.clippers-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.sort-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+.sort-head:hover {
+  color: var(--text);
+}
+
+/* Toggle Vues / Clics du Dashboard (voir ViewsClicksToggle.jsx). */
+.view-toggle {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 980px;
+  background: var(--card);
+}
+.view-toggle-option {
+  padding: 5px 16px;
+  border-radius: 980px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.view-toggle-option.is-active {
+  background: var(--accent);
+  color: #fff;
 }

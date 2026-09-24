@@ -5,6 +5,8 @@ import MobileTabBar from './components/MobileTabBar.jsx';
 import TopBar from './components/TopBar.jsx';
 import ScanStatusIndicator from './components/ScanStatusIndicator.jsx';
 import DashboardView from './components/DashboardView.jsx';
+import ClippersView from './components/ClippersView.jsx';
+import ViewsClicksToggle from './components/ViewsClicksToggle.jsx';
 import SettingsView from './components/SettingsView.jsx';
 import AccountDrawer from './components/AccountDrawer.jsx';
 import LoadingScreen from './components/LoadingScreen.jsx';
@@ -57,6 +59,23 @@ export default function App() {
 
   const [loaded, setLoaded] = useState(false);
   const [view, setView] = useState('dashboard');
+  // Toggle Vues/Clics du Dashboard : mémorisé dans le navigateur (simple
+  // confort par visiteur — sans localStorage, on retombe sur « Vues »).
+  const [dashboardMode, setDashboardMode] = useState(() => {
+    try {
+      return localStorage.getItem('viewtracker.dashboardMode') === 'clicks' ? 'clicks' : 'views';
+    } catch {
+      return 'views';
+    }
+  });
+  const changeDashboardMode = (mode) => {
+    setDashboardMode(mode);
+    try {
+      localStorage.setItem('viewtracker.dashboardMode', mode);
+    } catch {
+      // stockage indisponible (navigation privée...) : le mode reste valable pour la session
+    }
+  };
   const [kpis, setKpis] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [scan, setScan] = useState({ scanning: false, lastScanAt: null });
@@ -175,11 +194,17 @@ export default function App() {
       <MobileTabBar view={view} onNavigate={setView} />
       <div className="main">
         <TopBar
-          view={view}
-          actions={view === 'dashboard' ? <ScanStatusIndicator scan={scan} /> : null}
+          view={view === 'dashboard' && dashboardMode === 'clicks' ? 'clippers' : view}
+          actions={view === 'dashboard' ? (
+            <>
+              <ViewsClicksToggle mode={dashboardMode} onChange={changeDashboardMode} />
+              {dashboardMode === 'views' && <ScanStatusIndicator scan={scan} />}
+            </>
+          ) : null}
         />
 
-        {view === 'dashboard' && (
+        {view === 'dashboard' && dashboardMode === 'clicks' && <ClippersView onToast={showToast} />}
+        {view === 'dashboard' && dashboardMode === 'views' && (
           loaded && kpis ? (
             <DashboardView
               kpis={kpis}

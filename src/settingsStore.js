@@ -11,6 +11,8 @@ import { readJson, writeJsonAtomic } from './jsonStore.js';
 // tel côté UI (SettingsView.jsx).
 export const SETTINGS_PATH = process.env.SETTINGS_PATH || path.resolve('./data/settings.json');
 
+export const DEFAULT_COMMISSION_PER_CLICK = 0.18;
+
 const DEFAULTS = {
   notifDaily: true, // envoi/édition des embeds dans le salon Discord public
   notifWarnings: true, // MP au propriétaire pour les échecs/comptes bloqués/backup
@@ -19,7 +21,8 @@ const DEFAULTS = {
   cronSchedule: null,
   timezone: null,
   postsLimit: null,
-  stuckAlertMinDays: null
+  stuckAlertMinDays: null,
+  commissionPerClick: null // € versés au clipper par clic (page Clippers)
 };
 
 function readStored() {
@@ -39,7 +42,8 @@ export function loadSettings() {
     cronSchedule: stored.cronSchedule || config.cronSchedule,
     timezone: stored.timezone || config.timezone,
     postsLimit: stored.postsLimit || config.postsLimit,
-    stuckAlertMinDays: stored.stuckAlertMinDays || config.stuckAlertMinDays
+    stuckAlertMinDays: stored.stuckAlertMinDays || config.stuckAlertMinDays,
+    commissionPerClick: Number.isFinite(stored.commissionPerClick) && stored.commissionPerClick >= 0 ? stored.commissionPerClick : DEFAULT_COMMISSION_PER_CLICK
   };
 }
 
