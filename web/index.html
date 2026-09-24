@@ -1,7 +1,11 @@
 <!doctype html>
-<html lang="fr">
+<html lang="fr" style="background:#0f1114">
   <head>
     <meta charset="UTF-8" />
+    <!-- Thème sombre du design system : le navigateur peint déjà le bon fond
+         et la bonne barre d'état avant le chargement du CSS (pas d'éclair blanc). -->
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0f1114" />
     <!-- viewport-fit=cover : laisse le CSS lire env(safe-area-inset-*) sur
          iPhone à encoche/île dynamique — nécessaire pour que la barre de
          navigation du bas et les feuilles plein écran (voir theme.css) ne
@@ -14,11 +18,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" />
-    <!-- Favicon : le robot d'IconLogo (icons.jsx) sur fond --accent (#0071e3,
-         couleur du design system source), couleurs figées en dur (pas de
+    <!-- Favicon : le robot d'IconLogo (icons.jsx) sur fond --accent (#4da3ff,
+         accent du thème sombre du design system source), couleurs figées en dur (pas de
          var() possible hors du DOM de la page) — même identité visuelle que
          la sidebar/les écrans de connexion. -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+CiAgPHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiByeD0iNiIgZmlsbD0iIzAwNzFlMyIvPgogIDxjaXJjbGUgY3g9IjEyIiBjeT0iMy40IiByPSIxLjMiIGZpbGw9IiNmZmYiLz4KICA8cmVjdCB4PSIxMS4zIiB5PSI0LjUiIHdpZHRoPSIxLjQiIGhlaWdodD0iMi40IiByeD0iMC43IiBmaWxsPSIjZmZmIi8+CiAgPHJlY3QgeD0iMi43IiB5PSIxMCIgd2lkdGg9IjIuNiIgaGVpZ2h0PSI2IiByeD0iMS4zIiBmaWxsPSIjZmZmIi8+CiAgPHJlY3QgeD0iMTguNyIgeT0iMTAiIHdpZHRoPSIyLjYiIGhlaWdodD0iNiIgcng9IjEuMyIgZmlsbD0iI2ZmZiIvPgogIDxyZWN0IHg9IjUiIHk9IjcuMyIgd2lkdGg9IjE0IiBoZWlnaHQ9IjExLjciIHJ4PSI1LjIiIGZpbGw9IiNmZmYiLz4KICA8cmVjdCB4PSI4LjkiIHk9IjExLjgiIHdpZHRoPSIyLjIiIGhlaWdodD0iMy4yIiByeD0iMS4xIiBmaWxsPSIjMDA3MWUzIi8+CiAgPHJlY3QgeD0iMTIuOSIgeT0iMTEuOCIgd2lkdGg9IjIuMiIgaGVpZ2h0PSIzLjIiIHJ4PSIxLjEiIGZpbGw9IiMwMDcxZTMiLz4KPC9zdmc+Cg==">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+CiAgPHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiByeD0iNiIgZmlsbD0iIzRkYTNmZiIvPgogIDxjaXJjbGUgY3g9IjEyIiBjeT0iMy40IiByPSIxLjMiIGZpbGw9IiMwYTBjMGYiLz4KICA8cmVjdCB4PSIxMS4zIiB5PSI0LjUiIHdpZHRoPSIxLjQiIGhlaWdodD0iMi40IiByeD0iMC43IiBmaWxsPSIjMGEwYzBmIi8+CiAgPHJlY3QgeD0iMi43IiB5PSIxMCIgd2lkdGg9IjIuNiIgaGVpZ2h0PSI2IiByeD0iMS4zIiBmaWxsPSIjMGEwYzBmIi8+CiAgPHJlY3QgeD0iMTguNyIgeT0iMTAiIHdpZHRoPSIyLjYiIGhlaWdodD0iNiIgcng9IjEuMyIgZmlsbD0iIzBhMGMwZiIvPgogIDxyZWN0IHg9IjUiIHk9IjcuMyIgd2lkdGg9IjE0IiBoZWlnaHQ9IjExLjciIHJ4PSI1LjIiIGZpbGw9IiMwYTBjMGYiLz4KICA8cmVjdCB4PSI4LjkiIHk9IjExLjgiIHdpZHRoPSIyLjIiIGhlaWdodD0iMy4yIiByeD0iMS4xIiBmaWxsPSIjNGRhM2ZmIi8+CiAgPHJlY3QgeD0iMTIuOSIgeT0iMTEuOCIgd2lkdGg9IjIuMiIgaGVpZ2h0PSIzLjIiIHJ4PSIxLjEiIGZpbGw9IiM0ZGEzZmYiLz4KPC9zdmc+Cg==">
   </head>
   <body>
     <div id="root"></div>

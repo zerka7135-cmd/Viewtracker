@@ -1,50 +1,52 @@
-/* Identité graphique reprise telle quelle du design system du portfolio
-   (artefact "Design System Vincent Le Vaillant") : même palette (primitives
-   → alias sémantiques), même typo (Manrope + JetBrains Mono), mêmes rayons/
-   ombres. Thème clair assumé — color-scheme: light déclaré explicitement
-   (même raison que le design system source : éviter qu'un navigateur en
-   mode sombre n'inversite de lui-même barres de défilement/contrôles),
-   remplace le "toujours sombre" précédent. Les noms de variables existants
-   sont conservés (--accent, --bg, --card…) pour ne pas avoir à toucher
-   chaque composant — seules les valeurs changent, plus quelques tokens
-   propres à ce dashboard (comptes/plateformes/alertes) que le design
-   system source, un portfolio, n'a pas à couvrir : --ig/--tt/--yt (identité
-   des plateformes suivies) et --orange (alerte compte bloqué) étendent la
-   palette en suivant sa même logique primitive → rôle plutôt que d'inventer
-   un style à part. */
+/* Identité graphique reprise du design system du portfolio (artefact
+   "Design System Vincent Le Vaillant") : même palette, même typo (Manrope +
+   JetBrains Mono), mêmes rayons. Le design system y définit deux thèmes ; le
+   dashboard reprend ici le thème SOMBRE de ce document — fond #0F1114,
+   surface #16191E, bordures #262A31/#343A43, texte #F1F3F5/#969BA4, accent
+   #4DA3FF, succès #48C07C, erreur #F0776A — à la place du thème clair
+   précédent (voir l'historique git pour ses valeurs). color-scheme: dark est
+   déclaré explicitement pour que barres de défilement et contrôles natifs
+   suivent. Les noms de variables existants (--accent, --bg, --card…) sont
+   conservés pour ne pas toucher chaque composant — seules les valeurs
+   changent, plus quelques tokens propres à ce dashboard que le design
+   system source, un portfolio, ne couvre pas : --ig/--tt/--yt (identité des
+   plateformes suivies), --orange (alerte compte bloqué) et --on-accent*
+   (texte posé SUR l'accent ou le rouge : l'accent sombre est clair, le
+   blanc n'y serait plus lisible — un texte quasi noir tient plus de 7:1). */
 :root {
-  color-scheme: light;
-  --accent: #0071e3;
-  --accent-hover: #0063c7;
-  --bg: #ffffff;
-  --card: #ffffff;
-  --card-alt: #f8f9fb;
-  /* Distinct de --card-alt : le design system source sépare explicitement
-     une teinte de surface statique (panneaux, galerie — --card-alt) d'une
-     teinte de survol volontairement plus dense (--color-bg-subtle dans le
-     document source) — les confondre aurait rendu les survols à peine
-     perceptibles sur fond blanc. */
-  --card-hover: #f5f5f7;
-  --border: #e5e5e5;
-  --border-strong: #d2d7de;
+  color-scheme: dark;
+  --accent: #4da3ff;
+  --accent-hover: #7dbbff;
+  --on-accent: #0a0c0f;
+  --on-accent-muted: rgba(10, 12, 15, 0.72);
+  --on-accent-soft: rgba(10, 12, 15, 0.16);
+  --on-accent-track: rgba(10, 12, 15, 0.35);
+  --bg: #0f1114;
+  --card: #14171c;
+  --card-alt: #16191e;
+  /* Survol volontairement plus dense que --card-alt (même logique que le
+     design system source : surface statique ≠ retour de survol). */
+  --card-hover: #1b1f25;
+  --border: #262a31;
+  --border-strong: #343a43;
   --card-shadow: none;
-  --shadow-nav: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-float: 0 4px 24px rgba(0, 0, 0, 0.08);
-  --switch-off: #d2d7de;
-  --text: #1d1d1f;
-  --text-muted: #6e6e73;
-  --text-faint: #76767c;
-  --green: #0f7b3d;
-  --orange: #b54708;
-  --red: #b3261e;
+  --shadow-nav: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-float: 0 4px 24px rgba(0, 0, 0, 0.5);
+  --switch-off: #343a43;
+  --text: #f1f3f5;
+  --text-muted: #969ba4;
+  --text-faint: #858a94;
+  --green: #48c07c;
+  --orange: #f0a050;
+  --red: #f0776a;
   --ig: #e0409e;
   --tt: #1a93c0;
   --yt: #ff453a;
-  --sidebar-bg: rgba(255, 255, 255, 0.72);
-  --scrollbar-thumb: rgba(0, 0, 0, 0.18);
-  --table-row-border: rgba(0, 0, 0, 0.06);
-  --toast-bg: #1d1d1f;
-  --toast-text: #ffffff;
+  --sidebar-bg: rgba(15, 17, 20, 0.72);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.18);
+  --table-row-border: rgba(255, 255, 255, 0.06);
+  --toast-bg: #262a31;
+  --toast-text: #f1f3f5;
   --sans: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
@@ -145,7 +147,7 @@ select:focus-visible,
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  color: #fff;
+  color: var(--on-accent);
   font-size: 14px;
   flex-shrink: 0;
 }
@@ -193,8 +195,8 @@ select:focus-visible,
   transition: background 0.15s, color 0.15s;
 }
 .nav-item.active .nav-item-icon {
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
+  background: var(--on-accent-soft);
+  color: var(--on-accent);
 }
 .nav-item-label {
   overflow: hidden;
@@ -206,7 +208,7 @@ select:focus-visible,
   transition: max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.14s ease, margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .nav-item.active {
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 600;
   /* Accent plein plutôt que mélangé à --bg (dont la valeur passe du
      sombre au blanc avec le thème) : un mélange avec du blanc s'éclaircit
@@ -410,7 +412,7 @@ select:focus-visible,
 }
 .btn-accent {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font-size: 13px;
   padding: 9px 18px;
   display: flex;
@@ -448,8 +450,8 @@ select:focus-visible,
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  border-top-color: #fff;
+  border: 2px solid var(--on-accent-track);
+  border-top-color: var(--on-accent);
   animation: pulseDot 0.9s linear infinite;
 }
 
@@ -485,7 +487,7 @@ select:focus-visible,
 }
 /* Page Clippers : 7 cartes qui passent à la ligne selon la largeur dispo. */
 .kpi-grid-auto {
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
 }
 .kpi-card {
   padding: 18px 20px;
@@ -606,7 +608,7 @@ select:focus-visible,
   outline: none;
 }
 .input::placeholder {
-  color: #6e6e73;
+  color: var(--text-faint);
 }
 /* Chevron custom (au lieu de la flèche native, incohérente d'un
    navigateur à l'autre) + repère visuel « filtre actif » : un select dont
@@ -1139,7 +1141,7 @@ select:focus-visible,
   justify-content: flex-end;
   gap: 10px;
   background: linear-gradient(155deg, var(--accent), color-mix(in oklab, var(--accent) 55%, var(--text)));
-  color: #fff;
+  color: var(--on-accent);
   overflow: hidden;
 }
 .login-panel-shapes {
@@ -1153,7 +1155,7 @@ select:focus-visible,
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--on-accent-soft);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1175,7 +1177,7 @@ select:focus-visible,
 .login-panel-brand-sub {
   position: relative;
   font-size: 13.5px;
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--on-accent-muted);
   line-height: 1.5;
   max-width: 320px;
   animation: loginTextIn 0.45s 0.22s ease both;
@@ -1273,8 +1275,8 @@ select:focus-visible,
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #fff;
+  border: 2px solid var(--on-accent-track);
+  border-top-color: var(--on-accent);
   animation: loginSpin 0.7s linear infinite;
 }
 @keyframes loginSpin {
@@ -1644,7 +1646,7 @@ select:focus-visible,
 .period-pill.is-active {
   border-color: var(--accent);
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 .clippers-table .table-header,
 .clippers-table .table-row {
@@ -1689,5 +1691,5 @@ select:focus-visible,
 }
 .view-toggle-option.is-active {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }

@@ -189,11 +189,11 @@ export function IconCopy(props) {
 export function IconLogo(props) {
   return (
     <svg viewBox="0 0 24 24" fill="none" {...props}>
-      <circle cx="12" cy="3.4" r="1.3" fill="#fff" />
-      <rect x="11.3" y="4.5" width="1.4" height="2.4" rx="0.7" fill="#fff" />
-      <rect x="2.7" y="10" width="2.6" height="6" rx="1.3" fill="#fff" />
-      <rect x="18.7" y="10" width="2.6" height="6" rx="1.3" fill="#fff" />
-      <rect x="5" y="7.3" width="14" height="11.7" rx="5.2" fill="#fff" />
+      <circle cx="12" cy="3.4" r="1.3" fill="var(--on-accent)" />
+      <rect x="11.3" y="4.5" width="1.4" height="2.4" rx="0.7" fill="var(--on-accent)" />
+      <rect x="2.7" y="10" width="2.6" height="6" rx="1.3" fill="var(--on-accent)" />
+      <rect x="18.7" y="10" width="2.6" height="6" rx="1.3" fill="var(--on-accent)" />
+      <rect x="5" y="7.3" width="14" height="11.7" rx="5.2" fill="var(--on-accent)" />
       <rect x="8.9" y="11.8" width="2.2" height="3.2" rx="1.1" fill="var(--accent)" />
       <rect x="12.9" y="11.8" width="2.2" height="3.2" rx="1.1" fill="var(--accent)" />
     </svg>

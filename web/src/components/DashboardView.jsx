@@ -194,7 +194,7 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
                         padding: '5px 10px', borderRadius: 980, fontSize: 11, fontWeight: 600,
                         border: `1px solid ${r.key === chartRange.key ? 'var(--accent)' : 'color-mix(in oklab, var(--accent) 55%, transparent)'}`,
                         background: r.key === chartRange.key ? 'var(--accent)' : 'transparent',
-                        color: r.key === chartRange.key ? '#fff' : 'var(--accent)'
+                        color: r.key === chartRange.key ? 'var(--on-accent)' : 'var(--accent)'
                       }}
                     >
                       {r.label}
