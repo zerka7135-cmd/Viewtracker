@@ -327,8 +327,8 @@ curl -X POST https://<ton-dashboard>/api/ingest/clicks \
 
 ### Vues envoyées vers l'app Lovable
 
-Après chaque collecte (et au démarrage), le bot envoie les vues à l'Edge
-Function `ingest-views` de l'app Lovable (`SUPABASE_URL/functions/v1/ingest-views`,
+Après chaque collecte (et au démarrage), le bot envoie les vues à l'adresse
+de réception de l'app Lovable (`VIEWS_INGEST_URL`, à défaut `SUPABASE_URL/functions/v1/ingest-views`,
 en-tête `x-ingest-secret` = `VIEWS_INGEST_SECRET`), qui remplit `daily_views`
 (vues gagnées par compte et par jour, par plateforme) et `account_views`
 (cumul all-time) et relie chaque compte à son clipper par `discord_name`.

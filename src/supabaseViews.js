@@ -3,15 +3,16 @@ import { loadCumulativeViews } from './cumulativeViews.js';
 
 // Envoi des vues vers l'app Lovable (Clipper HQ). Sans accès direct à sa base
 // Supabase (Lovable Cloud ne donne pas la clé secrète), le bot passe par une
-// Edge Function de l'app, `ingest-views` (code dans supabase/lovable-prompt.md),
+// route de réception de l'app, `ingest-views` (voir supabase/lovable-prompt.md),
 // qui écrit dans deux tables :
 //
 //   daily_views    (account_name, day) -> vues gagnées ce jour-là, par plateforme
 //   account_views  (account_name)      -> cumul all-time (celui du classement ♾️ Discord)
 //
-// La fonction relie elle-même chaque compte à son clipper (discord_name).
-// Configuration : SUPABASE_URL (projet de l'app) et VIEWS_INGEST_SECRET (même
-// valeur que le secret de la fonction). Tout l'historique est renvoyé à chaque
+// La route relie elle-même chaque compte à son clipper (discord_name).
+// Configuration : VIEWS_INGEST_URL (adresse de réception de l'app ; à défaut,
+// la fonction ingest-views du projet SUPABASE_URL) et VIEWS_INGEST_SECRET (même
+// valeur que le secret côté app). Tout l'historique est renvoyé à chaque
 // fois et les lignes sont remplacées, jamais additionnées : un envoi raté est
 // rattrapé au suivant.
 
@@ -19,13 +20,15 @@ const BATCH_SIZE = 500;
 const REQUEST_TIMEOUT_MS = 30_000;
 
 export function isViewsPushConfigured() {
-  return Boolean(process.env.SUPABASE_URL && process.env.VIEWS_INGEST_SECRET);
+  return Boolean((process.env.VIEWS_INGEST_URL || process.env.SUPABASE_URL) && process.env.VIEWS_INGEST_SECRET);
 }
 
 function functionUrl() {
-  const url = new URL('/functions/v1/ingest-views', process.env.SUPABASE_URL);
+  const url = process.env.VIEWS_INGEST_URL
+    ? new URL(process.env.VIEWS_INGEST_URL)
+    : new URL('/functions/v1/ingest-views', process.env.SUPABASE_URL);
   const local = ['localhost', '127.0.0.1'].includes(url.hostname);
-  if (url.protocol !== 'https:' && !local) throw new Error('SUPABASE_URL doit être en https');
+  if (url.protocol !== 'https:' && !local) throw new Error('L\'adresse de réception des vues doit être en https');
   return url;
 }
 
@@ -76,7 +79,7 @@ export function buildAccountViewsRows(cumulative) {
  * @returns {Promise<{ok: boolean, message: string}>}
  */
 export async function pushViewsToSupabase() {
-  if (!isViewsPushConfigured()) return { ok: false, message: 'Envoi des vues non configuré (SUPABASE_URL / VIEWS_INGEST_SECRET)' };
+  if (!isViewsPushConfigured()) return { ok: false, message: 'Envoi des vues non configuré (VIEWS_INGEST_URL / VIEWS_INGEST_SECRET)' };
   try {
     const daily = buildDailyViewsRows(loadHistory());
     const totals = buildAccountViewsRows(loadCumulativeViews());

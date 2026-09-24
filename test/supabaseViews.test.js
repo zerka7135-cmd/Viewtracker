@@ -65,5 +65,14 @@ test('secret refusé : échec propre, sans exception', async () => {
   const result = await pushViewsToSupabase();
   assert.equal(result.ok, false);
   assert.match(result.message, /401/);
+});
+
+test('VIEWS_INGEST_URL prioritaire sur la fonction Supabase', async () => {
+  acceptedSecret = 'secret-test';
+  process.env.VIEWS_INGEST_URL = `http://127.0.0.1:${server.address().port}/api/public/ingest-views`;
+  const result = await pushViewsToSupabase();
+  assert.equal(result.ok, false);
+  assert.match(result.message, /404/);
+  delete process.env.VIEWS_INGEST_URL;
   server.close();
 });
