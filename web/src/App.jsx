@@ -240,8 +240,10 @@ export default function App() {
           meta={topMeta}
           actions={view === 'dashboard' && canSeeAll ? (
             <>
-              <ViewsClicksToggle mode={dashboardMode} onChange={(mode) => { setSelectedClipper(null); changeDashboardMode(mode); }} />
+              {/* Indicateur de dernière collecte à gauche, toggle Vues/Clics tout à droite
+                  (à la même place dans les deux modes). */}
               {dashboardMode === 'views' && !selectedClipper && <ScanStatusIndicator scan={scan} />}
+              <ViewsClicksToggle mode={dashboardMode} onChange={(mode) => { setSelectedClipper(null); changeDashboardMode(mode); }} />
             </>
           ) : null}
         />
