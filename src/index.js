@@ -13,6 +13,7 @@ import { loadSettings } from './settingsStore.js';
 import { markScanStarted, markScanFinished } from './scanStatus.js';
 import { startServer } from './server.js';
 import { syncFromSupabase, isSyncConfigured } from './supabaseSync.js';
+import { pushViewsToSupabase } from './supabaseViews.js';
 
 validateConfig();
 
@@ -61,6 +62,7 @@ async function scrapeAndBroadcast() {
     }
 
     const historyAfter = appendToday(historyBefore, summary);
+    await pushViewsToSupabase();
     if (settings.notifWarnings) {
       await sendErrorReportToOwner(summary, settings.discordOwnerId);
       await sendStuckAlertToOwner(historyAfter, settings.discordOwnerId, settings.stuckAlertMinDays);
@@ -215,6 +217,8 @@ client.once('clientReady', () => {
     });
     run();
     setInterval(run, minutes * 60 * 1000);
+    // Rattrape au démarrage les vues pas encore envoyées (première mise en place, panne).
+    pushViewsToSupabase();
     console.log(`Synchronisation Supabase active (toutes les ${minutes} min).`);
   }
 });

@@ -1,5 +1,6 @@
 import { buildViewsSummary } from './instagram.js';
 import { acquireLock, releaseLock } from './cache.js';
+import { pushViewsToSupabase } from './supabaseViews.js';
 import { loadHistory, appendToday, computeGrowth24h, detectStuckAccounts, detectDecliningAccounts } from './history.js';
 import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from './cumulativeViews.js';
 import { loadAccounts } from './accountsStore.js';
@@ -59,6 +60,7 @@ import { loadSettings } from './settingsStore.js';
     }
 
     const historyAfter = appendToday(historyBefore, summary);
+    await pushViewsToSupabase();
     const stuckAccounts = detectStuckAccounts(historyAfter, settings.stuckAlertMinDays);
     if (stuckAccounts.length > 0) {
       console.log('\n🔴 Comptes bloqués depuis plusieurs collectes consécutives :');

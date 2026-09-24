@@ -39,14 +39,14 @@ let running = false;
 
 // Une seule synchronisation à la fois : le bouton « Actualiser » et le
 // planning automatique ne doivent pas s'enchevêtrer.
-function baseUrl() {
+export function baseUrl() {
   const url = new URL(process.env.SUPABASE_URL);
   const local = ['localhost', '127.0.0.1'].includes(url.hostname);
   if (url.protocol !== 'https:' && !local) throw new Error('SUPABASE_URL doit être en https');
   return url;
 }
 
-async function fetchAll(table, params) {
+export async function fetchAll(table, params) {
   const url = baseUrl();
   const rows = [];
 

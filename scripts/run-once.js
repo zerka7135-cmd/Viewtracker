@@ -3,6 +3,7 @@ import { config, validateConfig } from '../src/config.js';
 import { buildViewsSummary } from '../src/instagram.js';
 import { build24hEmbed, buildAllTimeEmbed, buildErrorReportEmbed, buildStuckAccountsEmbed } from '../src/embed.js';
 import { acquireLock, releaseLock } from '../src/cache.js';
+import { pushViewsToSupabase } from '../src/supabaseViews.js';
 import { loadHistory, appendToday, computeGrowth24h, detectStuckAccounts } from '../src/history.js';
 import { loadLastMessage, saveLastMessage } from '../src/lastMessage.js';
 import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from '../src/cumulativeViews.js';
@@ -92,6 +93,7 @@ client.once('clientReady', async () => {
     }
 
     const historyAfter = appendToday(historyBefore, summary);
+    await pushViewsToSupabase();
     await sendErrorReportToOwner(summary, settings.discordOwnerId);
     await sendStuckAlertToOwner(historyAfter, settings.discordOwnerId, settings.stuckAlertMinDays);
     await sendDataBackupToOwner(client, settings.discordOwnerId);
