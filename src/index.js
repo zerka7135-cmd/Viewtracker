@@ -2,9 +2,9 @@ import { Client, GatewayIntentBits } from 'discord.js';
 import cron from 'node-cron';
 import { config, validateConfig } from './config.js';
 import { buildViewsSummary } from './instagram.js';
-import { build24hEmbed, buildAllTimeEmbed, buildErrorReportEmbed, buildStuckAccountsEmbed } from './embed.js';
+import { build24hEmbed, buildAllTimeEmbed, buildErrorReportEmbed, buildStuckAccountsEmbed, buildDecliningAccountsEmbed } from './embed.js';
 import { acquireLock, releaseLock } from './cache.js';
-import { loadHistory, appendToday, computeGrowth24h, detectStuckAccounts } from './history.js';
+import { loadHistory, appendToday, computeGrowth24h, detectStuckAccounts, detectDecliningAccounts } from './history.js';
 import { loadLastMessage, saveLastMessage } from './lastMessage.js';
 import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from './cumulativeViews.js';
 import { sendDataBackupToOwner } from './backup.js';
@@ -63,6 +63,7 @@ async function scrapeAndBroadcast() {
     if (settings.notifWarnings) {
       await sendErrorReportToOwner(summary, settings.discordOwnerId);
       await sendStuckAlertToOwner(historyAfter, settings.discordOwnerId, settings.stuckAlertMinDays);
+      await sendDecliningAlertToOwner(historyAfter, settings.discordOwnerId);
       await sendDataBackupToOwner(client, settings.discordOwnerId);
     }
     markScanFinished();
@@ -132,6 +133,25 @@ async function sendStuckAlertToOwner(history, discordOwnerId, stuckAlertMinDays)
     await owner.send({ embeds: [stuckEmbed] });
   } catch (error) {
     console.error('Erreur lors de l\'envoi de l\'alerte comptes bloqués en MP :', error);
+  }
+}
+
+// Alerte distincte de sendStuckAlertToOwner ci-dessus : un vrai déclin
+// d'audience (voir detectDecliningAccounts), pas une panne de scraping —
+// le compte continue d'être scrapé normalement, il gagne juste beaucoup
+// moins de vues qu'à son rythme habituel depuis plusieurs jours.
+async function sendDecliningAlertToOwner(history, discordOwnerId) {
+  if (!discordOwnerId) return;
+
+  const decliningAccounts = detectDecliningAccounts(history);
+  const decliningEmbed = buildDecliningAccountsEmbed(decliningAccounts);
+  if (!decliningEmbed) return;
+
+  try {
+    const owner = await client.users.fetch(discordOwnerId);
+    await owner.send({ embeds: [decliningEmbed] });
+  } catch (error) {
+    console.error('Erreur lors de l\'envoi de l\'alerte baisse d\'audience en MP :', error);
   }
 }
 

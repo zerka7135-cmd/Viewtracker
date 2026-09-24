@@ -171,3 +171,27 @@ export function buildStuckAccountsEmbed(stuckAccounts) {
     .setTimestamp();
 }
 
+/**
+ * Construit l'embed d'alerte pour les comptes dont l'audience décline
+ * réellement (pas une panne de scraping, voir buildStuckAccountsEmbed
+ * ci-dessus) — destiné lui aussi à un message privé à l'admin. Retourne
+ * null s'il n'y a rien à signaler.
+ * @param {Array<{account: string, avgBaseline: number, avgRecent: number, ratio: number}>} decliningAccounts Voir src/history.js#detectDecliningAccounts
+ */
+export function buildDecliningAccountsEmbed(decliningAccounts) {
+  if (!decliningAccounts || decliningAccounts.length === 0) return null;
+
+  const description = decliningAccounts
+    .map(d => {
+      const pct = Math.round(d.ratio * 100);
+      return `**${d.account}** — ${d.avgRecent.toLocaleString('fr-FR')} vues/jour en moyenne récemment, contre ${d.avgBaseline.toLocaleString('fr-FR')} habituellement (${pct}% du rythme normal)`;
+    })
+    .join('\n\n');
+
+  return new EmbedBuilder()
+    .setTitle('📉 Baisse d\'audience détectée')
+    .setDescription(description)
+    .setColor(0xE67E22)
+    .setTimestamp();
+}
+

@@ -1,5 +1,5 @@
 import { loadAccounts } from './accountsStore.js';
-import { loadHistory, computeGrowth24h } from './history.js';
+import { loadHistory, computeGrowth24h, detectDecliningAccounts } from './history.js';
 import { loadCumulativeViews } from './cumulativeViews.js';
 
 // Transforme les données déjà persistées (accountsStore, history.js,
@@ -46,6 +46,10 @@ export function getAccountsWithStats() {
   const growth24h = latestEntry ? computeGrowth24h(previousHistory, latestEntry.accounts) : new Map();
 
   const recentEntries = history.slice(-SPARKLINE_POINTS);
+  // Même détection que l'alerte Discord (voir src/index.js#sendDecliningAlertToOwner
+  // et history.js#detectDecliningAccounts) — un Set des seuls noms en
+  // déclin, pas besoin du détail (ratio/moyennes) ici, juste le badge.
+  const decliningNames = new Set(detectDecliningAccounts(history).map((d) => d.account));
 
   return accounts.map((user) => {
     const latest = latestEntry?.accounts.find((a) => a.account === user.name) || null;
@@ -85,6 +89,10 @@ export function getAccountsWithStats() {
       // jour (0 vue à la dernière collecte) — c'est un indicateur de santé
       // du scraping, pas une métrique affichée.
       isWarning: (latest?.total ?? 0) === 0,
+      // Vraie baisse d'audience (voir detectDecliningAccounts) — distinct
+      // d'isWarning ci-dessus, qui signale une panne de scraping (0 vue),
+      // pas un désintérêt réel de l'audience.
+      isDeclining: decliningNames.has(user.name),
       errors: latest?.errors || [],
       allTime: {
         total: cumul?.total ?? 0,
@@ -120,12 +128,14 @@ export function getKpis() {
     const latest = latestEntry?.accounts.find((a) => a.account === user.name);
     return (latest?.total ?? 0) === 0;
   });
+  const decliningCount = detectDecliningAccounts(history).length;
 
   return {
     totalAllTime,
     totalGrowth24h,
     accountsCount: accounts.length,
-    warningsCount: warnings.length
+    warningsCount: warnings.length,
+    decliningCount
   };
 }
 

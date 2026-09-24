@@ -100,6 +100,7 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
     : 0;
 
   const warningsCount = kpis.warningsCount;
+  const decliningCount = kpis.decliningCount;
 
   // Part du cumul all-time par plateforme, tous comptes confondus — même
   // logique cumul que les cartes "Vues totales" et le classement (ig/tt/yt
@@ -310,6 +311,7 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
                   <div className="table-cell-title" style={{ minWidth: 0 }}>
                     <div className="ellipsis" style={{ fontWeight: 600, fontSize: 13.5 }}>{a.name}</div>
                     {a.isWarning && <div style={{ fontSize: 10.5, color: 'var(--orange)', fontWeight: 600 }}>⚠ 0 vue — placeholder</div>}
+                    {a.isDeclining && <div style={{ fontSize: 10.5, color: 'var(--red)', fontWeight: 600 }}>📉 en baisse depuis plusieurs jours</div>}
                   </div>
                   <div className="mono" data-label="Instagram" style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>{platformLabel(a.ig)}</div>
                   <div className="mono" data-label="TikTok" style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>{platformLabel(a.tt)}</div>
@@ -350,6 +352,12 @@ export default function DashboardView({ kpis, accounts, onOpenDrawer, onAccounts
             <div className="card" style={{ background: 'color-mix(in oklab, var(--orange) 12%, transparent)', border: '1px solid color-mix(in oklab, var(--orange) 35%, transparent)', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--orange)' }}>⚠ {warningsCount} compte(s) sans donnée</div>
               <div style={{ fontSize: 12, color: 'color-mix(in oklab, var(--orange) 70%, var(--text-faint))', lineHeight: 1.5 }}>Aucune vue détectée à la dernière collecte — vérifiez les URLs ci-dessus ou les logs du scraping.</div>
+            </div>
+          )}
+          {decliningCount > 0 && (
+            <div className="card" style={{ background: 'color-mix(in oklab, var(--red) 10%, transparent)', border: '1px solid color-mix(in oklab, var(--red) 30%, transparent)', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>📉 {decliningCount} compte(s) en baisse d'audience</div>
+              <div style={{ fontSize: 12, color: 'color-mix(in oklab, var(--red) 70%, var(--text-faint))', lineHeight: 1.5 }}>Gain quotidien nettement sous le rythme habituel depuis plusieurs jours — repérable dans le tableau ci-dessus.</div>
             </div>
           )}
         </div>
