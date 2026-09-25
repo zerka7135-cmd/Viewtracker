@@ -67,6 +67,20 @@ test('computeGrowth24h : delta par vidéo (via posts[].id) plutôt que par total
   assert.equal(result.get('compteA').ig, 400);
 });
 
+test('computeGrowth24h : vieille vidéo qui revient dans la fenêtre -> seulement les vues gagnées depuis sa dernière apparition', () => {
+  const post = (id, views) => ({ id, views });
+  const history = [
+    { date: dateKey(10), accounts: [{ account: 'compteA', ig: 300, tt: 0, yt: 0, posts: { ig: [post('vieille', 200), post('b', 100)] } }] },
+    { date: dateKey(1), accounts: [{ account: 'compteA', ig: 700, tt: 0, yt: 0, posts: { ig: [post('recente', 500), post('b', 200)] } }] }
+  ];
+  // 'recente' a disparu (supprimée) : 'vieille' revient avec 250 vues -> +50, pas +250.
+  // 'nouvelle' n'a jamais été vue -> toutes ses vues comptent.
+  const summary = [{ account: 'compteA', ig: 330, tt: 0, yt: 0, posts: { ig: [post('nouvelle', 80), post('vieille', 250)] } }];
+
+  const result = computeGrowth24h(history, summary);
+  assert.deepEqual(result.get('compteA'), { total: 130, ig: 130, tt: 0, yt: 0 });
+});
+
 test('computeGrowth24h : compte absent de l\'historique précédent est ignoré (nouveau compte, pas de baseline)', () => {
   const history = [{ date: dateKey(2), accounts: [{ account: 'autreCompte', ig: 10, tt: 0, yt: 0 }] }];
   const summary = [{ account: 'compteA', ig: 50, tt: 0, yt: 0 }];

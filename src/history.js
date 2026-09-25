@@ -130,7 +130,19 @@ export function computeGrowth24h(history, summary) {
 
   // Delta par plateforme pour un compte : suivi par vidéo si les deux
   // collectes ont pu extraire des IDs, sinon repli sur le total brut.
-  const platformDelta = (currentPosts, previousPosts, currentTotal, previousTotal) => {
+  // Dernières vues connues d'une vidéo dans une collecte plus ancienne que la
+  // référence : une vieille vidéo qui revient dans la fenêtre scrapée (vidéo
+  // récente supprimée, archivée, épinglage...) n'est pas une nouvelle vidéo.
+  const lastSeenViews = (account, key, id) => {
+    for (let i = history.length - 1; i >= 0; i--) {
+      const posts = history[i].accounts.find(a => a.account === account)?.posts?.[key];
+      const post = Array.isArray(posts) ? posts.find(p => p.id === id) : null;
+      if (post && typeof post.views === 'number') return post.views;
+    }
+    return null;
+  };
+
+  const platformDelta = (currentPosts, previousPosts, currentTotal, previousTotal, account, key) => {
     const hasPreviousIds = Array.isArray(previousPosts) && previousPosts.length > 0;
     // Sans ID d'un côté ou de l'autre, impossible de savoir quelles vidéos
     // sont nouvelles : on compare les totaux bruts plutôt que de compter
@@ -145,7 +157,7 @@ export function computeGrowth24h(history, summary) {
 
     let sum = 0;
     for (const post of currentPosts) {
-      const previousViews = previousViewsById.get(post.id);
+      const previousViews = previousViewsById.get(post.id) ?? lastSeenViews(account, key, post.id);
       sum += typeof previousViews === 'number' ? Math.max(0, post.views - previousViews) : post.views;
     }
     return sum;
@@ -160,7 +172,7 @@ export function computeGrowth24h(history, summary) {
     const delta = (key, platformName) => {
       const previous = findBaseline(item.account, key, platformName);
       if (!previous) return 0;
-      return platformDelta(item.posts?.[key], previous.posts?.[key], item[key], previous[key]);
+      return platformDelta(item.posts?.[key], previous.posts?.[key], item[key], previous[key], item.account, key);
     };
 
     const ig = delta('ig', 'Instagram');
