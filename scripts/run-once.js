@@ -4,6 +4,7 @@ import { buildViewsSummary } from '../src/instagram.js';
 import { build24hEmbed, buildAllTimeEmbed, buildErrorReportEmbed, buildStuckAccountsEmbed } from '../src/embed.js';
 import { acquireLock, releaseLock } from '../src/cache.js';
 import { pushViewsToSupabase } from '../src/supabaseViews.js';
+import { syncAccountsFromApp, isAccountsSyncConfigured } from '../src/accountsSync.js';
 import { loadHistory, appendToday, computeGrowth24h, detectStuckAccounts } from '../src/history.js';
 import { loadLastMessage, saveLastMessage } from '../src/lastMessage.js';
 import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from '../src/cumulativeViews.js';
@@ -64,6 +65,8 @@ async function sendStuckAlertToOwner(history, discordOwnerId, stuckAlertMinDays)
 
 client.once('clientReady', async () => {
   console.log(`Connecté en tant que ${client.user.tag}`);
+
+  if (isAccountsSyncConfigured()) await syncAccountsFromApp();
 
   if (!acquireLock()) {
     console.error('Une collecte est déjà en cours (cron ou autre scan). Abandon.');

@@ -1,6 +1,7 @@
 import { buildViewsSummary } from './instagram.js';
 import { acquireLock, releaseLock } from './cache.js';
 import { pushViewsToSupabase } from './supabaseViews.js';
+import { syncAccountsFromApp, isAccountsSyncConfigured } from './accountsSync.js';
 import { loadHistory, appendToday, computeGrowth24h, detectStuckAccounts, detectDecliningAccounts } from './history.js';
 import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from './cumulativeViews.js';
 import { loadAccounts } from './accountsStore.js';
@@ -9,6 +10,8 @@ import { loadSettings } from './settingsStore.js';
 // Lance une collecte complète immédiatement et affiche le résultat dans le
 // terminal, sans passer par Discord. Utile pour tester le scraping.
 (async () => {
+  if (isAccountsSyncConfigured()) await syncAccountsFromApp();
+
   if (!acquireLock()) {
     console.error('Une collecte est déjà en cours (cron ou autre scan manuel). Abandon.');
     process.exit(1);

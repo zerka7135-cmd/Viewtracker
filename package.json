@@ -12,7 +12,8 @@
     "export-tiktok-cookies": "node scripts/export-tiktok-cookies.js",
     "build:web": "npm install --prefix web && npm run build --prefix web",
     "dev:web": "npm run dev --prefix web",
-    "test": "node --test"
+    "test": "node --test",
+    "accounts-sync": "node scripts/accounts-sync.js"
   },
   "dependencies": {
     "discord.js": "^14.16.3",

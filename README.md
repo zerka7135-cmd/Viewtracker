@@ -336,6 +336,20 @@ Tables et code de la fonction : [`supabase/lovable-prompt.md`](supabase/lovable-
 Tout l'historique est renvoyé à chaque fois (upsert) : un envoi raté est
 rattrapé au suivant, et un échec ne bloque jamais Discord.
 
+### Comptes suivis gérés depuis l'app Lovable
+
+Avec `ACCOUNTS_SYNC_URL` (route `/api/public/clipper-accounts` de l'app, en-tête
+`x-ingest-secret` = `VIEWS_INGEST_SECRET`), le bot relit la liste des clippers
+actifs et de leurs pseudos au démarrage, toutes les `ACCOUNTS_SYNC_MINUTES`
+(30 par défaut) et avant chaque collecte. L'app fait foi : clipper ajouté,
+renommé (historique et cumul migrés), pseudo modifié, ou retiré (plus scrapé,
+données conservées). Une liste vide, ou qui retirerait plus d'un tiers des
+comptes d'un coup, est refusée. Les modifications faites dans l'onglet Comptes
+du dashboard ViewTracker sont écrasées au passage suivant.
+
+Avant d'activer : `npm run accounts-sync` affiche les changements prévus sans
+rien appliquer (adresse déduite de `VIEWS_INGEST_URL`).
+
 ## 7. Alertes et sauvegarde (MP à `DISCORD_OWNER_ID`)
 
 Si `DISCORD_OWNER_ID` est renseigné, l'admin reçoit en MP, après chaque

@@ -114,3 +114,13 @@ export function deleteAccount(name) {
   saveAccounts(filtered);
   return filtered;
 }
+
+/** Relie un compte suivi au clipper de l'app Lovable (identifiant stable, voir accountsSync.js). */
+export function setAccountClipperId(name, clipperId) {
+  const accounts = loadAccounts();
+  const account = accounts.find(a => a.name === name);
+  if (!account) throw new Error(`Compte "${name}" introuvable`);
+  account.clipperId = clipperId;
+  saveAccounts(accounts);
+  return accounts;
+}

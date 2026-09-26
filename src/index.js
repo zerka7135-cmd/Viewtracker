@@ -14,12 +14,16 @@ import { markScanStarted, markScanFinished } from './scanStatus.js';
 import { startServer } from './server.js';
 import { syncFromSupabase, isSyncConfigured } from './supabaseSync.js';
 import { pushViewsToSupabase, isViewsPushConfigured } from './supabaseViews.js';
+import { syncAccountsFromApp, isAccountsSyncConfigured } from './accountsSync.js';
 
 validateConfig();
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 async function scrapeAndBroadcast() {
+  // Avant le verrou : un renommage de compte a besoin de le prendre lui-même.
+  if (isAccountsSyncConfigured()) await syncAccountsFromApp();
+
   if (!acquireLock()) {
     console.error('Une collecte est déjà en cours (scan manuel probable). Cycle cron ignoré.');
     return false;
@@ -205,6 +209,13 @@ client.once('clientReady', () => {
   );
 
   console.log(`Planification active : "${cronSchedule}" (${timezone})`);
+
+  if (isAccountsSyncConfigured()) {
+    const minutes = Math.max(1, Number(process.env.ACCOUNTS_SYNC_MINUTES) || 30);
+    syncAccountsFromApp();
+    setInterval(syncAccountsFromApp, minutes * 60 * 1000);
+    console.log(`Synchronisation des comptes avec l'app active (toutes les ${minutes} min et avant chaque collecte).`);
+  }
 
   // Rattrape au démarrage les vues pas encore envoyées à l'app Lovable (première mise en place, panne).
   if (isViewsPushConfigured()) pushViewsToSupabase();
