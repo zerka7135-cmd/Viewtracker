@@ -77,3 +77,24 @@ test('VIEWS_INGEST_URL prioritaire sur la fonction Supabase', async () => {
   delete process.env.VIEWS_INGEST_URL;
   server.close();
 });
+
+test('trou de collecte : gain réparti sur les jours du trou selon la date de publication, total inchangé', async () => {
+  const { buildDailyViewsRows: build, publishedDay } = await import('../src/supabaseViews.js');
+  // id TikTok publié le 2026-09-20 (timestamp dans les 32 bits de poids fort)
+  const ttId = (BigInt(Date.parse('2026-09-20T12:00:00Z') / 1000) << 32n).toString();
+  assert.equal(publishedDay('tt', ttId), '2026-09-20');
+  assert.equal(publishedDay('yt', 'abc'), null);
+
+  const post = (id, views) => ({ id, views });
+  const gapHistory = [
+    { date: '2026-09-02', accounts: [{ account: 'A', ig: null, tt: 100, yt: 50, total: 150, errors: [], posts: { tt: [post('vieux', 100)], yt: [post('y1', 50)] } }] },
+    { date: '2026-09-23', accounts: [{ account: 'A', ig: null, tt: 1000, yt: 350, total: 1350, errors: [], posts: { tt: [post(ttId, 1000)], yt: [post('y1', 70), post('y2', 280)] } }] }
+  ];
+  const rows = build(gapHistory);
+  assert.equal(rows.length, 21); // du 03/09 au 23/09
+  assert.ok(rows.every((r) => r.estimated === true && r.views === r.views_ig + r.views_tt + r.views_yt));
+  assert.equal(rows.reduce((s, r) => s + r.views_tt, 0), 1000);
+  assert.equal(rows.reduce((s, r) => s + r.views_yt, 0), 300); // +20 sur y1, 280 pour y2 (sans date)
+  assert.equal(rows.filter((r) => r.day < '2026-09-20').reduce((s, r) => s + r.views_tt, 0), 0);
+  assert.ok(rows.filter((r) => r.day < '2026-09-20').every((r) => r.views_yt > 0));
+});

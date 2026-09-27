@@ -48,14 +48,85 @@ async function send(table, rows) {
   }
 }
 
+// Au-delà de ce nombre de jours entre deux collectes (bot arrêté,
+// migration...), le gain rattrapé est réparti sur les jours du trou au lieu
+// de tomber en entier sur le jour de la collecte. Ce sont des estimations
+// (estimated: true) ; le total est inchangé.
+const GAP_DAYS = 3;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+
+const dayKey = (t) => new Date(t).toISOString().slice(0, 10);
+const addDays = (key, n) => dayKey(Date.parse(`${key}T00:00:00Z`) + n * DAY_MS);
+
+/** Jour de publication lu dans l'identifiant (TikTok, Instagram) ; YouTube : null. */
+export function publishedDay(platform, id) {
+  try {
+    if (platform === 'tt') return dayKey(Number(BigInt(id) >> 32n) * 1000);
+    if (platform === 'ig') {
+      let n = 0n;
+      for (const c of String(id).slice(0, 11)) {
+        const v = B64.indexOf(c);
+        if (v < 0) return null;
+        n = n * 64n + BigInt(v);
+      }
+      return dayKey(Number(n >> 23n) + 1314220021721);
+    }
+  } catch {
+    // identifiant inattendu : date inconnue
+  }
+  return null;
+}
+
+/**
+ * Répartit `total` sur `days` : chaque vidéo pèse ses vues gagnées, étalées
+ * de sa date de publication (bornée au trou) jusqu'au dernier jour ; les vues
+ * des vidéos déjà suivies et celles sans date sont étalées sur tout le trou.
+ */
+function spread(total, days, platform, currentPosts, previousPosts) {
+  const weights = new Array(days.length).fill(0);
+  const previous = new Map((previousPosts || []).map((p) => [p.id, p.views]));
+  for (const post of currentPosts || []) {
+    const gained = previous.has(post.id) ? Math.max(0, post.views - previous.get(post.id)) : post.views;
+    const published = previous.has(post.id) ? null : publishedDay(platform, post.id);
+    let from = 0;
+    if (published) {
+      const i = days.findIndex((d) => d >= published);
+      from = i === -1 ? days.length - 1 : i;
+    }
+    for (let i = from; i < days.length; i++) weights[i] += gained / (days.length - from);
+  }
+  const sum = weights.reduce((s, w) => s + w, 0);
+  const shares = sum > 0 ? weights.map((w) => w / sum) : weights.map(() => 1 / days.length);
+  const alloc = shares.map((sh) => Math.floor(total * sh));
+  alloc[alloc.length - 1] += total - alloc.reduce((s, v) => s + v, 0);
+  return alloc;
+}
+
 /** Lignes daily_views : gain de chaque collecte par rapport à la précédente. */
 export function buildDailyViewsRows(history) {
   const rows = [];
   history.forEach((entry, index) => {
     if (index === 0) return; // pas de référence pour la toute première collecte
     const growth = computeGrowth24h(history.slice(0, index), entry.accounts, entry.date);
+    const previousEntry = history[index - 1];
+    const days = [];
+    for (let d = addDays(previousEntry.date, 1); d <= entry.date; d = addDays(d, 1)) days.push(d);
+
     for (const [account, g] of growth) {
-      rows.push({ account_name: account, day: entry.date, views: g.total, views_ig: g.ig, views_tt: g.tt, views_yt: g.yt });
+      if (days.length < GAP_DAYS) {
+        rows.push({ account_name: account, day: entry.date, views: g.total, views_ig: g.ig, views_tt: g.tt, views_yt: g.yt });
+        continue;
+      }
+      const current = entry.accounts.find((a) => a.account === account);
+      const previous = previousEntry.accounts.find((a) => a.account === account);
+      const per = Object.fromEntries(['ig', 'tt', 'yt'].map((k) => [k, spread(g[k], days, k, current?.posts?.[k], previous?.posts?.[k])]));
+      days.forEach((day, i) => {
+        const ig = per.ig[i];
+        const tt = per.tt[i];
+        const yt = per.yt[i];
+        rows.push({ account_name: account, day, views: ig + tt + yt, views_ig: ig, views_tt: tt, views_yt: yt, estimated: true });
+      });
     }
   });
   return rows;

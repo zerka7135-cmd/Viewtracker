@@ -334,7 +334,10 @@ en-tête `x-ingest-secret` = `VIEWS_INGEST_SECRET`), qui remplit `daily_views`
 (cumul all-time) et relie chaque compte à son clipper par `discord_name`.
 Tables et code de la fonction : [`supabase/lovable-prompt.md`](supabase/lovable-prompt.md).
 Tout l'historique est renvoyé à chaque fois (upsert) : un envoi raté est
-rattrapé au suivant, et un échec ne bloque jamais Discord.
+rattrapé au suivant, et un échec ne bloque jamais Discord. Après un trou de
+3 jours ou plus sans collecte, le gain rattrapé est réparti sur les jours du
+trou (selon la date de publication des vidéos, lue dans les identifiants
+TikTok/Instagram) et ces lignes portent `estimated: true`.
 
 ### Comptes suivis gérés depuis l'app Lovable
 
