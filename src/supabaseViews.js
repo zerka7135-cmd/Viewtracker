@@ -48,11 +48,11 @@ async function send(table, rows) {
   }
 }
 
-// Au-delà de ce nombre de jours entre deux collectes (bot arrêté,
-// migration...), le gain rattrapé est réparti sur les jours du trou au lieu
-// de tomber en entier sur le jour de la collecte. Ce sont des estimations
-// (estimated: true) ; le total est inchangé.
-const GAP_DAYS = 3;
+// Quand deux collectes sont espacées de plus d'un jour (bot arrêté,
+// migration, collecte manquée...), le gain rattrapé est réparti sur les jours
+// du trou au lieu de tomber en entier sur le jour de la collecte. Ce sont des
+// estimations (estimated: true) ; le total est inchangé.
+const GAP_DAYS = 2;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 
@@ -78,28 +78,53 @@ export function publishedDay(platform, id) {
   return null;
 }
 
-/**
- * Répartit `total` sur `days` : chaque vidéo pèse ses vues gagnées, étalées
- * de sa date de publication (bornée au trou) jusqu'au dernier jour ; les vues
- * des vidéos déjà suivies et celles sans date sont étalées sur tout le trou.
- */
-function spread(total, days, platform, currentPosts, previousPosts) {
+const isNew = (previous, post) => !previous.has(post.id);
+
+/** Poids par jour des vidéos nouvelles datées : étalées de leur publication au dernier jour. */
+function datedWeights(days, platform, currentPosts, previousPosts) {
   const weights = new Array(days.length).fill(0);
   const previous = new Map((previousPosts || []).map((p) => [p.id, p.views]));
   for (const post of currentPosts || []) {
-    const gained = previous.has(post.id) ? Math.max(0, post.views - previous.get(post.id)) : post.views;
-    const published = previous.has(post.id) ? null : publishedDay(platform, post.id);
-    let from = 0;
-    if (published) {
-      const i = days.findIndex((d) => d >= published);
-      from = i === -1 ? days.length - 1 : i;
+    const published = isNew(previous, post) ? publishedDay(platform, post.id) : null;
+    if (!published) continue;
+    const i = days.findIndex((d) => d >= published);
+    const from = i === -1 ? days.length - 1 : i;
+    for (let j = from; j < days.length; j++) weights[j] += post.views / (days.length - from);
+  }
+  return weights;
+}
+
+/**
+ * Répartit `total` sur `days`. Vidéos nouvelles datées : de leur publication
+ * au dernier jour. Vidéos nouvelles sans date (YouTube) : même rythme que
+ * les vidéos datées du compte sur ce trou (`profile`), sinon uniformément.
+ * Croissance des vidéos déjà suivies : uniformément.
+ */
+function spread(total, days, platform, currentPosts, previousPosts, profile) {
+  const weights = datedWeights(days, platform, currentPosts, previousPosts);
+  const previous = new Map((previousPosts || []).map((p) => [p.id, p.views]));
+  const profileSum = profile.reduce((s, w) => s + w, 0);
+  for (const post of currentPosts || []) {
+    if (!isNew(previous, post)) {
+      const gained = Math.max(0, post.views - previous.get(post.id));
+      for (let j = 0; j < days.length; j++) weights[j] += gained / days.length;
+    } else if (!publishedDay(platform, post.id)) {
+      for (let j = 0; j < days.length; j++) weights[j] += profileSum > 0 ? post.views * (profile[j] / profileSum) : post.views / days.length;
     }
-    for (let i = from; i < days.length; i++) weights[i] += gained / (days.length - from);
   }
   const sum = weights.reduce((s, w) => s + w, 0);
   const shares = sum > 0 ? weights.map((w) => w / sum) : weights.map(() => 1 / days.length);
-  const alloc = shares.map((sh) => Math.floor(total * sh));
-  alloc[alloc.length - 1] += total - alloc.reduce((s, v) => s + v, 0);
+  // Arrondi au plus fort reste : la somme retombe exactement sur `total`
+  // sans reporter tout l'arrondi sur le dernier jour.
+  const exact = shares.map((sh) => total * sh);
+  const alloc = exact.map(Math.floor);
+  let rest = total - alloc.reduce((s, v) => s + v, 0);
+  const order = exact.map((v, j) => [v - Math.floor(v), j]).sort((a, b) => b[0] - a[0] || b[1] - a[1]);
+  for (const [, j] of order) {
+    if (rest <= 0) break;
+    alloc[j]++;
+    rest--;
+  }
   return alloc;
 }
 
@@ -120,7 +145,11 @@ export function buildDailyViewsRows(history) {
       }
       const current = entry.accounts.find((a) => a.account === account);
       const previous = previousEntry.accounts.find((a) => a.account === account);
-      const per = Object.fromEntries(['ig', 'tt', 'yt'].map((k) => [k, spread(g[k], days, k, current?.posts?.[k], previous?.posts?.[k])]));
+      const profile = ['ig', 'tt'].reduce((acc, k) => {
+        const w = datedWeights(days, k, current?.posts?.[k], previous?.posts?.[k]);
+        return acc.map((v, j) => v + w[j]);
+      }, new Array(days.length).fill(0));
+      const per = Object.fromEntries(['ig', 'tt', 'yt'].map((k) => [k, spread(g[k], days, k, current?.posts?.[k], previous?.posts?.[k], profile)]));
       days.forEach((day, i) => {
         const ig = per.ig[i];
         const tt = per.tt[i];

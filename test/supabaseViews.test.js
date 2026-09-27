@@ -96,5 +96,17 @@ test('trou de collecte : gain réparti sur les jours du trou selon la date de pu
   assert.equal(rows.reduce((s, r) => s + r.views_tt, 0), 1000);
   assert.equal(rows.reduce((s, r) => s + r.views_yt, 0), 300); // +20 sur y1, 280 pour y2 (sans date)
   assert.equal(rows.filter((r) => r.day < '2026-09-20').reduce((s, r) => s + r.views_tt, 0), 0);
-  assert.ok(rows.filter((r) => r.day < '2026-09-20').every((r) => r.views_yt > 0));
+  // YouTube sans date : suit le rythme des vidéos datées du compte (TikTok publié le 20)
+  const ytBefore = rows.filter((r) => r.day < '2026-09-20').reduce((s, r) => s + r.views_yt, 0);
+  assert.ok(ytBefore >= 15 && ytBefore <= 17, `${ytBefore}`); // seuls les +20 de y1 (uniforme sur 21 j) avant le 20
+});
+
+test('collecte manquée (2 jours) : gain réparti sur les 2 jours, aucun jour vide', async () => {
+  const { buildDailyViewsRows: build } = await import('../src/supabaseViews.js');
+  const h = [
+    { date: '2026-08-13', accounts: [{ account: 'A', ig: null, tt: 100, yt: null, total: 100, errors: [], posts: null }] },
+    { date: '2026-08-15', accounts: [{ account: 'A', ig: null, tt: 300, yt: null, total: 300, errors: [], posts: null }] }
+  ];
+  const rows = build(h);
+  assert.deepEqual(rows.map((r) => [r.day, r.views]), [['2026-08-14', 100], ['2026-08-15', 100]]);
 });
