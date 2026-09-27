@@ -1,6 +1,7 @@
 import fs from 'fs';
 import { loadHistory, computeGrowth24h, HISTORY_PATH } from './history.js';
 import { loadCumulativeViews } from './cumulativeViews.js';
+import { loadAccounts } from './accountsStore.js';
 
 // Envoi des vues vers l'app Lovable (Clipper HQ). Sans accès direct à sa base
 // Supabase (Lovable Cloud ne donne pas la clé secrète), le bot passe par une
@@ -161,16 +162,25 @@ export function buildDailyViewsRows(history) {
   return rows;
 }
 
-/** Lignes account_views : cumul all-time par compte. */
-export function buildAccountViewsRows(cumulative, updatedAt = new Date().toISOString()) {
-  return Object.entries(cumulative).map(([account, v]) => ({
-    account_name: account,
-    total: v.total || 0,
-    ig: v.ig || 0,
-    tt: v.tt || 0,
-    yt: v.yt || 0,
-    updated_at: updatedAt
-  }));
+/**
+ * Lignes account_views : cumul all-time par compte. Une plateforme qui n'est
+ * plus suivie (URL vide : compte banni ou retiré) est envoyée à 0 pour ne pas
+ * s'afficher comme active ; le total, lui, garde ses vues passées.
+ */
+export function buildAccountViewsRows(cumulative, updatedAt = new Date().toISOString(), accounts = []) {
+  const urlsByName = new Map(accounts.map((a) => [a.name, a.urls || []]));
+  return Object.entries(cumulative).map(([account, v]) => {
+    const urls = urlsByName.get(account);
+    const shown = (k, i) => (urls && !urls[i] ? 0 : v[k] || 0);
+    return {
+      account_name: account,
+      total: v.total || 0,
+      ig: shown('ig', 0),
+      tt: shown('tt', 1),
+      yt: shown('yt', 2),
+      updated_at: updatedAt
+    };
+  });
 }
 
 /**
@@ -184,7 +194,7 @@ export async function pushViewsToSupabase() {
     const daily = buildDailyViewsRows(loadHistory());
     // updated_at = heure de la dernière collecte (écriture de history.json),
     // pas celle de l'envoi : un redémarrage renvoie les données sans les rajeunir.
-    const totals = buildAccountViewsRows(loadCumulativeViews(), fs.statSync(HISTORY_PATH).mtime.toISOString());
+    const totals = buildAccountViewsRows(loadCumulativeViews(), fs.statSync(HISTORY_PATH).mtime.toISOString(), loadAccounts());
     await send('daily_views', daily);
     await send('account_views', totals);
 

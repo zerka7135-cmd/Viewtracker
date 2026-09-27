@@ -8,6 +8,7 @@ import path from 'node:path';
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vt-views-'));
 process.env.HISTORY_PATH = path.join(dir, 'history.json');
 process.env.CUMULATIVE_VIEWS_PATH = path.join(dir, 'cumulative.json');
+process.env.ACCOUNTS_STORE_PATH = path.join(dir, 'accounts.json');
 process.env.DISCORD_TOKEN ||= 'test';
 process.env.DISCORD_CHANNEL_ID ||= 'test';
 process.env.ACCOUNTS ||= '[]';
@@ -109,4 +110,12 @@ test('collecte manquée (2 jours) : gain réparti sur les 2 jours, aucun jour vi
   ];
   const rows = build(h);
   assert.deepEqual(rows.map((r) => [r.day, r.views]), [['2026-08-14', 100], ['2026-08-15', 100]]);
+});
+
+test('cumul envoyé : plateforme plus suivie (URL vide) à 0, total inchangé', async () => {
+  const { buildAccountViewsRows } = await import('../src/supabaseViews.js');
+  const cumul = { kiksfryt: { total: 700, ig: 0, tt: 200, yt: 500 }, autre: { total: 10, ig: 10, tt: 0, yt: 0 } };
+  const rows = buildAccountViewsRows(cumul, 'x', [{ name: 'kiksfryt', urls: ['', '', 'https://www.youtube.com/@keo_jvc'] }]);
+  assert.deepEqual(rows.find((r) => r.account_name === 'kiksfryt'), { account_name: 'kiksfryt', total: 700, ig: 0, tt: 0, yt: 500, updated_at: 'x' });
+  assert.equal(rows.find((r) => r.account_name === 'autre').ig, 10); // compte inconnu : inchangé
 });
