@@ -4,7 +4,7 @@ import { config, validateConfig } from './config.js';
 import { buildViewsSummary } from './instagram.js';
 import { build24hEmbed, buildAllTimeEmbed, buildErrorReportEmbed, buildStuckAccountsEmbed, buildDecliningAccountsEmbed } from './embed.js';
 import { acquireLock, releaseLock } from './cache.js';
-import { loadHistory, appendToday, computeGrowth24h, detectStuckAccounts, detectDecliningAccounts } from './history.js';
+import { loadHistory, appendToday, computeGrowth24h, todayKey, detectStuckAccounts, detectDecliningAccounts } from './history.js';
 import { loadLastMessage, saveLastMessage } from './lastMessage.js';
 import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from './cumulativeViews.js';
 import { sendDataBackupToOwner } from './backup.js';
@@ -20,7 +20,7 @@ validateConfig();
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-async function scrapeAndBroadcast() {
+async function scrapeAndBroadcast(date = todayKey()) {
   // Avant le verrou : un renommage de compte a besoin de le prendre lui-même.
   if (isAccountsSyncConfigured()) await syncAccountsFromApp();
 
@@ -42,13 +42,13 @@ async function scrapeAndBroadcast() {
     // L'historique *avant* ajout du jour sert de référence pour le calcul
     // du gain 24h (comparer aujourd'hui à aujourd'hui n'aurait pas de sens).
     const historyBefore = loadHistory();
-    const growth24h = computeGrowth24h(historyBefore, summary);
+    const growth24h = computeGrowth24h(historyBefore, summary, date);
 
     // Cumul "all time", classé indépendamment du leaderboard 24h (voir
     // src/cumulativeViews.js) — additionne le gain de chaque collecte déjà
     // réalisée, sans jamais repartir de zéro ni recompter le total brut.
     const cumulativeBefore = loadCumulativeViews();
-    const cumulativeAfter = updateCumulativeViews(cumulativeBefore, growth24h, summary);
+    const cumulativeAfter = updateCumulativeViews(cumulativeBefore, growth24h, summary, date);
     saveCumulativeViews(cumulativeAfter);
 
     // La publication Discord peut être coupée depuis le dashboard
@@ -65,7 +65,7 @@ async function scrapeAndBroadcast() {
       await sendOrEditSummary(channel, 'allTime', allTimeEmbed);
     }
 
-    const historyAfter = appendToday(historyBefore, summary);
+    const historyAfter = appendToday(historyBefore, summary, date);
     await pushViewsToSupabase();
     if (settings.notifWarnings) {
       await sendErrorReportToOwner(summary, settings.discordOwnerId);
@@ -191,6 +191,10 @@ client.once('clientReady', () => {
   cron.schedule(
     cronSchedule,
     async () => {
+      // Date figée à l'heure planifiée : une collecte décalée qui se termine
+      // après minuit reste datée du jour du cron, sinon elle prend la date du
+      // lendemain et entre en collision avec la collecte du lendemain soir.
+      const collectionDate = todayKey();
       // Décale le déclenchement réel de 0 à 120 min après l'heure planifiée :
       // une collecte qui démarre à la seconde près, tous les jours depuis la
       // même IP serveur, est un signal d'automatisation facile à repérer.
@@ -199,7 +203,7 @@ client.once('clientReady', () => {
       await new Promise((resolve) => setTimeout(resolve, jitterMs));
 
       try {
-        const sent = await scrapeAndBroadcast();
+        const sent = await scrapeAndBroadcast(collectionDate);
         if (sent) console.log('Résumé automatique envoyé.');
       } catch (error) {
         console.error('Erreur lors de l\'envoi automatique du résumé :', error);

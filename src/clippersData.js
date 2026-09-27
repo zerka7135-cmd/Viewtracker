@@ -40,7 +40,7 @@ export function viewsGainedByAccount(from, to) {
     if (index === 0) return;
     entriesInPeriod++;
 
-    const growth = computeGrowth24h(history.slice(0, index), entry.accounts);
+    const growth = computeGrowth24h(history.slice(0, index), entry.accounts, entry.date);
     for (const [account, g] of growth) {
       views.set(account, (views.get(account) || 0) + g.total);
     }

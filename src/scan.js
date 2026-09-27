@@ -2,7 +2,7 @@ import { buildViewsSummary } from './instagram.js';
 import { acquireLock, releaseLock } from './cache.js';
 import { pushViewsToSupabase } from './supabaseViews.js';
 import { syncAccountsFromApp, isAccountsSyncConfigured } from './accountsSync.js';
-import { loadHistory, appendToday, computeGrowth24h, detectStuckAccounts, detectDecliningAccounts } from './history.js';
+import { loadHistory, appendToday, computeGrowth24h, todayKey, detectStuckAccounts, detectDecliningAccounts } from './history.js';
 import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from './cumulativeViews.js';
 import { loadAccounts } from './accountsStore.js';
 import { loadSettings } from './settingsStore.js';
@@ -23,10 +23,11 @@ import { loadSettings } from './settingsStore.js';
     const summary = await buildViewsSummary(loadAccounts(), settings.postsLimit);
 
     const historyBefore = loadHistory();
-    const growth24h = computeGrowth24h(historyBefore, summary);
+    const date = todayKey();
+    const growth24h = computeGrowth24h(historyBefore, summary, date);
 
     const cumulativeBefore = loadCumulativeViews();
-    const cumulativeAfter = updateCumulativeViews(cumulativeBefore, growth24h, summary);
+    const cumulativeAfter = updateCumulativeViews(cumulativeBefore, growth24h, summary, date);
     saveCumulativeViews(cumulativeAfter);
 
     const fmt = (v) => v === null ? 'Ban' : v;
@@ -62,7 +63,7 @@ import { loadSettings } from './settingsStore.js';
       console.log(`- ${account} : ${v.total} vues (IG: ${fmtComputed(account, 'ig', v.ig)} | TT: ${fmtComputed(account, 'tt', v.tt)} | YT: ${fmtComputed(account, 'yt', v.yt)})`);
     }
 
-    const historyAfter = appendToday(historyBefore, summary);
+    const historyAfter = appendToday(historyBefore, summary, date);
     await pushViewsToSupabase();
     const stuckAccounts = detectStuckAccounts(historyAfter, settings.stuckAlertMinDays);
     if (stuckAccounts.length > 0) {

@@ -17,6 +17,12 @@ export function todayKey(timezone = config.timezone) {
   return new Date().toLocaleDateString('en-CA', { timeZone: timezone });
 }
 
+/** Veille d'une date YYYY-MM-DD. */
+export function previousDayKey(dateKey) {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
+}
+
 /**
  * Charge l'historique des collectes précédentes.
  * @returns {Array<{date: string, accounts: Array}>} trié du plus ancien au plus récent
@@ -37,8 +43,7 @@ export function loadHistory() {
  * @param {Array} summary Résumé du jour (retour de buildViewsSummary)
  * @returns {Array} l'historique mis à jour
  */
-export function appendToday(history, summary) {
-  const date = todayKey();
+export function appendToday(history, summary, date = todayKey()) {
   const entry = {
     date,
     accounts: summary.map(item => ({
@@ -87,13 +92,14 @@ export function appendToday(history, summary) {
  * @param {Array} summary Résumé du jour
  * @returns {Map<string, {total: number, ig: number, tt: number, yt: number}>}
  */
-export function computeGrowth24h(history, summary) {
+export function computeGrowth24h(history, summary, date = todayKey()) {
   const result = new Map();
   if (history.length === 0) return result;
 
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const targetKey = yesterday.toLocaleDateString('en-CA', { timeZone: config.timezone });
+  // Référence : collectes antérieures à la date de collecte. Une collecte
+  // déjà enregistrée à cette même date va être remplacée, elle ne peut donc
+  // pas servir de référence.
+  const targetKey = previousDayKey(date);
 
   // Collectes candidates comme référence, de la plus récente à la plus
   // ancienne (la veille d'abord). Si l'historique ne contient que des

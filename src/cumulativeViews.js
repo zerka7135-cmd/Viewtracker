@@ -29,49 +29,50 @@ export function saveCumulativeViews(cumulative) {
  * mêmes vidéos seraient recomptées en entier chaque jour). Un delta négatif
  * n'est jamais soustrait : le all-time ne peut que monter.
  *
- * Idempotent par jour (`lastUpdated` par compte) : relancer `npm run scan`
- * plusieurs fois le même jour, ou un cron qui se déclenche deux fois, ne
- * doit ajouter la progression qu'une seule fois.
+ * Une seule contribution par jour et par compte (`lastUpdated` + `dayGain`) :
+ * si une deuxième collecte porte la même date (`npm run scan` relancé, cron
+ * rejoué), elle *remplace* la contribution de la première au lieu de
+ * s'ajouter ou d'être ignorée. L'historique remplace lui aussi l'entrée du
+ * jour, et le gain de la deuxième collecte est calculé depuis la même
+ * référence (la veille) : il couvre déjà la période de la première.
  *
  * Pour un compte jamais vu jusqu'ici (absent de `cumulative`), le total du
  * jour sert de point de départ — la meilleure estimation disponible des vues
  * déjà faites avant le début du suivi.
  *
- * @param {Record<string, {total: number, ig: number, tt: number, yt: number, lastUpdated: string}>} cumulative État actuel
+ * @param {Record<string, object>} cumulative État actuel
  * @param {Map<string, {total: number, ig: number, tt: number, yt: number}>} growth24h Voir history.js#computeGrowth24h
  * @param {Array<{account: string, ig: number|null, tt: number|null, yt: number|null, total: number}>} summary Résumé du jour
- * @returns {Record<string, {total: number, ig: number, tt: number, yt: number, lastUpdated: string}>} Le cumul mis à jour (nouvel objet, n'altère pas `cumulative`)
+ * @param {string} [date] Date de la collecte (YYYY-MM-DD), par défaut aujourd'hui
+ * @returns {Record<string, object>} Le cumul mis à jour (nouvel objet, n'altère pas `cumulative`)
  */
-export function updateCumulativeViews(cumulative, growth24h, summary) {
+export function updateCumulativeViews(cumulative, growth24h, summary, date = todayKey()) {
   const updated = { ...cumulative };
-  const today = todayKey();
+  const KEYS = ['total', 'ig', 'tt', 'yt'];
+  const num = (v) => (typeof v === 'number' ? v : 0);
+  const pick = (source) => Object.fromEntries(KEYS.map((k) => [k, num(source?.[k])]));
 
   for (const item of summary) {
     if (typeof item.total !== 'number') continue;
 
     const existing = updated[item.account];
-    if (existing && existing.lastUpdated === today) continue; // déjà compté aujourd'hui
+    const sameDay = existing?.lastUpdated === date;
+    // Ancien format sans dayGain : la première contribution du jour ne peut
+    // pas être retirée, on garde l'ancien comportement (ignorer).
+    if (sameDay && !existing.dayGain) continue;
 
-    if (!existing) {
-      // Premier jour de suivi pour ce compte : le total du jour sert de
-      // point de départ (null/"Ban" ne contribue pour rien).
-      updated[item.account] = {
-        total: item.total,
-        ig: typeof item.ig === 'number' ? item.ig : 0,
-        tt: typeof item.tt === 'number' ? item.tt : 0,
-        yt: typeof item.yt === 'number' ? item.yt : 0,
-        lastUpdated: today
-      };
-      continue;
-    }
+    // Premier jour de suivi (éventuellement rejoué) : le relevé du jour sert de point de départ.
+    const isStart = !existing || (sameDay && existing.dayGainIsStart);
+    const base = !existing ? pick(null)
+      : sameDay ? Object.fromEntries(KEYS.map((k) => [k, existing[k] - num(existing.dayGain[k])]))
+      : pick(existing);
+    const dayGain = pick(isStart ? item : growth24h.get(item.account));
 
-    const g = growth24h.get(item.account);
     updated[item.account] = {
-      total: existing.total + (g?.total || 0),
-      ig: existing.ig + (g?.ig || 0),
-      tt: existing.tt + (g?.tt || 0),
-      yt: existing.yt + (g?.yt || 0),
-      lastUpdated: today
+      ...Object.fromEntries(KEYS.map((k) => [k, base[k] + dayGain[k]])),
+      lastUpdated: date,
+      dayGain,
+      ...(isStart ? { dayGainIsStart: true } : {})
     };
   }
 

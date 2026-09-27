@@ -53,7 +53,7 @@ export function buildDailyViewsRows(history) {
   const rows = [];
   history.forEach((entry, index) => {
     if (index === 0) return; // pas de référence pour la toute première collecte
-    const growth = computeGrowth24h(history.slice(0, index), entry.accounts);
+    const growth = computeGrowth24h(history.slice(0, index), entry.accounts, entry.date);
     for (const [account, g] of growth) {
       rows.push({ account_name: account, day: entry.date, views: g.total, views_ig: g.ig, views_tt: g.tt, views_yt: g.yt });
     }

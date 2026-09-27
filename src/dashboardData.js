@@ -43,7 +43,7 @@ export function getAccountsWithStats() {
 
   const latestEntry = history[history.length - 1] || null;
   const previousHistory = history.slice(0, -1);
-  const growth24h = latestEntry ? computeGrowth24h(previousHistory, latestEntry.accounts) : new Map();
+  const growth24h = latestEntry ? computeGrowth24h(previousHistory, latestEntry.accounts, latestEntry.date) : new Map();
 
   const recentEntries = history.slice(-SPARKLINE_POINTS);
   // Même détection que l'alerte Discord (voir src/index.js#sendDecliningAlertToOwner
@@ -120,7 +120,7 @@ export function getKpis() {
 
   const latestEntry = history[history.length - 1] || null;
   const previousHistory = history.slice(0, -1);
-  const growth24h = latestEntry ? computeGrowth24h(previousHistory, latestEntry.accounts) : new Map();
+  const growth24h = latestEntry ? computeGrowth24h(previousHistory, latestEntry.accounts, latestEntry.date) : new Map();
 
   const totalAllTime = Object.values(cumulative).reduce((sum, v) => sum + (v.total || 0), 0);
   const totalGrowth24h = [...growth24h.values()].reduce((sum, g) => sum + g.total, 0);

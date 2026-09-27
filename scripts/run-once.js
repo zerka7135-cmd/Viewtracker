@@ -5,7 +5,7 @@ import { build24hEmbed, buildAllTimeEmbed, buildErrorReportEmbed, buildStuckAcco
 import { acquireLock, releaseLock } from '../src/cache.js';
 import { pushViewsToSupabase } from '../src/supabaseViews.js';
 import { syncAccountsFromApp, isAccountsSyncConfigured } from '../src/accountsSync.js';
-import { loadHistory, appendToday, computeGrowth24h, detectStuckAccounts } from '../src/history.js';
+import { loadHistory, appendToday, computeGrowth24h, todayKey, detectStuckAccounts } from '../src/history.js';
 import { loadLastMessage, saveLastMessage } from '../src/lastMessage.js';
 import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from '../src/cumulativeViews.js';
 import { sendDataBackupToOwner } from '../src/backup.js';
@@ -81,10 +81,11 @@ client.once('clientReady', async () => {
     const summary = await buildViewsSummary(loadAccounts(), settings.postsLimit);
 
     const historyBefore = loadHistory();
-    const growth24h = computeGrowth24h(historyBefore, summary);
+    const date = todayKey();
+    const growth24h = computeGrowth24h(historyBefore, summary, date);
 
     const cumulativeBefore = loadCumulativeViews();
-    const cumulativeAfter = updateCumulativeViews(cumulativeBefore, growth24h, summary);
+    const cumulativeAfter = updateCumulativeViews(cumulativeBefore, growth24h, summary, date);
     saveCumulativeViews(cumulativeAfter);
 
     if (channel) {
@@ -95,7 +96,7 @@ client.once('clientReady', async () => {
       await sendOrEditSummary(channel, 'allTime', allTimeEmbed);
     }
 
-    const historyAfter = appendToday(historyBefore, summary);
+    const historyAfter = appendToday(historyBefore, summary, date);
     await pushViewsToSupabase();
     await sendErrorReportToOwner(summary, settings.discordOwnerId);
     await sendStuckAlertToOwner(historyAfter, settings.discordOwnerId, settings.stuckAlertMinDays);
