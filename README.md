@@ -339,6 +339,9 @@ sont espacées de plus d'un jour, le gain rattrapé est réparti sur les jours d
 trou (selon la date de publication des vidéos, lue dans les identifiants
 TikTok/Instagram ; YouTube suit le rythme des vidéos datées du même compte)
 et ces lignes portent `estimated: true`.
+Le bot envoie aussi `post_views` : les vues de chaque publication suivie
+(2 dernières par plateforme) à chaque collecte, avec son lien et sa date de
+publication (TikTok/Instagram), pour la détection des wins dans l'app.
 
 ### Comptes suivis gérés depuis l'app Lovable
 

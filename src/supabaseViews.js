@@ -60,10 +60,10 @@ const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 const dayKey = (t) => new Date(t).toISOString().slice(0, 10);
 const addDays = (key, n) => dayKey(Date.parse(`${key}T00:00:00Z`) + n * DAY_MS);
 
-/** Jour de publication lu dans l'identifiant (TikTok, Instagram) ; YouTube : null. */
-export function publishedDay(platform, id) {
+/** Date de publication (ms) lue dans l'identifiant (TikTok, Instagram) ; YouTube : null. */
+function publishedMs(platform, id) {
   try {
-    if (platform === 'tt') return dayKey(Number(BigInt(id) >> 32n) * 1000);
+    if (platform === 'tt') return Number(BigInt(id) >> 32n) * 1000;
     if (platform === 'ig') {
       let n = 0n;
       for (const c of String(id).slice(0, 11)) {
@@ -71,12 +71,18 @@ export function publishedDay(platform, id) {
         if (v < 0) return null;
         n = n * 64n + BigInt(v);
       }
-      return dayKey(Number(n >> 23n) + 1314220021721);
+      return Number(n >> 23n) + 1314220021721;
     }
   } catch {
     // identifiant inattendu : date inconnue
   }
   return null;
+}
+
+/** Jour de publication (YYYY-MM-DD, UTC) ; null si inconnu. */
+export function publishedDay(platform, id) {
+  const ms = publishedMs(platform, id);
+  return ms ? dayKey(ms) : null;
 }
 
 const isNew = (previous, post) => !previous.has(post.id);
@@ -162,6 +168,50 @@ export function buildDailyViewsRows(history) {
   return rows;
 }
 
+/** Pseudo TikTok d'un compte (depuis son URL de profil), null si non suivi. */
+function tiktokUser(urls) {
+  const match = String(urls?.[1] || '').match(/tiktok\.com\/@?([^/?#]+)/);
+  return match ? match[1] : null;
+}
+
+/** Lien direct vers une publication ; null si impossible (TikTok sans pseudo connu). */
+export function postUrl(platform, id, urls) {
+  if (platform === 'ig') return `https://www.instagram.com/reel/${id}/`;
+  if (platform === 'yt') return `https://www.youtube.com/shorts/${id}`;
+  const user = tiktokUser(urls);
+  return user ? `https://www.tiktok.com/@${user}/video/${id}` : null;
+}
+
+/**
+ * Lignes post_views : vues de chaque publication suivie, à chaque collecte
+ * (les 2 dernières par plateforme, voir IG_POSTS_LIMIT).
+ */
+export function buildPostViewsRows(history, accounts = []) {
+  const urlsByName = new Map(accounts.map((a) => [a.name, a.urls || []]));
+  const rows = [];
+  for (const entry of history) {
+    for (const a of entry.accounts) {
+      for (const platform of ['ig', 'tt', 'yt']) {
+        for (const post of a.posts?.[platform] || []) {
+          const url = postUrl(platform, post.id, urlsByName.get(a.account));
+          if (!url) continue;
+          const ms = publishedMs(platform, post.id);
+          rows.push({
+            account_name: a.account,
+            platform,
+            post_id: String(post.id),
+            url,
+            day: entry.date,
+            views: post.views,
+            published_at: ms ? new Date(ms).toISOString() : null
+          });
+        }
+      }
+    }
+  }
+  return rows;
+}
+
 /**
  * Lignes account_views : cumul all-time par compte. Une plateforme qui n'est
  * plus suivie (URL vide : compte banni ou retiré) est envoyée à 0 pour ne pas
@@ -198,7 +248,18 @@ export async function pushViewsToSupabase() {
     await send('daily_views', daily);
     await send('account_views', totals);
 
-    const message = `${daily.length} ligne(s) de vues et ${totals.length} cumul(s) envoyés à l'app Lovable`;
+    // Publications à part : un échec ici ne doit pas masquer l'envoi des vues.
+    let postsNote;
+    try {
+      const posts = buildPostViewsRows(loadHistory(), loadAccounts());
+      await send('post_views', posts);
+      postsNote = `${posts.length} publication(s)`;
+    } catch (error) {
+      postsNote = `publications en échec (${error.message})`;
+      console.error('Envoi des publications vers l\'app Lovable en échec :', error.message);
+    }
+
+    const message = `${daily.length} ligne(s) de vues, ${totals.length} cumul(s) et ${postsNote} envoyés à l'app Lovable`;
     console.log(message);
     return { ok: true, message };
   } catch (error) {

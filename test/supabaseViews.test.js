@@ -119,3 +119,25 @@ test('cumul envoyé : plateforme plus suivie (URL vide) à 0, total inchangé', 
   assert.deepEqual(rows.find((r) => r.account_name === 'kiksfryt'), { account_name: 'kiksfryt', total: 700, ig: 0, tt: 0, yt: 500, updated_at: 'x' });
   assert.equal(rows.find((r) => r.account_name === 'autre').ig, 10); // compte inconnu : inchangé
 });
+
+test('publications : une ligne par publication et par collecte, avec lien et date de publication', async () => {
+  const { buildPostViewsRows, postUrl } = await import('../src/supabaseViews.js');
+  const ttId = (BigInt(Date.parse('2026-09-20T12:00:00Z') / 1000) << 32n).toString();
+  const urls = ['https://www.instagram.com/keo.wxc/', 'https://www.tiktok.com/@keo.wxc', 'https://www.youtube.com/@keowxc'];
+  assert.equal(postUrl('ig', 'DaBzHa6seeM', urls), 'https://www.instagram.com/reel/DaBzHa6seeM/');
+  assert.equal(postUrl('yt', 'iBZOW4dJv44', urls), 'https://www.youtube.com/shorts/iBZOW4dJv44');
+  assert.equal(postUrl('tt', ttId, urls), `https://www.tiktok.com/@keo.wxc/video/${ttId}`);
+  assert.equal(postUrl('tt', ttId, ['', '', 'https://www.youtube.com/@x']), null); // TikTok banni : pas de pseudo
+
+  const h = [
+    { date: '2026-09-26', accounts: [{ account: 'protow', posts: { tt: [{ id: ttId, views: 1000 }], yt: [{ id: 'y1', views: 50 }] } }] },
+    { date: '2026-09-27', accounts: [{ account: 'protow', posts: { tt: [{ id: ttId, views: 80000 }] } }, { account: 'inconnu', posts: { tt: [{ id: ttId, views: 5 }] } }] }
+  ];
+  const rows = buildPostViewsRows(h, [{ name: 'protow', urls }]);
+  assert.equal(rows.length, 3); // le TikTok du compte inconnu (sans pseudo) est ignoré
+  assert.deepEqual(rows.find((r) => r.day === '2026-09-27'), {
+    account_name: 'protow', platform: 'tt', post_id: ttId, url: `https://www.tiktok.com/@keo.wxc/video/${ttId}`,
+    day: '2026-09-27', views: 80000, published_at: '2026-09-20T12:00:00.000Z'
+  });
+  assert.equal(rows.find((r) => r.platform === 'yt').published_at, null);
+});
