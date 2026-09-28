@@ -63,7 +63,7 @@ import { loadSettings } from './settingsStore.js';
       console.log(`- ${account} : ${v.total} vues (IG: ${fmtComputed(account, 'ig', v.ig)} | TT: ${fmtComputed(account, 'tt', v.tt)} | YT: ${fmtComputed(account, 'yt', v.yt)})`);
     }
 
-    const historyAfter = appendToday(historyBefore, summary, date);
+    const historyAfter = appendToday(historyBefore, summary, date, settings.postsLimit);
     await pushViewsToSupabase();
     const stuckAccounts = detectStuckAccounts(historyAfter, settings.stuckAlertMinDays);
     if (stuckAccounts.length > 0) {

@@ -348,6 +348,23 @@ moment (TikTok/Instagram : depuis la publication ; YouTube : depuis la
 collecte réussie précédant sa première apparition ; sinon null). Règle des
 wins : 75 000 vues en 24 h maximum, prouvées.
 
+L'envoi réessaie jusqu'à 3 fois (attente croissante) sur une erreur réseau,
+un délai dépassé ou une erreur 5xx/429 ; une erreur 4xx (secret invalide,
+payload rejeté) abandonne tout de suite. Si l'app confirme la réception mais
+ignore certaines lignes (`skipped`), c'est signalé dans les logs.
+
+### Hausse d'`IG_POSTS_LIMIT` (nombre de publications suivies par plateforme)
+
+Chaque collecte enregistre le nombre de publications suivies ce jour-là
+(`postsLimit` dans l'historique). Si ce nombre augmente d'une collecte à
+l'autre, les publications révélées par la fenêtre élargie mais jamais vues
+auparavant ne comptent pas leurs vues comme un gain (elles servent de point
+de départ, comme une vidéo qu'on découvre le premier jour de suivi d'un
+compte) — sans ce garde-fou, le cumul gonflerait d'un coup à la transition.
+La limite peut donc être relevée sans risque sur la donnée ; le seul arbitrage
+est anti-détection (voir la discussion dans l'historique du projet : 6 reste
+sans risque supplémentaire, 10-12 est plus risqué côté Instagram).
+
 ### Comptes suivis gérés depuis l'app Lovable
 
 Avec `ACCOUNTS_SYNC_URL` (route `/api/public/clipper-accounts` de l'app, en-tête
@@ -379,6 +396,13 @@ collecte réussie :
   perte du cumul all-time suite à un chemin non persistant) ; ce backup
   quotidien donne un filet de secours téléchargeable en cas de volume
   corrompu ou effacé.
+- **⚠️ Envoi vers l'app en échec depuis plus de 24h** — contrairement aux
+  échecs de scraping ci-dessus, un envoi qui échoue ne bloque rien de visible
+  localement (les vues restent correctes, seule l'app cesse de se mettre à
+  jour) : sans cette alerte, une clé invalidée ou une route en panne côté app
+  pouvait passer inaperçue pendant des jours. Une seule alerte tant qu'aucun
+  envoi n'a réussi entre-temps (`src/pushStatus.js`), pas un MP à chaque
+  collecte tant que la panne dure.
 
 ## 8. Déploiement en continu (Railway)
 

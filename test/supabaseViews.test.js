@@ -9,6 +9,7 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vt-views-'));
 process.env.HISTORY_PATH = path.join(dir, 'history.json');
 process.env.CUMULATIVE_VIEWS_PATH = path.join(dir, 'cumulative.json');
 process.env.ACCOUNTS_STORE_PATH = path.join(dir, 'accounts.json');
+process.env.PUSH_STATUS_PATH = path.join(dir, 'push-status.json');
 process.env.DISCORD_TOKEN ||= 'test';
 process.env.DISCORD_CHANNEL_ID ||= 'test';
 process.env.ACCOUNTS ||= '[]';

@@ -2,6 +2,7 @@ import fs from 'fs';
 import { loadHistory, computeGrowth24h, HISTORY_PATH } from './history.js';
 import { loadCumulativeViews } from './cumulativeViews.js';
 import { loadAccounts } from './accountsStore.js';
+import { recordPushResult } from './pushStatus.js';
 
 // Envoi des vues vers l'app Lovable (Clipper HQ). Sans accès direct à sa base
 // Supabase (Lovable Cloud ne donne pas la clé secrète), le bot passe par une
@@ -34,18 +35,51 @@ function functionUrl() {
   return url;
 }
 
-async function send(table, rows) {
-  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+const SEND_ATTEMPTS = 3;
+
+// Un envoi (une tentative) : { ok: true } ou { ok: false, error, retriable }.
+// Une erreur 4xx (hors 429, limite de débit) ne se résoudra pas en
+// réessayant — secret invalide, payload rejeté — donc `retriable: false`
+// fait abandonner tout de suite plutôt que de perdre du temps sur
+// plusieurs tentatives vaines.
+async function sendOnce(table, batch) {
+  try {
     const res = await fetch(functionUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-ingest-secret': process.env.VIEWS_INGEST_SECRET },
-      body: JSON.stringify({ table, rows: rows.slice(i, i + BATCH_SIZE) }),
+      body: JSON.stringify({ table, rows: batch }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     });
-    if (!res.ok) {
-      const detail = (await res.text()).slice(0, 200);
-      throw new Error(`${table} : HTTP ${res.status} ${detail}`);
+
+    if (res.ok) {
+      // Des lignes silencieusement ignorées par l'app (payload jugé invalide
+      // de son côté) ne doivent pas passer pour un succès complet sans
+      // laisser de trace.
+      const body = await res.json().catch(() => null);
+      if (body?.skipped) console.error(`${table} : ${body.skipped} ligne(s) ignorée(s) par l'app sur ${body.count ?? '?'} reçue(s)`);
+      return { ok: true };
     }
+
+    const detail = (await res.text()).slice(0, 200);
+    const retriable = res.status === 429 || res.status >= 500;
+    return { ok: false, error: new Error(`${table} : HTTP ${res.status} ${detail}`), retriable };
+  } catch (error) {
+    return { ok: false, error, retriable: true };
+  }
+}
+
+async function send(table, rows) {
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    const batch = rows.slice(i, i + BATCH_SIZE);
+    let result;
+
+    for (let attempt = 1; attempt <= SEND_ATTEMPTS; attempt++) {
+      result = await sendOnce(table, batch);
+      if (result.ok || !result.retriable) break;
+      if (attempt < SEND_ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** (attempt - 1)));
+    }
+
+    if (!result.ok) throw result.error;
   }
 }
 
@@ -298,10 +332,12 @@ export async function pushViewsToSupabase() {
 
     const message = `${daily.length} ligne(s) de vues, ${totals.length} cumul(s) et ${postsNote} envoyés à l'app Lovable`;
     console.log(message);
+    recordPushResult(true);
     return { ok: true, message };
   } catch (error) {
     const message = error.name === 'TimeoutError' ? 'L\'app Lovable ne répond pas (délai dépassé)' : error.message;
     console.error('Envoi des vues vers l\'app Lovable en échec :', message);
+    recordPushResult(false);
     return { ok: false, message };
   }
 }

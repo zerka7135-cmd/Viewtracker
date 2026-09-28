@@ -52,3 +52,30 @@ test('cumul : ancien format (sans dayGain) déjà compté ce jour -> ignoré com
   const cumul = { A: { total: 10000, ig: 0, tt: 10000, yt: 0, lastUpdated: '2026-09-26' } };
   assert.equal(updateCumulativeViews(cumul, gain(800), [snap(1800)], '2026-09-26').A.total, 10000);
 });
+
+test('computeGrowth24h : hausse d\'IG_POSTS_LIMIT -> les vidéos révélées par la fenêtre élargie servent de point de départ (gain 0)', () => {
+  const post = (id, views) => ({ id, views });
+  const history = [
+    // Ancienne limite : 2 vidéos suivies.
+    { date: '2026-09-25', postsLimit: 2, accounts: [{ account: 'A', ig: null, tt: 300, yt: null, total: 300, errors: [], posts: { tt: [post('v1', 200), post('v2', 100)] } }] }
+  ];
+  // Nouvelle limite : 4 vidéos. v3/v4 existaient déjà (elles ne sont "nouvelles" que
+  // parce que la fenêtre s'est élargie), v1/v2 continuent leur progression normale.
+  const summary = [{ account: 'A', ig: null, tt: 900, yt: null, total: 900, errors: [], posts: { tt: [post('v1', 250), post('v2', 130), post('v3', 5000), post('v4', 3000)] } }];
+
+  const result = computeGrowth24h(history, summary, '2026-09-26');
+  // v1 +50, v2 +30 ; v3/v4 ignorées (index 2 et 3 >= ancienne limite 2).
+  assert.deepEqual(result.get('A'), { total: 80, ig: 0, tt: 80, yt: 0 });
+});
+
+test('computeGrowth24h : sans postsLimit enregistré sur la collecte de référence (anciennes données), comportement inchangé', () => {
+  const post = (id, views) => ({ id, views });
+  const history = [
+    { date: '2026-09-25', accounts: [{ account: 'A', ig: null, tt: 300, yt: null, total: 300, errors: [], posts: { tt: [post('v1', 200), post('v2', 100)] } }] }
+  ];
+  const summary = [{ account: 'A', ig: null, tt: 900, yt: null, total: 900, errors: [], posts: { tt: [post('v1', 250), post('v2', 130), post('v3', 5000)] } }];
+
+  const result = computeGrowth24h(history, summary, '2026-09-26');
+  // v3 comptée en entier, comme avant ce correctif (pas de postsLimit connu -> pas de garde-fou).
+  assert.deepEqual(result.get('A'), { total: 5080, ig: 0, tt: 5080, yt: 0 });
+});

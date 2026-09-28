@@ -96,7 +96,7 @@ client.once('clientReady', async () => {
       await sendOrEditSummary(channel, 'allTime', allTimeEmbed);
     }
 
-    const historyAfter = appendToday(historyBefore, summary, date);
+    const historyAfter = appendToday(historyBefore, summary, date, settings.postsLimit);
     await pushViewsToSupabase();
     await sendErrorReportToOwner(summary, settings.discordOwnerId);
     await sendStuckAlertToOwner(historyAfter, settings.discordOwnerId, settings.stuckAlertMinDays);

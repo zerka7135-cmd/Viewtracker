@@ -14,6 +14,7 @@ import { markScanStarted, markScanFinished } from './scanStatus.js';
 import { startServer } from './server.js';
 import { syncFromSupabase, isSyncConfigured } from './supabaseSync.js';
 import { pushViewsToSupabase, isViewsPushConfigured } from './supabaseViews.js';
+import { shouldAlertPushFailure, markPushAlertSent } from './pushStatus.js';
 import { syncAccountsFromApp, isAccountsSyncConfigured } from './accountsSync.js';
 
 validateConfig();
@@ -65,13 +66,14 @@ async function scrapeAndBroadcast(date = todayKey()) {
       await sendOrEditSummary(channel, 'allTime', allTimeEmbed);
     }
 
-    const historyAfter = appendToday(historyBefore, summary, date);
-    await pushViewsToSupabase();
+    const historyAfter = appendToday(historyBefore, summary, date, settings.postsLimit);
+    const pushResult = await pushViewsToSupabase();
     if (settings.notifWarnings) {
       await sendErrorReportToOwner(summary, settings.discordOwnerId);
       await sendStuckAlertToOwner(historyAfter, settings.discordOwnerId, settings.stuckAlertMinDays);
       await sendDecliningAlertToOwner(historyAfter, settings.discordOwnerId);
       await sendDataBackupToOwner(client, settings.discordOwnerId);
+      if (!pushResult.ok) await sendPushFailureAlertToOwner(pushResult, settings.discordOwnerId);
     }
     markScanFinished();
     return true;
@@ -121,6 +123,24 @@ async function sendErrorReportToOwner(summary, discordOwnerId) {
     await owner.send({ embeds: [errorEmbed] });
   } catch (error) {
     console.error('Erreur lors de l\'envoi du rapport d\'échecs en MP :', error);
+  }
+}
+
+// Contrairement aux échecs de scrape ci-dessus (rapportés à chaque collecte
+// en échec), un envoi vers l'app qui échoue est silencieux par défaut : les
+// vues restent correctes en local, seule l'app cesse de se mettre à jour.
+// Une seule alerte tant qu'aucun envoi n'a réussi entre-temps (voir
+// pushStatus.js#shouldAlertPushFailure) — pas un MP à chaque collecte tant
+// que la panne dure.
+async function sendPushFailureAlertToOwner(pushResult, discordOwnerId) {
+  if (!discordOwnerId || !shouldAlertPushFailure()) return;
+
+  try {
+    const owner = await client.users.fetch(discordOwnerId);
+    await owner.send(`⚠️ L'envoi des vues vers l'app échoue depuis plus de 24h.\nDernier message : ${pushResult.message}`);
+    markPushAlertSent();
+  } catch (error) {
+    console.error('Erreur lors de l\'envoi de l\'alerte de synchronisation en MP :', error);
   }
 }
 

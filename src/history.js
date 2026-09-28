@@ -43,12 +43,16 @@ export function loadHistory() {
  * @param {Array} summary Résumé du jour (retour de buildViewsSummary)
  * @returns {Array} l'historique mis à jour
  */
-export function appendToday(history, summary, date = todayKey()) {
+export function appendToday(history, summary, date = todayKey(), postsLimit = config.postsLimit) {
   const entry = {
     date,
     // Heure de fin du scraping : borne haute de l'instant où les vues ont été
     // relevées (sert à prouver l'âge d'une vidéo, voir supabaseViews.js).
     collectedAt: new Date().toISOString(),
+    // Nombre de posts suivis par plateforme à cette collecte (voir
+    // computeGrowth24h : sert à repérer une vidéo qui n'était pas hors
+    // d'atteinte, juste hors de l'ancienne fenêtre, si ce nombre augmente).
+    postsLimit,
     accounts: summary.map(item => ({
       account: item.account,
       ig: item.ig,
@@ -127,7 +131,7 @@ export function computeGrowth24h(history, summary, date = todayKey()) {
       if (typeof previous[key] !== 'number') continue; // "Ban"/non suivie ce jour-là
       const failed = (previous.errors || []).some(e => e.platform === platformName);
       if (failed) continue;
-      return previous;
+      return { item: previous, postsLimit: entry.postsLimit };
     }
     return null;
   };
@@ -151,7 +155,7 @@ export function computeGrowth24h(history, summary, date = todayKey()) {
     return null;
   };
 
-  const platformDelta = (currentPosts, previousPosts, currentTotal, previousTotal, account, key) => {
+  const platformDelta = (currentPosts, previousPosts, currentTotal, previousTotal, account, key, previousPostsLimit) => {
     const hasPreviousIds = Array.isArray(previousPosts) && previousPosts.length > 0;
     // Sans ID d'un côté ou de l'autre, impossible de savoir quelles vidéos
     // sont nouvelles : on compare les totaux bruts plutôt que de compter
@@ -165,10 +169,20 @@ export function computeGrowth24h(history, summary, date = todayKey()) {
     );
 
     let sum = 0;
-    for (const post of currentPosts) {
-      const previousViews = previousViewsById.get(post.id) ?? lastSeenViews(account, key, post.id);
-      sum += typeof previousViews === 'number' ? Math.max(0, post.views - previousViews) : post.views;
-    }
+    currentPosts.forEach((post, index) => {
+      const knownViews = previousViewsById.get(post.id) ?? lastSeenViews(account, key, post.id);
+      if (typeof knownViews === 'number') {
+        sum += Math.max(0, post.views - knownViews);
+        return;
+      }
+      // Vidéo jamais vue par le bot. Si elle apparaît au-delà de l'ancienne
+      // limite de suivi (IG_POSTS_LIMIT augmentée entre les deux collectes),
+      // elle existait peut-être déjà avant, juste hors de la fenêtre
+      // scrapée à l'époque : elle sert de point de départ (gain 0) plutôt
+      // que de créditer toutes ses vues d'un coup au jour de la bascule.
+      if (typeof previousPostsLimit === 'number' && index >= previousPostsLimit) return;
+      sum += post.views;
+    });
     return sum;
   };
 
@@ -181,7 +195,7 @@ export function computeGrowth24h(history, summary, date = todayKey()) {
     const delta = (key, platformName) => {
       const previous = findBaseline(item.account, key, platformName);
       if (!previous) return 0;
-      return platformDelta(item.posts?.[key], previous.posts?.[key], item[key], previous[key], item.account, key);
+      return platformDelta(item.posts?.[key], previous.item.posts?.[key], item[key], previous.item[key], item.account, key, previous.postsLimit);
     };
 
     const ig = delta('ig', 'Instagram');
