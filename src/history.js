@@ -46,6 +46,9 @@ export function loadHistory() {
 export function appendToday(history, summary, date = todayKey()) {
   const entry = {
     date,
+    // Heure de fin du scraping : borne haute de l'instant où les vues ont été
+    // relevées (sert à prouver l'âge d'une vidéo, voir supabaseViews.js).
+    collectedAt: new Date().toISOString(),
     accounts: summary.map(item => ({
       account: item.account,
       ig: item.ig,

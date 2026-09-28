@@ -342,6 +342,11 @@ et ces lignes portent `estimated: true`.
 Le bot envoie aussi `post_views` : les vues de chaque publication suivie
 (2 dernières par plateforme) à chaque collecte, avec son lien et sa date de
 publication (TikTok/Instagram), pour la détection des wins dans l'app.
+Chaque relevé porte aussi `observed_at` (heure de la collecte, `collectedAt`
+dans l'historique) et `max_age_hours`, l'âge maximum *prouvé* de la vidéo à ce
+moment (TikTok/Instagram : depuis la publication ; YouTube : depuis la
+collecte réussie précédant sa première apparition ; sinon null). Règle des
+wins : 75 000 vues en 24 h maximum, prouvées.
 
 ### Comptes suivis gérés depuis l'app Lovable
 

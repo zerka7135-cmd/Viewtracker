@@ -182,14 +182,49 @@ export function postUrl(platform, id, urls) {
   return user ? `https://www.tiktok.com/@${user}/video/${id}` : null;
 }
 
+const HOUR_MS = 60 * 60 * 1000;
+const NAMES = { ig: 'Instagram', tt: 'TikTok', yt: 'YouTube' };
+
+/** La plateforme a-t-elle été relevée avec succès pour ce compte à cette collecte ? */
+function scraped(entryAccount, platform) {
+  return Boolean(entryAccount)
+    && (entryAccount.posts?.[platform] || []).length > 0
+    && !(entryAccount.errors || []).some((e) => e.platform === NAMES[platform]);
+}
+
+/**
+ * Âge maximum prouvé (heures) d'une publication au moment d'un relevé, null
+ * si rien ne le prouve :
+ *  - TikTok / Instagram : heure du relevé − date de publication (lue dans l'identifiant) ;
+ *  - YouTube : heure du relevé − heure de la collecte réussie qui précède sa
+ *    première apparition (elle n'était pas encore parmi les dernières vidéos).
+ * Les collectes enregistrées avant l'ajout de collectedAt ne prouvent rien.
+ */
+function maxAgeHours(history, index, account, platform, postId) {
+  const observed = Date.parse(history[index].collectedAt || '');
+  if (!Number.isFinite(observed)) return null;
+
+  let since = publishedMs(platform, postId);
+  if (!since) {
+    const first = history.findIndex((e) => (e.accounts.find((a) => a.account === account)?.posts?.[platform] || []).some((p) => String(p.id) === String(postId)));
+    const before = first > 0 ? history[first - 1] : null;
+    const beforeAt = Date.parse(before?.collectedAt || '');
+    if (!before || !Number.isFinite(beforeAt) || !scraped(before.accounts.find((a) => a.account === account), platform)) return null;
+    since = beforeAt;
+  }
+  return Math.max(0, Math.ceil(((observed - since) / HOUR_MS) * 100) / 100);
+}
+
 /**
  * Lignes post_views : vues de chaque publication suivie, à chaque collecte
- * (les 2 dernières par plateforme, voir IG_POSTS_LIMIT).
+ * (les 2 dernières par plateforme, voir IG_POSTS_LIMIT), avec l'heure du
+ * relevé et l'âge maximum prouvé de la publication (règle des wins : 75k en
+ * 24 h maximum).
  */
 export function buildPostViewsRows(history, accounts = []) {
   const urlsByName = new Map(accounts.map((a) => [a.name, a.urls || []]));
   const rows = [];
-  for (const entry of history) {
+  history.forEach((entry, index) => {
     for (const a of entry.accounts) {
       for (const platform of ['ig', 'tt', 'yt']) {
         for (const post of a.posts?.[platform] || []) {
@@ -203,12 +238,14 @@ export function buildPostViewsRows(history, accounts = []) {
             url,
             day: entry.date,
             views: post.views,
-            published_at: ms ? new Date(ms).toISOString() : null
+            published_at: ms ? new Date(ms).toISOString() : null,
+            observed_at: entry.collectedAt || null,
+            max_age_hours: maxAgeHours(history, index, a.account, platform, post.id)
           });
         }
       }
     }
-  }
+  });
   return rows;
 }
 

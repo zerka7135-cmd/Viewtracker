@@ -137,7 +137,30 @@ test('publications : une ligne par publication et par collecte, avec lien et dat
   assert.equal(rows.length, 3); // le TikTok du compte inconnu (sans pseudo) est ignoré
   assert.deepEqual(rows.find((r) => r.day === '2026-09-27'), {
     account_name: 'protow', platform: 'tt', post_id: ttId, url: `https://www.tiktok.com/@keo.wxc/video/${ttId}`,
-    day: '2026-09-27', views: 80000, published_at: '2026-09-20T12:00:00.000Z'
+    day: '2026-09-27', views: 80000, published_at: '2026-09-20T12:00:00.000Z', observed_at: null, max_age_hours: null
   });
   assert.equal(rows.find((r) => r.platform === 'yt').published_at, null);
+});
+
+test('âge prouvé : TikTok/Instagram par la date de publication, YouTube par la collecte précédente, sinon null', async () => {
+  const { buildPostViewsRows } = await import('../src/supabaseViews.js');
+  const ttId = (BigInt(Date.parse('2026-09-28T20:00:00Z') / 1000) << 32n).toString();
+  const urls = ['', 'https://www.tiktok.com/@keo.wxc', 'https://www.youtube.com/@keowxc'];
+  const acc = (posts, errors = []) => [{ account: 'protow', errors, posts }];
+  const h = [
+    { date: '2026-09-27', accounts: acc({ yt: [{ id: 'ancienne', views: 10 }] }) }, // sans heure de collecte
+    { date: '2026-09-28', collectedAt: '2026-09-28T21:00:00Z', accounts: acc({ yt: [{ id: 'ancienne', views: 20 }] }) },
+    { date: '2026-09-29', collectedAt: '2026-09-29T21:30:00Z', accounts: acc({ tt: [{ id: ttId, views: 90000 }], yt: [{ id: 'nouvelle', views: 80000 }, { id: 'ancienne', views: 30 }] }) }
+  ];
+  const rows = buildPostViewsRows(h, [{ name: 'protow', urls }]);
+  const get = (day, id) => rows.find((r) => r.day === day && r.post_id === id);
+  assert.equal(get('2026-09-29', ttId).max_age_hours, 25.5); // 20:00 -> 21:30 le lendemain
+  assert.equal(get('2026-09-29', ttId).observed_at, '2026-09-29T21:30:00Z');
+  assert.equal(get('2026-09-29', 'nouvelle').max_age_hours, 24.5); // absente de la collecte du 28 à 21:00
+  assert.equal(get('2026-09-28', 'ancienne').max_age_hours, null); // la collecte d'avant n'a pas d'heure
+  assert.equal(get('2026-09-27', 'ancienne').max_age_hours, null);
+
+  // Collecte précédente en échec sur YouTube : aucune preuve.
+  h[1].accounts[0].errors = [{ platform: 'YouTube', message: 'x' }];
+  assert.equal(buildPostViewsRows(h, [{ name: 'protow', urls }]).find((r) => r.post_id === 'nouvelle').max_age_hours, null);
 });
