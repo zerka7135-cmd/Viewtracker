@@ -339,14 +339,18 @@ sont espacées de plus d'un jour, le gain rattrapé est réparti sur les jours d
 trou (selon la date de publication des vidéos, lue dans les identifiants
 TikTok/Instagram ; YouTube suit le rythme des vidéos datées du même compte)
 et ces lignes portent `estimated: true`.
-Le bot envoie aussi `post_views` : les vues de chaque publication suivie
-(2 dernières par plateforme) à chaque collecte, avec son lien et sa date de
-publication (TikTok/Instagram), pour la détection des wins dans l'app.
-Chaque relevé porte aussi `observed_at` (heure de la collecte, `collectedAt`
-dans l'historique) et `max_age_hours`, l'âge maximum *prouvé* de la vidéo à ce
-moment (TikTok/Instagram : depuis la publication ; YouTube : depuis la
-collecte réussie précédant sa première apparition ; sinon null). Règle des
-wins : 75 000 vues en 24 h maximum, prouvées.
+Le bot envoie aussi `post_views` : les vues de chaque publication *repérée*
+à chaque collecte (jusqu'à `PUBLICATIONS_SCAN_LIMIT`, 12 par défaut — plus
+large que les 2 suivies pour la croissance/le cumul, `IG_POSTS_LIMIT` — pour
+donner à la détection des wins plus de chances de voir une vidéo avant
+qu'elle ne soit remplacée), avec son lien et sa date de publication
+(TikTok/Instagram). Chaque relevé porte aussi `observed_at` (heure de la
+collecte, `collectedAt` dans l'historique) et `max_age_hours`, l'âge maximum
+*prouvé* de la vidéo à ce moment (TikTok/Instagram : depuis la publication ;
+YouTube : depuis la collecte réussie précédant sa première apparition ;
+sinon null). **Règle des wins, appliquée côté app (fonction `wins()`) : une
+publication n'est un win que si elle dépasse 75 000 vues avec un âge maximum
+prouvé de 24 h ou moins — jamais au-delà, et jamais sans preuve.**
 
 L'envoi réessaie jusqu'à 3 fois (attente croissante) sur une erreur réseau,
 un délai dépassé ou une erreur 5xx/429 ; une erreur 4xx (secret invalide,

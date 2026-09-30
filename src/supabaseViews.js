@@ -197,10 +197,17 @@ export function postUrl(platform, id, urls) {
 const HOUR_MS = 60 * 60 * 1000;
 const NAMES = { ig: 'Instagram', tt: 'TikTok', yt: 'YouTube' };
 
+// `seenPosts` (fenêtre large, voir config.js#publicationsScanLimit) est un
+// sur-ensemble de `posts` (fenêtre suivie pour la croissance/le cumul,
+// IG_POSTS_LIMIT) : on s'en sert ici pour élargir la détection des wins à
+// plus de vidéos, avec repli sur `posts` pour les collectes enregistrées
+// avant l'ajout de `seenPosts`.
+const scannedPosts = (entryAccount, platform) => entryAccount?.seenPosts?.[platform] || entryAccount?.posts?.[platform] || [];
+
 /** La plateforme a-t-elle été relevée avec succès pour ce compte à cette collecte ? */
 function scraped(entryAccount, platform) {
   return Boolean(entryAccount)
-    && (entryAccount.posts?.[platform] || []).length > 0
+    && scannedPosts(entryAccount, platform).length > 0
     && !(entryAccount.errors || []).some((e) => e.platform === NAMES[platform]);
 }
 
@@ -218,7 +225,7 @@ function maxAgeHours(history, index, account, platform, postId) {
 
   let since = publishedMs(platform, postId);
   if (!since) {
-    const first = history.findIndex((e) => (e.accounts.find((a) => a.account === account)?.posts?.[platform] || []).some((p) => String(p.id) === String(postId)));
+    const first = history.findIndex((e) => scannedPosts(e.accounts.find((a) => a.account === account), platform).some((p) => String(p.id) === String(postId)));
     const before = first > 0 ? history[first - 1] : null;
     const beforeAt = Date.parse(before?.collectedAt || '');
     if (!before || !Number.isFinite(beforeAt) || !scraped(before.accounts.find((a) => a.account === account), platform)) return null;
@@ -228,10 +235,12 @@ function maxAgeHours(history, index, account, platform, postId) {
 }
 
 /**
- * Lignes post_views : vues de chaque publication suivie, à chaque collecte
- * (les 2 dernières par plateforme, voir IG_POSTS_LIMIT), avec l'heure du
- * relevé et l'âge maximum prouvé de la publication (règle des wins : 75k en
- * 24 h maximum).
+ * Lignes post_views : vues de chaque publication repérée à chaque collecte
+ * (jusqu'à PUBLICATIONS_SCAN_LIMIT par plateforme — plus large que les 2
+ * suivies pour la croissance/le cumul, IG_POSTS_LIMIT — pour donner à la
+ * détection des wins plus de chances de voir une vidéo avant qu'elle ne
+ * soit remplacée), avec l'heure du relevé et l'âge maximum prouvé de la
+ * publication (règle des wins : 75k en 24 h maximum).
  */
 export function buildPostViewsRows(history, accounts = []) {
   const urlsByName = new Map(accounts.map((a) => [a.name, a.urls || []]));
@@ -239,7 +248,7 @@ export function buildPostViewsRows(history, accounts = []) {
   history.forEach((entry, index) => {
     for (const a of entry.accounts) {
       for (const platform of ['ig', 'tt', 'yt']) {
-        for (const post of a.posts?.[platform] || []) {
+        for (const post of scannedPosts(a, platform)) {
           const url = postUrl(platform, post.id, urlsByName.get(a.account));
           if (!url) continue;
           const ms = publishedMs(platform, post.id);

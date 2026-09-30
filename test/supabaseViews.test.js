@@ -165,3 +165,37 @@ test('âge prouvé : TikTok/Instagram par la date de publication, YouTube par la
   h[1].accounts[0].errors = [{ platform: 'YouTube', message: 'x' }];
   assert.equal(buildPostViewsRows(h, [{ name: 'protow', urls }]).find((r) => r.post_id === 'nouvelle').max_age_hours, null);
 });
+
+test('détection des wins élargie : une vidéo au-delà des 2 suivies pour la croissance (présente seulement dans seenPosts) est quand même envoyée', async () => {
+  const { buildPostViewsRows } = await import('../src/supabaseViews.js');
+  const urls = ['', 'https://www.tiktok.com/@keo.wxc', ''];
+  const ttId1 = (BigInt(Date.parse('2026-09-28T10:00:00Z') / 1000) << 32n).toString(); // suivie (posts)
+  const ttId2 = (BigInt(Date.parse('2026-09-28T10:00:00Z') / 1000) << 32n).toString() + '1'; // au-delà (seenPosts seulement)
+  const acc = (posts, seenPosts) => [{ account: 'protow', errors: [], posts, seenPosts }];
+  const h = [
+    {
+      date: '2026-09-29',
+      collectedAt: '2026-09-29T20:00:00Z',
+      accounts: acc(
+        { tt: [{ id: ttId1, views: 50000 }] }, // posts : seulement la 1re, comme IG_POSTS_LIMIT=2 le ferait (ici 1 pour l'exemple)
+        { tt: [{ id: ttId1, views: 50000 }, { id: ttId2, views: 90000 }] } // seenPosts : les deux
+      )
+    }
+  ];
+  const rows = buildPostViewsRows(h, [{ name: 'protow', urls }]);
+  assert.equal(rows.length, 2);
+  const beyond = rows.find((r) => r.post_id === ttId2);
+  assert.ok(beyond, 'la vidéo au-delà de la fenêtre suivie doit quand même apparaître dans post_views');
+  assert.equal(beyond.views, 90000); // >= seuil de win, détectable alors qu'elle n'est pas dans `posts`
+  assert.ok(beyond.max_age_hours <= 24);
+});
+
+test('compatibilité : une collecte enregistrée avant l\'ajout de seenPosts (absent) retombe sur posts, comportement inchangé', async () => {
+  const { buildPostViewsRows } = await import('../src/supabaseViews.js');
+  const urls = ['', 'https://www.tiktok.com/@keo.wxc', ''];
+  const ttId = (BigInt(Date.parse('2026-09-20T10:00:00Z') / 1000) << 32n).toString();
+  const h = [{ date: '2026-09-21', collectedAt: '2026-09-21T20:00:00Z', accounts: [{ account: 'protow', errors: [], posts: { tt: [{ id: ttId, views: 1000 }] } }] }];
+  const rows = buildPostViewsRows(h, [{ name: 'protow', urls }]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].views, 1000);
+});

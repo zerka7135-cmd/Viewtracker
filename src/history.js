@@ -63,7 +63,13 @@ export function appendToday(history, summary, date = todayKey(), postsLimit = co
       // Détail par vidéo (id -> vues), pour comparer les mêmes vidéos d'un
       // jour à l'autre plutôt que la somme brute d'une fenêtre glissante —
       // voir computeGrowth24h ci-dessous.
-      posts: item.posts || null
+      posts: item.posts || null,
+      // Fenêtre plus large de publications juste repérées (id + vues, voir
+      // config.js#publicationsScanLimit) — sur-ensemble de `posts` ci-dessus,
+      // utilisée uniquement pour la détection des wins (voir
+      // supabaseViews.js#buildPostViewsRows), jamais pour la croissance/le
+      // cumul (qui ne lisent que `posts`).
+      seenPosts: item.seenPosts || null
     }))
   };
 
