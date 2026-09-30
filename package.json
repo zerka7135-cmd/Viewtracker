@@ -14,7 +14,8 @@
     "dev:web": "npm run dev --prefix web",
     "test": "node --test",
     "accounts-sync": "node scripts/accounts-sync.js",
-    "rebuild-cumulative": "node scripts/rebuild-cumulative.js"
+    "rebuild-cumulative": "node scripts/rebuild-cumulative.js",
+    "publications-report": "node scripts/publications-report.js"
   },
   "dependencies": {
     "discord.js": "^14.16.3",

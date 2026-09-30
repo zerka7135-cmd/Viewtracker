@@ -6,6 +6,7 @@ import { acquireLock, releaseLock } from '../src/cache.js';
 import { pushViewsToSupabase } from '../src/supabaseViews.js';
 import { syncAccountsFromApp, isAccountsSyncConfigured } from '../src/accountsSync.js';
 import { loadHistory, appendToday, computeGrowth24h, todayKey, detectStuckAccounts } from '../src/history.js';
+import { recordSeenPublications } from '../src/publicationsLog.js';
 import { loadLastMessage, saveLastMessage } from '../src/lastMessage.js';
 import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from '../src/cumulativeViews.js';
 import { sendDataBackupToOwner } from '../src/backup.js';
@@ -82,6 +83,7 @@ client.once('clientReady', async () => {
 
     const historyBefore = loadHistory();
     const date = todayKey();
+    recordSeenPublications(summary, date);
     const growth24h = computeGrowth24h(historyBefore, summary, date);
 
     const cumulativeBefore = loadCumulativeViews();

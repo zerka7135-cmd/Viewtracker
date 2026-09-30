@@ -40,6 +40,16 @@ export const config = {
   // Nombre de publications les plus récentes prises en compte pour le total
   // de vues, sur les 3 plateformes (IG/TikTok/YouTube).
   postsLimit: Number(process.env.IG_POSTS_LIMIT) || 5,
+  // Nombre de publications les plus récentes juste *repérées* (identifiant +
+  // date si connue), sans suivi de leurs vues — décorrélé de postsLimit,
+  // uniquement pour compter fiablement le rythme de publication (voir
+  // publicationsLog.js). La page/réponse chargée contient déjà largement
+  // plus que postsLimit publications ; les lire toutes ne coûte aucune
+  // requête supplémentaire. Doit rester >= postsLimit.
+  publicationsScanLimit: Math.max(
+    Number(process.env.PUBLICATIONS_SCAN_LIMIT) || 12,
+    Number(process.env.IG_POSTS_LIMIT) || 5
+  ),
   // Nombre de collectes consécutives en échec sur un compte/plateforme
   // avant d'alerter le propriétaire (cookie expiré, sélecteur DOM cassé...).
   stuckAlertMinDays: Number(process.env.STUCK_ALERT_MIN_DAYS) || 3,

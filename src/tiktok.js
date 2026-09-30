@@ -53,15 +53,18 @@ export function parseTikTokEntries(stdout, limit) {
  * Même contrat de retour que les autres plateformes de instagram.js
  * (`{ total, posts }`), pour scrapeWithRetry.
  * @param {string} profileUrl ex. https://www.tiktok.com/@compte
- * @param {number} limit Nombre de vidéos récentes à compter
- * @returns {Promise<{total: number, posts: Array<{id: string, views: number}>}>}
+ * @param {number} limit Nombre de vidéos récentes dont les vues sont suivies (croissance/cumul/wins)
+ * @param {number} [scanLimit] Nombre de vidéos juste repérées (voir extractInstagramViews) ;
+ *   un seul appel yt-dlp couvre les deux — demander plus de vidéos ne coûte pas d'appel de plus.
+ * @returns {Promise<{total: number, posts: Array<{id: string, views: number}>, seenPosts: Array<{id: string, views: number}>}>}
  */
-export async function fetchTikTokPosts(profileUrl, limit) {
+export async function fetchTikTokPosts(profileUrl, limit, scanLimit = limit) {
+  const wantLimit = Math.max(limit, scanLimit);
   let stdout;
   try {
     ({ stdout } = await execFileAsync(
       YTDLP_PATH,
-      ['--flat-playlist', '--playlist-end', String(limit + PINNED_MARGIN), '-j', '--no-warnings', profileUrl],
+      ['--flat-playlist', '--playlist-end', String(wantLimit + PINNED_MARGIN), '-j', '--no-warnings', profileUrl],
       { timeout: TIMEOUT_MS, maxBuffer: 20 * 1024 * 1024 }
     ));
   } catch (e) {
@@ -71,13 +74,15 @@ export async function fetchTikTokPosts(profileUrl, limit) {
     throw new Error(`yt-dlp : ${detail ? detail.replace(/^\s*(ERROR|WARNING):\s*/, '') : e.message}`);
   }
 
-  const videos = parseTikTokEntries(stdout, limit);
-  if (videos.length === 0) {
+  const scanned = parseTikTokEntries(stdout, wantLimit);
+  if (scanned.length === 0) {
     throw new Error(`yt-dlp n'a renvoyé aucune vidéo pour ${profileUrl}`);
   }
 
+  const videos = scanned.slice(0, limit);
   return {
     total: videos.reduce((sum, v) => sum + v.views, 0),
-    posts: videos.map(v => ({ id: v.id, views: v.views }))
+    posts: videos.map(v => ({ id: v.id, views: v.views })),
+    seenPosts: scanned.slice(0, scanLimit).map(v => ({ id: v.id, views: v.views }))
   };
 }

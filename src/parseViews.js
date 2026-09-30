@@ -76,33 +76,45 @@ export function parseAllViewsText(text) {
  * @param {{grid: Array<{href: string, text: string}>, playCounts: number[], bodyText: string}} raw
  * @returns {{total: number, counted: Array}}
  */
-export function extractInstagramViews(raw, postsLimit) {
-  let counted = [];
+/**
+ * @param {number} postsLimit Nombre de publications dont les vues sont suivies (croissance/cumul/wins).
+ * @param {number} [scanLimit] Nombre de publications juste repérées, pour compter le rythme de
+ *   publication (voir publicationsLog.js) — `scanned` est un sur-ensemble de `counted`, sans coût
+ *   supplémentaire : la grille chargée contient déjà ces entrées.
+ */
+export function extractInstagramViews(raw, postsLimit, scanLimit = postsLimit) {
+  let scanned = [];
 
   // 1. Grille des reels (seule voie qui fournit un href, donc un ID).
   for (const { href, text } of raw.grid || []) {
     const val = parseCount(text);
     if (val === null) continue;
-    counted.push({ href, text, val });
-    if (counted.length === postsLimit) break;
+    scanned.push({ href, text, val });
+    if (scanned.length === scanLimit) break;
   }
 
-  // 2. Fallback : play_count du JSON GraphQL.
+  let counted = scanned.slice(0, postsLimit);
+
+  // 2. Fallback : play_count du JSON GraphQL. Aucun href/ID exploitable ici,
+  // donc pas de comptage de publications fiable possible pour ce compte ce
+  // jour-là (scanned retombe sur counted).
   if (sumOf(counted) === 0) {
     counted = (raw.playCounts || [])
       .filter(val => Number.isFinite(val) && val > 0)
       .slice(0, postsLimit)
       .map(val => ({ source: 'play_count', val }));
+    scanned = counted;
   }
 
-  // 3. Fallback : recherche textuelle globale.
+  // 3. Fallback : recherche textuelle globale. Même limite : pas d'ID.
   if (sumOf(counted) === 0) {
     counted = parseAllViewsText(raw.bodyText)
       .slice(0, postsLimit)
       .map(val => ({ source: 'texte global', val }));
+    scanned = counted;
   }
 
-  return { total: sumOf(counted), counted };
+  return { total: sumOf(counted), counted, scanned };
 }
 
 /**
@@ -111,26 +123,35 @@ export function extractInstagramViews(raw, postsLimit) {
  * @param {{items: Array<{href: string|null, text: string}>, spans: string[]}} raw
  * @returns {{total: number, counted: Array}}
  */
-export function extractYouTubeViews(raw, postsLimit) {
-  let counted = [];
+/**
+ * @param {number} postsLimit Nombre de publications dont les vues sont suivies.
+ * @param {number} [scanLimit] Nombre de publications juste repérées (voir extractInstagramViews).
+ */
+export function extractYouTubeViews(raw, postsLimit, scanLimit = postsLimit) {
+  let scanned = [];
 
   for (const { href, text } of raw.items || []) {
     const val = parseViewsText(text);
     if (val <= 0) continue;
-    counted.push({ href, val });
-    if (counted.length === postsLimit) break;
+    scanned.push({ href, val });
+    if (scanned.length === scanLimit) break;
   }
 
+  let counted = scanned.slice(0, postsLimit);
+
+  // Fallback texte (spans) : pas de href/ID, donc pas d'extension possible.
   if (counted.length === 0) {
+    counted = [];
     for (const text of raw.spans || []) {
       const val = parseViewsText(text);
       if (val <= 0) continue;
       counted.push({ href: null, val });
       if (counted.length === postsLimit) break;
     }
+    scanned = counted;
   }
 
-  return { total: sumOf(counted), counted };
+  return { total: sumOf(counted), counted, scanned };
 }
 
 function sumOf(counted) {

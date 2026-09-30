@@ -379,6 +379,29 @@ du dashboard ViewTracker sont écrasées au passage suivant.
 Avant d'activer : `npm run accounts-sync` affiche les changements prévus sans
 rien appliquer (adresse déduite de `VIEWS_INGEST_URL`).
 
+### Journal des publications (fiabilité du « nombre de posts par jour »)
+
+Le suivi des vues (`IG_POSTS_LIMIT`, 2 par défaut) ne garde que les 2
+dernières publications par plateforme : une publication remplacée avant la
+collecte suivante n'apparaît jamais nulle part, ce qui rendait tout comptage
+« publications par jour » peu fiable (jusqu'à 41 % des jours où les 2 places
+suivies changent en même temps, signe qu'il pourrait y en avoir eu plus —
+voir [`docs/audit-viewtracker.md`](docs/audit-viewtracker.md)).
+
+À chaque collecte, en plus des 2 vidéos suivies pour les vues, le bot repère
+jusqu'à `PUBLICATIONS_SCAN_LIMIT` (12 par défaut) publications par plateforme
+— la page/réponse déjà chargée en contient largement plus que 2, donc aucune
+requête supplémentaire. Chaque publication jamais vue jusqu'ici est
+enregistrée une seule fois dans `data/publications-log.json`, avec sa vraie
+date de publication (TikTok/Instagram, décodée de l'identifiant) ou, à
+défaut (YouTube), le jour où le bot l'a vue pour la première fois.
+
+Ce journal est totalement décorrélé du suivi des vues (`posts`,
+`IG_POSTS_LIMIT`) : il ne touche ni la croissance, ni le cumul all-time, ni
+les wins. `npm run publications-report` (options `--account=`, `--from=`,
+`--to=`) affiche le nombre de publications par jour — fiable comme *minimum*
+pour TikTok/Instagram, approximatif pour YouTube.
+
 ## 7. Alertes et sauvegarde (MP à `DISCORD_OWNER_ID`)
 
 Si `DISCORD_OWNER_ID` est renseigné, l'admin reçoit en MP, après chaque

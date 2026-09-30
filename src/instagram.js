@@ -172,7 +172,9 @@ async function scrapeWithRetry(platform, scrapeFn, attempts = 2) {
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
       const result = await scrapeFn();
-      if (result.total > 0) return { total: result.total, posts: result.posts || [], error: null };
+      if (result.total > 0) {
+        return { total: result.total, posts: result.posts || [], seenPosts: result.seenPosts || result.posts || [], error: null };
+      }
       lastMessage = 'Aucune vue détectée (page inattendue ou sélecteurs obsolètes)';
     } catch (e) {
       console.error(`Erreur ${platform} (tentative ${attempt}/${attempts}) :`, e.message);
@@ -188,7 +190,7 @@ async function scrapeWithRetry(platform, scrapeFn, attempts = 2) {
     }
   }
 
-  return { total: 0, posts: [], error: lastMessage };
+  return { total: 0, posts: [], seenPosts: [], error: lastMessage };
 }
 
 // Extrait l'identifiant unique d'une vidéo depuis son URL (ex. l'ID du reel
@@ -203,7 +205,7 @@ function extractIdFromHref(href, pattern) {
   return match ? match[1] : null;
 }
 
-export async function buildViewsSummary(accounts = config.accounts, postsLimit = config.postsLimit) {
+export async function buildViewsSummary(accounts = config.accounts, postsLimit = config.postsLimit, scanLimit = config.publicationsScanLimit) {
   const summary = [];
   const browser = await chromium.launch({
     headless: true,
@@ -238,6 +240,12 @@ export async function buildViewsSummary(accounts = config.accounts, postsLimit =
       let igPosts = null;
       let ttPosts = null;
       let ytPosts = null;
+      // Publications juste repérées (jusqu'à scanLimit), pour compter le
+      // rythme de publication — voir publicationsLog.js. Sur-ensemble de
+      // *Posts ci-dessus, sans coût de requête supplémentaire.
+      let igSeenPosts = null;
+      let ttSeenPosts = null;
+      let ytSeenPosts = null;
       const errors = []; // Trace des échecs de scraping pour ce compte (visible dans le résumé)
 
       // Pause plus marquée entre deux comptes qu'entre deux requêtes d'un
@@ -350,7 +358,7 @@ export async function buildViewsSummary(accounts = config.accounts, postsLimit =
                 return { grid, playCounts, bodyText: document.body.innerText };
               });
 
-              const result = extractInstagramViews(raw, postsLimit);
+              const result = extractInstagramViews(raw, postsLimit, scanLimit);
 
               if (DEBUG_SCRAPE) console.log(`[IG debug] ${url} → total=${result.total} :`, JSON.stringify(result.counted));
 
@@ -359,11 +367,13 @@ export async function buildViewsSummary(accounts = config.accounts, postsLimit =
               // les fallbacks 2/3 n'ont aucun identifiant fiable et sont donc
               // absents de `posts`, ce qui fait retomber history.js sur
               // l'ancien calcul par total brut pour ce compte/ce jour-là.
-              const posts = result.counted
+              const extractId = (list) => list
                 .map(c => ({ id: extractIdFromHref(c.href, /\/reel\/([^/?]+)/), views: c.val }))
                 .filter(p => p.id);
+              const posts = extractId(result.counted);
+              const seenPosts = extractId(result.scanned);
 
-              return { total: result.total, posts };
+              return { total: result.total, posts, seenPosts };
             } finally {
               await igContext.close().catch(() => {});
             }
@@ -371,12 +381,13 @@ export async function buildViewsSummary(accounts = config.accounts, postsLimit =
 
           igTotal = total;
           igPosts = posts;
+          igSeenPosts = seenPosts;
           if (error) errors.push({ platform: 'Instagram', message: error });
         }
 
         // --- TIKTOK ---
         else if (url.includes('tiktok.com')) {
-          const { total, posts, error } = await scrapeWithRetry('TikTok', async () => {
+          const { total, posts, seenPosts, error } = await scrapeWithRetry('TikTok', async () => {
             // TikTok bloque Playwright derrière un captcha slider (testé le
             // 08/08/2026), et l'ancien fournisseur d'API tiers (tiktokapi.store)
             // a disparu en septembre 2026 : yt-dlp liste les dernières vidéos
@@ -387,7 +398,7 @@ export async function buildViewsSummary(accounts = config.accounts, postsLimit =
             // ressemblent à une rafale automatisée.
             await randomDelay(3000, 8000);
 
-            const result = await fetchTikTokPosts(url, postsLimit);
+            const result = await fetchTikTokPosts(url, postsLimit, scanLimit);
 
             if (DEBUG_SCRAPE) console.log(`[TikTok debug] ${url} → total=${result.total} :`, JSON.stringify(result.posts));
 
@@ -396,6 +407,7 @@ export async function buildViewsSummary(accounts = config.accounts, postsLimit =
 
           ttTotal = total;
           ttPosts = posts;
+          ttSeenPosts = seenPosts;
           if (error) errors.push({ platform: 'TikTok', message: error });
         }
 
@@ -479,15 +491,17 @@ export async function buildViewsSummary(accounts = config.accounts, postsLimit =
                 return { items, spans };
               });
 
-              const result = extractYouTubeViews(raw, postsLimit);
+              const result = extractYouTubeViews(raw, postsLimit, scanLimit);
 
               if (DEBUG_SCRAPE) console.log(`[YT debug] ${url} → total=${result.total} :`, JSON.stringify(result.counted));
 
-              const posts = result.counted
+              const extractId = (list) => list
                 .map(c => ({ id: extractIdFromHref(c.href, /\/shorts\/([^/?]+)/), views: c.val }))
                 .filter(p => p.id);
+              const posts = extractId(result.counted);
+              const seenPosts = extractId(result.scanned);
 
-              return { total: result.total, posts };
+              return { total: result.total, posts, seenPosts };
             } finally {
               await ytContext.close().catch(() => {});
             }
@@ -495,6 +509,7 @@ export async function buildViewsSummary(accounts = config.accounts, postsLimit =
 
           ytTotal = total;
           ytPosts = posts;
+          ytSeenPosts = seenPosts;
           if (error) errors.push({ platform: 'YouTube', message: error });
         }
       }
@@ -506,7 +521,8 @@ export async function buildViewsSummary(accounts = config.accounts, postsLimit =
         yt: ytTotal,
         total: (igTotal || 0) + (ttTotal || 0) + (ytTotal || 0),
         errors,
-        posts: { ig: igPosts, tt: ttPosts, yt: ytPosts }
+        posts: { ig: igPosts, tt: ttPosts, yt: ytPosts },
+        seenPosts: { ig: igSeenPosts, tt: ttSeenPosts, yt: ytSeenPosts }
       });
     }
 

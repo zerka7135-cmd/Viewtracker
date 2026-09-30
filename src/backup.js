@@ -6,6 +6,7 @@ import { LAST_MESSAGE_PATH } from './lastMessage.js';
 import { ACCOUNTS_PATH } from './accountsStore.js';
 import { SETTINGS_PATH } from './settingsStore.js';
 import { CLICKS_DB_PATH } from './clicksStore.js';
+import { PUBLICATIONS_LOG_PATH } from './publicationsLog.js';
 
 // Le volume Railway (/data) n'est pas sauvegardé automatiquement par la
 // plateforme : une suppression accidentelle du volume, ou un fichier
@@ -23,7 +24,8 @@ const BACKUP_FILES = [
   { path: LAST_MESSAGE_PATH, name: 'last-message.json' },
   { path: ACCOUNTS_PATH, name: 'accounts.json' },
   { path: SETTINGS_PATH, name: 'settings.json' },
-  { path: CLICKS_DB_PATH, name: 'clicks.db' }
+  { path: CLICKS_DB_PATH, name: 'clicks.db' },
+  { path: PUBLICATIONS_LOG_PATH, name: 'publications-log.json' }
 ];
 
 /**

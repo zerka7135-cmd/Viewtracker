@@ -3,6 +3,7 @@ import { acquireLock, releaseLock } from './cache.js';
 import { pushViewsToSupabase } from './supabaseViews.js';
 import { syncAccountsFromApp, isAccountsSyncConfigured } from './accountsSync.js';
 import { loadHistory, appendToday, computeGrowth24h, todayKey, detectStuckAccounts, detectDecliningAccounts } from './history.js';
+import { recordSeenPublications } from './publicationsLog.js';
 import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from './cumulativeViews.js';
 import { loadAccounts } from './accountsStore.js';
 import { loadSettings } from './settingsStore.js';
@@ -24,6 +25,7 @@ import { loadSettings } from './settingsStore.js';
 
     const historyBefore = loadHistory();
     const date = todayKey();
+    recordSeenPublications(summary, date);
     const growth24h = computeGrowth24h(historyBefore, summary, date);
 
     const cumulativeBefore = loadCumulativeViews();

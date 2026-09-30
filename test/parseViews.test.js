@@ -40,6 +40,19 @@ test('extractYouTubeViews : le Short au-delà du million n\'est plus sauté', ()
   assert.deepEqual(result.counted.map(c => c.href), ['/shorts/AAA', '/shorts/BBB']);
 });
 
+test('extractYouTubeViews : scanLimit repère plus de vidéos que postsLimit n\'en suit, sans changer le total', () => {
+  const raw = {
+    items: [
+      { href: '/shorts/AAA', text: '1 k vues' }, { href: '/shorts/BBB', text: '2 k vues' },
+      { href: '/shorts/CCC', text: '3 k vues' }, { href: '/shorts/DDD', text: '4 k vues' }
+    ],
+    spans: []
+  };
+  const result = extractYouTubeViews(raw, 2, 4);
+  assert.equal(result.total, 3000);
+  assert.deepEqual(result.scanned.map(c => c.href), ['/shorts/AAA', '/shorts/BBB', '/shorts/CCC', '/shorts/DDD']);
+});
+
 test('extractInstagramViews : grille en format français, puis replis play_count et texte', () => {
   const grid = extractInstagramViews({
     grid: [{ href: '/x/reel/R1/', text: '1,2 M' }, { href: '/x/reel/R2/', text: '12,3 k' }, { href: '/x/reel/R3/', text: '9K' }],
@@ -52,4 +65,20 @@ test('extractInstagramViews : grille en format français, puis replis play_count
 
   const text = extractInstagramViews({ grid: [], playCounts: [], bodyText: '10 k vues … 2,5 M de vues … 1 vue' }, 2);
   assert.equal(text.total, 2510000);
+});
+
+test('extractInstagramViews : scanLimit repère plus de publications que postsLimit n\'en suit, sans changer le total', () => {
+  const grid = [
+    { href: '/x/reel/R1/', text: '1K' }, { href: '/x/reel/R2/', text: '2K' },
+    { href: '/x/reel/R3/', text: '3K' }, { href: '/x/reel/R4/', text: '4K' }
+  ];
+  const result = extractInstagramViews({ grid, playCounts: [], bodyText: '' }, 2, 4);
+  assert.equal(result.total, 3000); // inchangé : toujours calculé sur les 2 premières (postsLimit)
+  assert.deepEqual(result.counted.map(c => c.href), ['/x/reel/R1/', '/x/reel/R2/']);
+  assert.deepEqual(result.scanned.map(c => c.href), ['/x/reel/R1/', '/x/reel/R2/', '/x/reel/R3/', '/x/reel/R4/']);
+});
+
+test('extractInstagramViews : replis (play_count/texte) sans ID -> scanned retombe sur counted', () => {
+  const result = extractInstagramViews({ grid: [], playCounts: [500, 700, 900], bodyText: '' }, 2, 10);
+  assert.deepEqual(result.scanned, result.counted);
 });

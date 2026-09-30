@@ -5,6 +5,7 @@ import { buildViewsSummary } from './instagram.js';
 import { build24hEmbed, buildAllTimeEmbed, buildErrorReportEmbed, buildStuckAccountsEmbed, buildDecliningAccountsEmbed } from './embed.js';
 import { acquireLock, releaseLock } from './cache.js';
 import { loadHistory, appendToday, computeGrowth24h, todayKey, detectStuckAccounts, detectDecliningAccounts } from './history.js';
+import { recordSeenPublications } from './publicationsLog.js';
 import { loadLastMessage, saveLastMessage } from './lastMessage.js';
 import { loadCumulativeViews, updateCumulativeViews, saveCumulativeViews } from './cumulativeViews.js';
 import { sendDataBackupToOwner } from './backup.js';
@@ -43,6 +44,7 @@ async function scrapeAndBroadcast(date = todayKey()) {
     // L'historique *avant* ajout du jour sert de référence pour le calcul
     // du gain 24h (comparer aujourd'hui à aujourd'hui n'aurait pas de sens).
     const historyBefore = loadHistory();
+    recordSeenPublications(summary, date);
     const growth24h = computeGrowth24h(historyBefore, summary, date);
 
     // Cumul "all time", classé indépendamment du leaderboard 24h (voir
