@@ -262,7 +262,7 @@ export async function buildViewsSummary(accounts = config.accounts, postsLimit =
 
        // --- INSTAGRAM ---
         if (url.includes('instagram.com')) {
-          const { total, posts, error } = await scrapeWithRetry('IG', async () => {
+          const { total, posts, seenPosts, error } = await scrapeWithRetry('IG', async () => {
             // Délai plus large que TikTok/YouTube : Instagram est la seule
             // plateforme où on utilise une session connectée, donc le compte
             // le plus exposé à une détection basée sur le rythme des requêtes.
@@ -413,7 +413,7 @@ export async function buildViewsSummary(accounts = config.accounts, postsLimit =
 
         // --- YOUTUBE ---
         else if (url.includes('youtube.com')) {
-          const { total, posts, error } = await scrapeWithRetry('YT', async () => {
+          const { total, posts, seenPosts, error } = await scrapeWithRetry('YT', async () => {
             await randomDelay(3000, 8000);
 
             const ytContext = await browser.newContext({
