@@ -113,12 +113,23 @@ test('collecte manquée (2 jours) : gain réparti sur les 2 jours, aucun jour vi
   assert.deepEqual(rows.map((r) => [r.day, r.views]), [['2026-08-14', 100], ['2026-08-15', 100]]);
 });
 
-test('cumul envoyé : plateforme plus suivie (URL vide) à 0, total inchangé', async () => {
+test('cumul envoyé : plateforme plus suivie (URL vide) à 0, et retirée de total (total = ig+tt+yt envoyés)', async () => {
   const { buildAccountViewsRows } = await import('../src/supabaseViews.js');
   const cumul = { kiksfryt: { total: 700, ig: 0, tt: 200, yt: 500 }, autre: { total: 10, ig: 10, tt: 0, yt: 0 } };
   const rows = buildAccountViewsRows(cumul, 'x', [{ name: 'kiksfryt', urls: ['', '', 'https://www.youtube.com/@keo_jvc'] }]);
-  assert.deepEqual(rows.find((r) => r.account_name === 'kiksfryt'), { account_name: 'kiksfryt', total: 700, ig: 0, tt: 0, yt: 500, updated_at: 'x' });
+  // tt masqué (URL vide) : retiré de ig/tt/yt ET de total, qui redevient exactement 0+0+500.
+  assert.deepEqual(rows.find((r) => r.account_name === 'kiksfryt'), { account_name: 'kiksfryt', total: 500, ig: 0, tt: 0, yt: 500, updated_at: 'x' });
   assert.equal(rows.find((r) => r.account_name === 'autre').ig, 10); // compte inconnu : inchangé
+});
+
+test('cumul envoyé : une seule plateforme masquée sur un compte à 3 réseaux -> total reste cohérent avec le détail restant', async () => {
+  const { buildAccountViewsRows } = await import('../src/supabaseViews.js');
+  // Même forme que art_hur__ en production : Instagram banni (URL vide), TikTok/YouTube actifs.
+  const cumul = { art_hur__: { total: 1244207, ig: 77534, tt: 622873, yt: 543800 } };
+  const urls = ['', 'https://www.tiktok.com/@keo_lambo', 'https://www.youtube.com/@keo.legacy'];
+  const row = buildAccountViewsRows(cumul, 'x', [{ name: 'art_hur__', urls }])[0];
+  assert.deepEqual(row, { account_name: 'art_hur__', total: 1166673, ig: 0, tt: 622873, yt: 543800, updated_at: 'x' });
+  assert.equal(row.total, row.ig + row.tt + row.yt); // la propriété qu'on garantit désormais
 });
 
 test('publications : une ligne par publication et par collecte, avec lien et date de publication', async () => {

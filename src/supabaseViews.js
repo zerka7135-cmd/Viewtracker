@@ -273,16 +273,24 @@ export function buildPostViewsRows(history, accounts = []) {
 /**
  * Lignes account_views : cumul all-time par compte. Une plateforme qui n'est
  * plus suivie (URL vide : compte banni ou retiré) est envoyée à 0 pour ne pas
- * s'afficher comme active ; le total, lui, garde ses vues passées.
+ * s'afficher comme active, et ses vues sont retirées de `total` aussi — sinon
+ * `total` resterait plus grand que `ig + tt + yt`, un écart qui ne se corrige
+ * d'aucun côté puisqu'il est renvoyé identique à chaque collecte. Le fichier
+ * interne du bot (cumulative-views.json) garde l'historique complet, intact :
+ * seule la version envoyée à l'app est réduite.
  */
 export function buildAccountViewsRows(cumulative, updatedAt = new Date().toISOString(), accounts = []) {
   const urlsByName = new Map(accounts.map((a) => [a.name, a.urls || []]));
   return Object.entries(cumulative).map(([account, v]) => {
     const urls = urlsByName.get(account);
-    const shown = (k, i) => (urls && !urls[i] ? 0 : v[k] || 0);
+    const masked = (k, i) => Boolean(urls && !urls[i]);
+    const shown = (k, i) => (masked(k, i) ? 0 : v[k] || 0);
+    const hiddenTotal = ['ig', 'tt', 'yt']
+      .map((k, i) => (masked(k, i) ? v[k] || 0 : 0))
+      .reduce((sum, n) => sum + n, 0);
     return {
       account_name: account,
-      total: v.total || 0,
+      total: Math.max(0, (v.total || 0) - hiddenTotal),
       ig: shown('ig', 0),
       tt: shown('tt', 1),
       yt: shown('yt', 2),
