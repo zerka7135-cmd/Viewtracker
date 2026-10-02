@@ -27,6 +27,7 @@ fs.writeFileSync(process.env.CUMULATIVE_VIEWS_PATH, JSON.stringify({
 }));
 
 const posts = {};
+const requestBodies = [];
 let acceptedSecret = 'secret-test';
 const server = http.createServer((req, res) => {
   if (req.url !== '/functions/v1/ingest-views' || req.method !== 'POST') { res.writeHead(404); return res.end(); }
@@ -34,8 +35,10 @@ const server = http.createServer((req, res) => {
   let body = '';
   req.on('data', (c) => { body += c; });
   req.on('end', () => {
-    const { table, rows } = JSON.parse(body);
+    const parsed = JSON.parse(body);
+    const { table, rows } = parsed;
     (posts[table] ||= []).push(...rows);
+    requestBodies.push(parsed);
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ ok: true, count: rows.length }));
   });

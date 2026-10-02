@@ -43,12 +43,12 @@ const SEND_ATTEMPTS = 3;
 // réessayant — secret invalide, payload rejeté — donc `retriable: false`
 // fait abandonner tout de suite plutôt que de perdre du temps sur
 // plusieurs tentatives vaines.
-async function sendOnce(table, batch) {
+async function sendOnce(table, batch, extra) {
   try {
     const res = await fetch(functionUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-ingest-secret': process.env.VIEWS_INGEST_SECRET },
-      body: JSON.stringify({ table, rows: batch }),
+      body: JSON.stringify({ table, rows: batch, ...extra }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     });
 
@@ -69,19 +69,36 @@ async function sendOnce(table, batch) {
   }
 }
 
+async function sendWithRetry(table, batch, extra) {
+  let result;
+  for (let attempt = 1; attempt <= SEND_ATTEMPTS; attempt++) {
+    result = await sendOnce(table, batch, extra);
+    if (result.ok || !result.retriable) break;
+    if (attempt < SEND_ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** (attempt - 1)));
+  }
+  if (!result.ok) throw result.error;
+}
+
 async function send(table, rows) {
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-    const batch = rows.slice(i, i + BATCH_SIZE);
-    let result;
-
-    for (let attempt = 1; attempt <= SEND_ATTEMPTS; attempt++) {
-      result = await sendOnce(table, batch);
-      if (result.ok || !result.retriable) break;
-      if (attempt < SEND_ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** (attempt - 1)));
-    }
-
-    if (!result.ok) throw result.error;
+    await sendWithRetry(table, rows.slice(i, i + BATCH_SIZE));
   }
+}
+
+// `extra` (ex. prune_day) doit voir TOUTES les lignes concernées en un seul
+// envoi, jamais réparties sur plusieurs lots — sinon l'app nettoierait à
+// tort des lignes valides tombées dans un autre lot qu'elle n'a pas sous
+// les yeux. INGEST_HARD_LIMIT est la limite dure côté app (1000 lignes par
+// requête) : si jamais dépassée, on renonce au nettoyage plutôt que de
+// risquer d'en perdre.
+const INGEST_HARD_LIMIT = 1000;
+
+async function sendWithExtra(table, rows, extra) {
+  if (rows.length > INGEST_HARD_LIMIT) {
+    console.error(`${table} : ${rows.length} lignes dépassent la limite d'un seul envoi (${INGEST_HARD_LIMIT}), nettoyage ignoré ce passage`);
+    return send(table, rows);
+  }
+  return sendWithRetry(table, rows, extra);
 }
 
 // Quand deux collectes sont espacées de plus d'un jour (bot arrêté,
@@ -317,8 +334,21 @@ export async function pushViewsToSupabase() {
     // Publications à part : un échec ici ne doit pas masquer l'envoi des vues.
     let postsNote;
     try {
-      const posts = buildPostViewsRows(loadHistory(), loadAccounts());
-      await send('post_views', posts);
+      const history = loadHistory();
+      const posts = buildPostViewsRows(history, loadAccounts());
+      // Un même jour calendaire peut être collecté deux fois (collecte
+      // manuelle suivie du cron, ou l'inverse) : seule la dernière collecte
+      // du jour est gardée dans l'historique, mais sans nettoyage, les
+      // publications repérées par la précédente (remplacée depuis) restent
+      // en résidu chez l'app, puisque l'envoi n'ajoute/remplace mais ne
+      // retire jamais. Seul le dernier jour connu peut avoir ce résidu : un
+      // jour passé n'est plus jamais recollecté, donc jamais à nettoyer —
+      // ses lignes repartent par le circuit normal, sans `prune_day`.
+      const latestDay = history.at(-1)?.date;
+      const latestDayPosts = posts.filter((r) => r.day === latestDay);
+      const pastPosts = posts.filter((r) => r.day !== latestDay);
+      await send('post_views', pastPosts);
+      if (latestDay) await sendWithExtra('post_views', latestDayPosts, { prune_day: latestDay });
       postsNote = `${posts.length} publication(s)`;
     } catch (error) {
       postsNote = `publications en échec (${error.message})`;

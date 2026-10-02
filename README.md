@@ -352,6 +352,16 @@ sinon null). **Règle des wins, appliquée côté app (fonction `wins()`) : une
 publication n'est un win que si elle dépasse 75 000 vues avec un âge maximum
 prouvé de 24 h ou moins — jamais au-delà, et jamais sans preuve.**
 
+Si un même jour calendaire est collecté deux fois (collecte manuelle suivie du
+cron, ou l'inverse — la seconde remplace la première dans l'historique), les
+publications repérées par la première et absentes de la seconde sont
+nettoyées côté app : l'envoi du dernier jour connu porte un champ
+`prune_day`, et l'app retire alors de `post_views` les lignes de ce jour qui
+ne sont pas dans l'envoi. Toujours en un seul envoi (jamais réparti sur
+plusieurs lots), pour que l'app voie toutes les lignes valides du jour avant
+de nettoyer. Les jours passés ne sont jamais concernés : une fois le jour
+calendaire écoulé, il n'est plus jamais recollecté.
+
 L'envoi réessaie jusqu'à 3 fois (attente croissante) sur une erreur réseau,
 un délai dépassé ou une erreur 5xx/429 ; une erreur 4xx (secret invalide,
 payload rejeté) abandonne tout de suite. Si l'app confirme la réception mais
